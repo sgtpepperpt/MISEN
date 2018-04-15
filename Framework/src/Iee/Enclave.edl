@@ -1,0 +1,33 @@
+enclave {
+    include "types.h"
+
+    trusted {
+        public void ecall_process([out]void** out, [out]size_t* out_len, [in, size = in_len]const void* in, size_t in_len);
+    };
+
+    untrusted {
+        // printing and debug
+        void ocall_print_string([in, string] const char *str);
+
+        // i/o
+        int ocall_open([in, string]const char* filename, int mode);
+        ssize_t ocall_read(int file, [out, size=len]void *buf, size_t len);
+        ssize_t ocall_write(int file, [in, size=len]void *buf, size_t len);
+        void ocall_close(int file);
+
+        // misc
+        void ocall_exit(int code);
+        untrusted_time ocall_curr_time();
+
+        int ocall_open_uee_connection();
+        void ocall_uee_process(int socket, [out]void** out, [out]size_t* out_len, [in, size = in_len]const void* in, size_t in_len);
+        void ocall_close_uee_connection(int socket);
+
+        // outside allocation
+        void* ocall_untrusted_malloc(size_t length);
+        void ocall_untrusted_free([out] void** pointer); // needs double pointer, if one it complains size is unknown
+
+        // outside comm
+        int ocall_process([out]void** out, [out]size_t* out_len, [in, size = in_len]const void* in, size_t in_len);
+    };
+};

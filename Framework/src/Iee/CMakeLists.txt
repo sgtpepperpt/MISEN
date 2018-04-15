@@ -1,0 +1,39 @@
+set(ENCLAVE_KEY_FILE ${IEE_DIR}/sgx_config/Enclave_private.pem)
+set(ENCLAVE_CONFIG_FILE ${IEE_DIR}/sgx_config/Enclave.config.xml)
+set(ENCLAVE_LINKER_FILE ${IEE_DIR}/sgx_config/Enclave_debug.lds)
+
+# flags
+set(c_flags "${SGX_COMMON_CFLAGS} -nostdinc -fvisibility=hidden -fpie -fstack-protector -ffunction-sections -fdata-sections -fstack-protector-strong")
+set(cpp_flags "${c_flags} -nostdinc++")
+set(CMAKE_C_FLAGS ${c_flags})
+set(CMAKE_CXX_FLAGS ${cpp_flags})
+
+add_custom_command(
+    OUTPUT ${IEE_DIR}/Enclave_t.h ${IEE_DIR}/Enclave_t.c
+    COMMAND ${SGX_EDGER8R} --trusted ${IEE_DIR}/Enclave.edl --trusted-dir ${IEE_DIR} --search-path ${IEE_DIR} --search-path ${FRAMEWORK_INCLUDE_DIR} --search-path $(SGX_SDK)/include
+)
+
+add_custom_target(edgr8r_trusted ALL DEPENDS ${IEE_DIR}/Enclave_t.h ${IEE_DIR}/Enclave_t.c)
+
+link_directories(${SGX_LIBRARY_PATH} ${EXTERN_DIR}/lib)
+
+add_executable(${ENCLAVE_NAME} ${IEE_DIR}/Enclave.cpp ${IEE_DIR}/Enclave_t.c ${IEE_DIR}/crypto.cpp ${IEE_DIR}/ocall_wrappers/ocall_wrapper.cpp)
+
+target_include_directories(${ENCLAVE_NAME} PRIVATE ${FRAMEWORK_INCLUDE_DIR} ${EXTERN_INCLUDE_DIR} ${IEE_DIR} ${IEE_DIR}/ocall_wrappers ${SGX_SDK}/include ${SGX_SDK}/include/libcxx ${SGX_SDK}/include/tlibc)
+target_link_libraries(${ENCLAVE_NAME} -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles
+    -Wl,--whole-archive sgx_trts -Wl,--no-whole-archive
+    -Wl,--start-group sgx_tstdc sgx_tcxx sgx_tcrypto sgx_tservice ${EXTERN_LIB_NAME} -Wl,--end-group
+    -Wl,-Bstatic -Wl,-Bsymbolic -Wl,--no-undefined
+    -Wl,-pie,-eenclave_entry -Wl,--export-dynamic
+    -Wl,--defsym,__ImageBase=0
+    -Wl,--version-script=${ENCLAVE_LINKER_FILE}
+    ${EXTERN_LIB_NAME}
+)
+
+add_custom_command(
+    OUTPUT enclave
+    COMMAND ${SGX_ENCLAVE_SIGNER} sign -key ${ENCLAVE_KEY_FILE} -enclave ${EXECUTABLE_OUTPUT_PATH}/${ENCLAVE_NAME} -out ${EXECUTABLE_OUTPUT_PATH}/${SIGNED_ENCLAVE_NAME} -config ${ENCLAVE_CONFIG_FILE}
+)
+
+add_custom_target(signer ALL DEPENDS enclave)
+
