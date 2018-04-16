@@ -14,6 +14,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${DEBUG_FLAGS} -c -Wall -fPIC -Wall -m64
 set(CMAKE_CXX_STANDARD 11)
 
 # define target library
-file(GLOB SOURCES src/*.cpp src/seq-kmeans/*.cpp)
+set(KMEANS_SRCS src/seq-kmeans/util.cpp src/seq-kmeans/kmeans.cpp src/seq-kmeans/bagofwords.cpp)
+set(SOURCES src/trusted.cpp src/untrusted.cpp src/training.cpp src/util.cpp ${KMEANS_SRCS})
+
 add_library(${EXTERN_LIB_NAME} ${SOURCES})
 target_include_directories(${EXTERN_LIB_NAME} PRIVATE ${EXTERN_INCLUDE_DIR} ${FRAMEWORK_INCLUDE_DIR} ${SGX_INCLUDE_PATHS})

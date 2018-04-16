@@ -1,12 +1,12 @@
 #include "internal_trusted.h"
 
-#define LABEL_LEN SHA256_OUTPUT_SIZE
-#define UNENC_VALUE_LEN (LABEL_LEN + sizeof(unsigned long) + sizeof(unsigned)) // (32 + 8 + 4)
-#define ENC_VALUE_LEN (UNENC_VALUE_LEN + 4) // AES padding (44 + 4)
+#include <map>
+
+#define LABEL_LEN (SHA256_OUTPUT_SIZE)
+#define UNENC_VALUE_LEN (LABEL_LEN + sizeof(unsigned long) + sizeof(unsigned)) // (32 + 8 + 4 = 44)
+#define ENC_VALUE_LEN (UNENC_VALUE_LEN + 4) // AES padding (44 + 4 = 48)
 
 BagOfWordsTrainer* k;
-map<std::string, size_t> image_descriptors;
-
 int server_socket;
 
 // keys for server encryption
@@ -20,34 +20,7 @@ uint8_t** centre_keys;
 unsigned* counters;
 unsigned total_docs;
 
-// DEBUG kmeans done count
-int ccount = 0;
-
-void normalise_idf(double *pDouble);
-
-void debug_print_points(float* points, size_t nr_rows, size_t row_len) {
-    for (size_t y = 0; y < nr_rows; ++y) {
-        for (size_t l = 0; l < row_len; ++l)
-            sgx_printf("%lf ", *(points + y * row_len + l));
-        sgx_printf("\n");
-    }
-}
-
-void debug_printbuf(uint8_t* buf, size_t len) {
-    for (size_t l = 0; l < len; ++l)
-        sgx_printf("%02x ", buf[l]);
-    sgx_printf("\n");
-
-}
-
-void ok_response(void** out, size_t* out_len) {
-    *out_len = 1;
-    unsigned char* ret = (unsigned char*)sgx_untrusted_malloc(sizeof(unsigned char));
-    ret[0] = 'x';
-    *out = ret;
-}
-
-void init_repository(void** out, size_t* out_len, const unsigned char* in, const size_t in_len) {
+void init_repository(const uint8_t* in, const size_t in_len) {
     unsigned nr_clusters;
     size_t desc_len;
 
@@ -78,56 +51,27 @@ void init_repository(void** out, size_t* out_len, const unsigned char* in, const
 
     // establish connection to uee
     server_socket = sgx_open_uee_connection();
-
-    // send generic response to client
-    ok_response(out, out_len);
 }
 
-void train_add_image(void** out, size_t* out_len, const unsigned char* in, const size_t in_len) {
-    unsigned long id;
-    size_t nr_rows;
+void clear_repository() {
+    free(kf);
+    free(ke);
 
-    memcpy(&id, in, sizeof(unsigned long));
-    memcpy(&nr_rows, in + sizeof(unsigned long), sizeof(size_t));
+    for (size_t i = 0; i < k->nr_centres(); i++)
+        free(centre_keys[i]);
+    free(centre_keys);
 
-    sgx_printf("add: id %lu nr_descs %d\n", id, nr_rows);
+    free(counters);
 
-    // store id and desc counter in map TODO store in server until kmeans done? so that client does not need to resend?
-    /*std::string i_str(id);
-    image_descriptors[i_str] = nr_rows;*/
+    // cleanup bag-of-words class
+    k->cleanup();
+    free(k);
 
-    // store in trainer
-    img_descriptor* descriptor = (img_descriptor*)malloc(sizeof(img_descriptor));
-    descriptor->count = nr_rows;
-
-    descriptor->buffer = (float*)malloc(nr_rows * k->desc_len() * sizeof(float));
-    memcpy(descriptor->buffer, in + sizeof(unsigned long) + sizeof(size_t), nr_rows * k->desc_len() * sizeof(float));
-
-    k->add_descriptors(descriptor);
-
-    if(k->is_full()) {
-        sgx_printf("Full, train images! %d\n", ccount++);
-        img_descriptor* centres = k->cluster();
-        //debug_print_points(centres->buffer, centres->count, k->desc_len());
-        free(centres);
-    }
-
-    // return ok to client
-    ok_response(out, out_len);
-}
-
-void train_kmeans(void** out, size_t* out_len, const unsigned char* in, const size_t in_len) {
-    img_descriptor* centres = k->cluster();
-    //debug_print_points(centres->buffer, centres->count, k->desc_len());
-    free(centres);
-
-    // return ok
-    ok_response(out, out_len);
+    sgx_close_uee_connection(server_socket);
 }
 
 static unsigned* process_new_image(const uint8_t* in, const size_t in_len) {
     size_t nr_desc;
-
     memcpy(&nr_desc, in, sizeof(size_t));
 
     float* descriptors = (float*)(in + sizeof(size_t));
@@ -258,16 +202,14 @@ static double* calc_idf(size_t total_docs, unsigned* counters) {
     return idf;
 }
 
-#include <map>
-
 void weight_idf(double *idf, unsigned* frequencies) {
-    for (int i = 0; i < k->nr_centres(); ++i)
+    for (size_t i = 0; i < k->nr_centres(); ++i)
         idf[i] *= frequencies[i];
 }
 
 int compare_results(const void *a, const void *b) {
-    double d_a = *((const double*) (a + sizeof(unsigned long)));
-    double d_b = *((const double*) (b + sizeof(unsigned long)));
+    double d_a = *((const double*) ((const uint8_t *)a + sizeof(unsigned long)));
+    double d_b = *((const double*) ((const uint8_t *)b + sizeof(unsigned long)));
 
     if (d_a == d_b)
         return 0;
@@ -286,7 +228,7 @@ void search_image(void** out, size_t* out_len, const uint8_t* in, const size_t i
         sgx_printf("%lf ", idf[i]);
     } sgx_printf("\n");
 
-    weight_idf(idf, frequencies);
+    //weight_idf(idf, frequencies);
     for (size_t i = 0; i < k->nr_centres(); ++i) {
         sgx_printf("%lf ", idf[i]);
     } sgx_printf("\n");
@@ -329,9 +271,6 @@ void search_image(void** out, size_t* out_len, const uint8_t* in, const size_t i
         // iterate over all the occurences of that centre
         for (unsigned j = 0; j < counters[i]; ++j) {
             // calc label
-            uint8_t req[sizeof(unsigned char) + LABEL_LEN];
-            req[0] = 's';
-
             c_hmac_sha256(tmp, &j, sizeof(unsigned), centre_keys[i], LABEL_LEN);
             tmp += LABEL_LEN;
             //debug_printbuf(req + 1, LABEL_LEN);
@@ -359,7 +298,12 @@ void search_image(void** out, size_t* out_len, const uint8_t* in, const size_t i
             debug_printbuf(res_unenc, UNENC_VALUE_LEN);
             sgx_printf("------------\n");*/
 
-            // TODO verify label
+            int verify = memcmp(res_unenc, (req_buffer + sizeof(unsigned char) + sizeof(size_t)) + j * LABEL_LEN, LABEL_LEN);
+            if(verify) {
+                sgx_printf("Label verification doesn't match! Exit\n");
+                sgx_exit(-1);
+            }
+
             unsigned long id;
             memcpy(&id, res_unenc + LABEL_LEN, sizeof(unsigned long));
 
@@ -410,26 +354,6 @@ void search_image(void** out, size_t* out_len, const uint8_t* in, const size_t i
     ok_response(out, out_len);
 }
 
-void clear_repository(void** out, size_t* out_len, const unsigned char* in, const size_t in_len) {
-    free(kf);
-    free(ke);
-
-    for (size_t i = 0; i < k->nr_centres(); i++)
-        free(centre_keys[i]);
-    free(centre_keys);
-
-    free(counters);
-
-    // cleanup bag-of-words class
-    k->cleanup();
-    free(k);
-
-    sgx_close_uee_connection(server_socket);
-
-    // return ok
-    ok_response(out, out_len);
-}
-
 void trusted_process_message(void** out, size_t* out_len, const void* in, const size_t in_len) {
     // decrypt in
 
@@ -442,33 +366,42 @@ void trusted_process_message(void** out, size_t* out_len, const void* in, const 
     *out = NULL;
 
     switch(((unsigned char*)in)[0]) {
-        case 'i':
+        case 'i': {
             sgx_printf("Init repository!\n");
-            init_repository(out, out_len, input, input_len);
+            init_repository(input, input_len);
+            ok_response(out, out_len);
             break;
-        case 'a':
+        }
+        case 'a': {
             sgx_printf("Train add image!\n");
-            train_add_image(out, out_len, input, input_len);
+            train_add_image(k, out, out_len, input, input_len);
             break;
-        case 'k':
+        }
+        case 'k': {
             sgx_printf("Train kmeans!\n");
-            train_kmeans(out, out_len, input, input_len);
+            train_kmeans(k, out, out_len, input, input_len);
             break;
-        case 'n':
+        }
+        case 'n': {
             sgx_printf("Add after train images!\n");
             add_image(out, out_len, input, input_len);
             break;
-        case 's':
+        }
+        case 's': {
             sgx_printf("Search!\n");
             search_image(out, out_len, input, input_len);
             break;
-        case 'c':
+        }
+        case 'c': {
             sgx_printf("Clear repository!\n");
-            clear_repository(out, out_len, input, input_len);
+            clear_repository();
+            ok_response(out, out_len);
             break;
-        default:
+        }
+        default: {
             sgx_printf("Unrecognised op: %c\n", ((unsigned char*)in)[0]);
             break;
+        }
     }
 
     // encrypt out
