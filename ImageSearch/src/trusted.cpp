@@ -1,6 +1,8 @@
 #include "internal_trusted.h"
 
 #define LABEL_LEN SHA256_OUTPUT_SIZE
+#define UNENC_VALUE_LEN (LABEL_LEN + sizeof(unsigned long) + sizeof(unsigned)) // (32 + 8 + 4)
+#define ENC_VALUE_LEN (UNENC_VALUE_LEN + 4) // AES padding (44 + 4)
 
 BagOfWordsTrainer* k;
 map<std::string, size_t> image_descriptors;
@@ -21,12 +23,21 @@ unsigned total_docs;
 // DEBUG kmeans done count
 int ccount = 0;
 
+void normalise_idf(double *pDouble);
+
 void debug_print_points(float* points, size_t nr_rows, size_t row_len) {
     for (size_t y = 0; y < nr_rows; ++y) {
         for (size_t l = 0; l < row_len; ++l)
             sgx_printf("%lf ", *(points + y * row_len + l));
         sgx_printf("\n");
     }
+}
+
+void debug_printbuf(uint8_t* buf, size_t len) {
+    for (size_t l = 0; l < len; ++l)
+        sgx_printf("%02x ", buf[l]);
+    sgx_printf("\n");
+
 }
 
 void ok_response(void** out, size_t* out_len) {
@@ -89,7 +100,7 @@ void train_add_image(void** out, size_t* out_len, const unsigned char* in, const
     img_descriptor* descriptor = (img_descriptor*)malloc(sizeof(img_descriptor));
     descriptor->count = nr_rows;
 
-    descriptor->buffer = (float *)malloc(nr_rows * k->desc_len() * sizeof(float));
+    descriptor->buffer = (float*)malloc(nr_rows * k->desc_len() * sizeof(float));
     memcpy(descriptor->buffer, in + sizeof(unsigned long) + sizeof(size_t), nr_rows * k->desc_len() * sizeof(float));
 
     k->add_descriptors(descriptor);
@@ -128,10 +139,17 @@ static unsigned* process_new_image(const uint8_t* in, const size_t in_len) {
     unsigned* frequencies = (unsigned*)malloc(k->nr_centres() * sizeof(unsigned));
     memset(frequencies, 0x00, k->nr_centres() * sizeof(unsigned));
 
+    //debug_print_points(descriptors, nr_desc, 64);
+
     // for each descriptor, calculate its closest centre
     for (size_t i = 0; i < nr_desc; ++i) {
+        /*double sum = 0;
+        for (int l = 0; l < 64; ++l) {
+            sum += *(descriptors + i * k->desc_len() + l);
+        }
+        sgx_printf("sum %f\n", sum);*/
         double min_dist = DBL_MAX;
-        unsigned pos = -1;
+        int pos = -1;
 
         //sgx_printf("descriptor: \n");
         //debug_print_points(descriptors + i * k->desc_len(), 1, 64);
@@ -156,60 +174,72 @@ static unsigned* process_new_image(const uint8_t* in, const size_t in_len) {
 }
 
 static void add_image(void** out, size_t* out_len, const uint8_t* in, const size_t in_len) {
+    // used for aes TODO better
+    unsigned char ctr[AES_BLOCK_SIZE];
+    memset(ctr, 0x00, AES_BLOCK_SIZE);
+
+    // get image id from buffer
     unsigned long id;
     memcpy(&id, in, sizeof(unsigned long));
-    sgx_printf("add: %lu\n", id);
+    sgx_printf("add, id %lu\n", id);
 
     unsigned* frequencies = process_new_image(in + sizeof(unsigned long), in_len - sizeof(unsigned long));
 
-    for (size_t i = 0; i < k->nr_centres(); i++) {
+    sgx_printf("frequencies: ");
+    for (size_t i = 0; i < k->nr_centres(); i++)
         sgx_printf("%u ", frequencies[i]);
-        if(frequencies[i])
-            counters[i]++;
-    }
     sgx_printf("\n");
+
+    // prepare request to uee
+    size_t req_len = sizeof(unsigned char) + sizeof(size_t) + k->nr_centres() * (LABEL_LEN + ENC_VALUE_LEN);
+    uint8_t* req_buffer = (uint8_t*)malloc(req_len);
+    req_buffer[0] = 'a';
+
+    uint8_t* tmp = req_buffer + sizeof(unsigned char);
+
+    size_t len = k->nr_centres();
+    memcpy(tmp, &len, sizeof(size_t));
+    tmp += sizeof(size_t);
 
     // add visual words to server with their frequencies
     for (size_t m = 0; m < k->nr_centres(); ++m) { //TODO batches
+        memset(ctr, 0x00, AES_BLOCK_SIZE);
         // calculate label based on current counter for the centre
-        void* label = malloc(SHA256_OUTPUT_SIZE);
         int counter = counters[m];
-        c_hmac_sha256(label, &counter, sizeof(unsigned), centre_keys[m], SHA256_OUTPUT_SIZE);
+        c_hmac_sha256(tmp, &counter, sizeof(unsigned), centre_keys[m], LABEL_LEN);
+        uint8_t* label = tmp; // keep a reference to the label
+        //debug_printbuf(tmp, LABEL_LEN);
+        tmp += LABEL_LEN;
+
+        // increase the centre counter, if present
+        if(frequencies[m])
+            counters[m]++;
+
+        //debug_printbuf(label, LABEL_LEN);
 
         // calculate value
         // label + img_id + frequency
-        const size_t value_size = SHA256_OUTPUT_SIZE + sizeof(unsigned long) + sizeof(unsigned);
-        unsigned char value[value_size];
-        memcpy(value, label, SHA256_OUTPUT_SIZE);
-        memcpy(value + SHA256_OUTPUT_SIZE, &id, sizeof(unsigned long));
-        memcpy(value + SHA256_OUTPUT_SIZE + sizeof(unsigned long), &frequencies[m], sizeof(unsigned));
+        unsigned char value[UNENC_VALUE_LEN];
+        memcpy(value, label, LABEL_LEN);
+        memcpy(value + LABEL_LEN, &id, sizeof(unsigned long));
+        memcpy(value + LABEL_LEN + sizeof(unsigned long), &frequencies[m], sizeof(unsigned));
 
         // encrypt value
-        const size_t blocks = value_size / AES_BLOCK_SIZE + (value_size % AES_BLOCK_SIZE? 1 : 0);
-
-        unsigned char enc_val[blocks * AES_BLOCK_SIZE];
-        unsigned char ctr[AES_BLOCK_SIZE];
-        memset(ctr, 0x00, AES_BLOCK_SIZE);
-        c_encrypt(enc_val, value, value_size, ke, ctr);
-
-        // send to server
-        size_t query_size = sizeof(unsigned char) + SHA256_OUTPUT_SIZE + blocks * AES_BLOCK_SIZE;
-        uint8_t query[query_size];
-        query[0] = 'a';
-        memcpy(query + sizeof(unsigned char), label, SHA256_OUTPUT_SIZE);
-        memcpy(query + sizeof(unsigned char) + SHA256_OUTPUT_SIZE, enc_val, AES_BLOCK_SIZE);
-
-        size_t res_len;
-        void* res;
-        sgx_uee_process(server_socket, &res, &res_len, query, query_size);
-        sgx_untrusted_free(res);
-
-        free(label);
+        c_encrypt(tmp, value, UNENC_VALUE_LEN, ke, ctr);
+        //debug_printbuf(tmp, ENC_VALUE_LEN);
+        tmp += ENC_VALUE_LEN;
     }
+
+    // send to server
+    size_t res_len;
+    void* res;
+    sgx_uee_process(server_socket, &res, &res_len, req_buffer, req_len);
+    sgx_untrusted_free(res);
 
     total_docs++;
 
     free(frequencies);
+    free(req_buffer);
 
     // return ok
     ok_response(out, out_len);
@@ -220,32 +250,164 @@ static double* calc_idf(size_t total_docs, unsigned* counters) {
     memset(idf, 0x00, k->nr_centres() * sizeof(double));
 
     for(size_t i = 0; i < k->nr_centres(); i++) {
-        idf[i] = log10((double)total_docs / (((double)counters[i]) + 1));
-        sgx_printf("%lu %lu %lf\n", total_docs, counters[i], log10((double)total_docs / (((double)counters[i]) + 1)));
+        double non_zero_counters = counters[i] ? (double)counters[i] : (double)counters[i] + 1.0;
+        idf[i] = log10((double)total_docs / non_zero_counters);
+        //sgx_printf("%lu %lu %lf\n", total_docs, (size_t)non_zero_counters, log10((double)total_docs / non_zero_counters));
     }
 
     return idf;
 }
 
+#include <map>
+
+void weight_idf(double *idf, unsigned* frequencies) {
+    for (int i = 0; i < k->nr_centres(); ++i)
+        idf[i] *= frequencies[i];
+}
+
+int compare_results(const void *a, const void *b) {
+    double d_a = *((const double*) (a + sizeof(unsigned long)));
+    double d_b = *((const double*) (b + sizeof(unsigned long)));
+
+    if (d_a == d_b)
+        return 0;
+    else
+        return d_a < d_b ? 1 : -1;
+}
+
 void search_image(void** out, size_t* out_len, const uint8_t* in, const size_t in_len) {
     unsigned* frequencies = process_new_image(in, in_len);
+    for (size_t i = 0; i < k->nr_centres(); ++i) {
+        sgx_printf("%u ", frequencies[i]);
+    } sgx_printf("\n");
 
     double* idf = calc_idf(total_docs, counters);
     for (size_t i = 0; i < k->nr_centres(); ++i) {
         sgx_printf("%lf ", idf[i]);
-    }sgx_printf("\n");
+    } sgx_printf("\n");
 
-    // get documents from server
+    weight_idf(idf, frequencies);
+    for (size_t i = 0; i < k->nr_centres(); ++i) {
+        sgx_printf("%lf ", idf[i]);
+    } sgx_printf("\n");
+
+/*
+    const unsigned max_labels_batch = 10000;
+    uint8_t* req_buffer = (uint8_t*)malloc(max_labels_batch * LABEL_LEN);
+    memset(req_buffer, 0x00, max_labels_batch * LABEL_LEN);
+*/
+    // calc size of request
+    size_t nr_labels = 0;
+    for (size_t i = 0; i < k->nr_centres(); ++i) {
+        if(frequencies[i])
+            nr_labels += counters[i];
+    }
+
+    uint8_t* res_buffer = (uint8_t*)malloc(nr_labels * LABEL_LEN);
+    memset(res_buffer, 0x00, nr_labels * LABEL_LEN);
+
+    //uint8_t* tmp = res_buffer;
+
+    std::map<unsigned long, double> docs;
+
+    // TODO randomise, batch_requests, do not ignore zero counters
     for (size_t i = 0; i < k->nr_centres(); ++i) {
         if(!frequencies[i])
             continue;
 
-        const unsigned max_labels_batch = 10000;
-        uint8_t* buffer_req = (uint8_t*)malloc(max_labels_batch * LABEL_LEN);
+        sgx_printf("centre %lu (%u counters)\n", i, counters[i]);
+
+        size_t req_len = sizeof(unsigned char) + sizeof(size_t) + counters[i] * LABEL_LEN;
+        uint8_t* req_buffer = (uint8_t*)malloc(req_len);
+        req_buffer[0] = 's';
+        uint8_t* tmp = req_buffer + sizeof(unsigned char);
+
+        size_t count = counters[i];
+        memcpy(tmp, &count, sizeof(size_t));
+        tmp += sizeof(size_t);
+
+        // iterate over all the occurences of that centre
+        for (unsigned j = 0; j < counters[i]; ++j) {
+            // calc label
+            uint8_t req[sizeof(unsigned char) + LABEL_LEN];
+            req[0] = 's';
+
+            c_hmac_sha256(tmp, &j, sizeof(unsigned), centre_keys[i], LABEL_LEN);
+            tmp += LABEL_LEN;
+            //debug_printbuf(req + 1, LABEL_LEN);
+        }
+
+        size_t res_len;
+        uint8_t* res_buffer;
+
+        // perform request to uee
+        sgx_uee_process(server_socket, (void**)&res_buffer, &res_len, req_buffer, req_len);
+
+        uint8_t* res_tmp = res_buffer;
+
+        for (unsigned j = 0; j < counters[i]; ++j) {
+            // decode res
+            uint8_t res_unenc[UNENC_VALUE_LEN];
+            unsigned char ctr[AES_BLOCK_SIZE];
+            memset(ctr, 0x00, AES_BLOCK_SIZE);
+
+            c_decrypt(res_unenc, res_tmp, ENC_VALUE_LEN, ke, ctr);
+            res_tmp += ENC_VALUE_LEN;
+
+            /*sgx_printf("------------\n");
+            debug_printbuf(req + sizeof(unsigned char), LABEL_LEN);
+            debug_printbuf(res_unenc, UNENC_VALUE_LEN);
+            sgx_printf("------------\n");*/
+
+            // TODO verify label
+            unsigned long id;
+            memcpy(&id, res_unenc + LABEL_LEN, sizeof(unsigned long));
+
+            unsigned frequency;
+            memcpy(&frequency, res_unenc + LABEL_LEN + sizeof(unsigned long), sizeof(unsigned));
+
+            //sgx_printf("id: %lu %u\n", id, frequency);
+
+            if (docs[id])
+                docs[id] += frequency * idf[i];
+            else
+                docs[id] = frequency * idf[i];
+
+            //sgx_printf("tf idf %lf\n", docs[id]);
+
+        }
+
+        free(req_buffer);
+        sgx_untrusted_free(res_buffer);
     }
 
+    // put result in simple structure, to sort
+    uint8_t* res = (uint8_t*)malloc(docs.size() * (sizeof(unsigned long) + sizeof(double)));
+    int pos = 0;
+    for (map<unsigned long, double>::iterator l = docs.begin(); l != docs.end() ; ++l) {
+        memcpy(res + pos * (sizeof(unsigned long) + sizeof(double)), &l->first, sizeof(unsigned long));
+        memcpy(res + pos * (sizeof(unsigned long) + sizeof(double)) + sizeof(unsigned long), &l->second, sizeof(double));
+        pos++;
+    }
+
+    qsort(res, docs.size(), sizeof(unsigned long) + sizeof(double), compare_results);
+    for (size_t m = 0; m < min(docs.size(), 15); ++m) {
+        unsigned long a;
+        double b;
+
+        memcpy(&a, res + m * (sizeof(unsigned long) + sizeof(double)), sizeof(unsigned long));
+        memcpy(&b, res + m * (sizeof(unsigned long) + sizeof(double)) + sizeof(unsigned long), sizeof(double));
+
+        sgx_printf("%lu %f\n", a, b);
+    } sgx_printf("\n");
+
+    free(res);
+
+    free(res_buffer);
     free(idf);
     free(frequencies);
+
+    ok_response(out, out_len);
 }
 
 void clear_repository(void** out, size_t* out_len, const unsigned char* in, const size_t in_len) {

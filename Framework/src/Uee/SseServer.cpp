@@ -22,9 +22,26 @@ void ok_response(uint8_t** out, size_t* out_len) {
     *out[0] = 'x';
 }
 
+// map label and value sizes
 const size_t l_size = 32;
-const size_t d_size = 44;
+const size_t d_size = 48;
+
 unordered_map<void*, void*, VoidHash<l_size>, VoidEqual<l_size>> I;
+
+static void clear_repository() {
+    for (unordered_map<void*, void*, VoidHash<l_size>, VoidEqual<l_size>>::iterator it = I.begin(); it != I.end() ; ++it) {
+        free(it->first);
+        free(it->second);
+    }
+
+    I.clear();
+}
+
+void debug_printbuf(uint8_t* buf, size_t len) {
+    for (size_t l = 0; l < len; ++l)
+        printf("%02x ", buf[l]);
+    printf("\n");
+}
 
 void* process_client(void* args) {
     const int socket = ((client_data *) args)->socket;
@@ -46,6 +63,9 @@ void* process_client(void* args) {
 
         switch (op) {
             case 'i': {
+                // clean previous elements, if any
+                clear_repository();
+
                 printf("Server init\n");
                 //memcpy(&l_size, in_buffer + sizeof(uint8_t), sizeof(size_t));
                 //memcpy(&d_size, in_buffer + sizeof(uint8_t) + sizeof(size_t), sizeof(size_t));
@@ -54,18 +74,28 @@ void* process_client(void* args) {
                 break;
             }
             case 'a': {
-                printf("Add image\n");
+                printf("Add image (c. %lu)\n", I.size());
 
                 struct timeval start, end;
                 gettimeofday(&start, NULL);
 
-                uint8_t* label = (uint8_t*)malloc(l_size);
-                uint8_t* d = (uint8_t*)malloc(d_size);
+                uint8_t* tmp = in_buffer + sizeof(unsigned char);
 
-                memcpy(label, in_buffer + sizeof(uint8_t), l_size);
-                memcpy(d, in_buffer + sizeof(uint8_t) + l_size, d_size);
+                size_t nr_labels;
+                memcpy(&nr_labels, tmp, sizeof(size_t));
+                tmp += sizeof(size_t);
 
-                I[label] = d;
+                for (size_t i = 0; i < nr_labels; ++i) {
+                    uint8_t* label = (uint8_t*)malloc(l_size);
+                    memcpy(label, tmp, l_size);
+                    tmp += l_size;
+
+                    uint8_t* d = (uint8_t*)malloc(d_size);
+                    memcpy(d, tmp, d_size);
+                    tmp += d_size;
+
+                    I[label] = d;
+                }
 
                 ok_response(&out, &out_len);
                 gettimeofday(&end, NULL);
@@ -75,37 +105,28 @@ void* process_client(void* args) {
             }
 
             case 's': {
-                printf("Add image\n");
+                printf("Search\n");
 
-                uint8_t* label = (uint8_t*)malloc(l_size);
-                uint8_t* d = (uint8_t*)malloc(d_size);
+                uint8_t* tmp = in_buffer + sizeof(unsigned char);
 
-                memcpy(label, in_buffer + sizeof(uint8_t), l_size);
-                memcpy(d, in_buffer + sizeof(uint8_t) + l_size, d_size);
+                size_t nr_labels;
+                memcpy(&nr_labels, tmp, sizeof(size_t));
+                tmp += sizeof(size_t);
 
-                I[label] = d;
+                out_len = nr_labels * d_size;
+                out = (uint8_t*)malloc(out_len);
 
-                ok_response(&out, &out_len);
-                break;
-            }
+                for (size_t i = 0; i < nr_labels; ++i) {
+                    uint8_t label[l_size];
+                    memcpy(label, tmp, l_size);
+                    tmp += l_size;
 
-            case 'x': {
-
-
-                size_t batch_size;
-                /*socket_receive(readIeePipe, (unsigned char*)&batch_size, sizeof(size_t));
-
-                for(size_t i = 0; i < batch_size; i++) {
-                    void* l = malloc(10);
-                    socket_receive(readIeePipe, (unsigned char*)l, 10);
-
-                    void* d = malloc(20);
-                    socket_receive(readIeePipe, (unsigned char*)d, 20);
-                }*/
-
+                    memcpy(out + i * d_size, I[label], d_size);
+                }
 
                 break;
             }
+
             default:
                 printf("SseServer unkonwn command: %02x\n", op);
         }

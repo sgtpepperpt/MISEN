@@ -20,6 +20,14 @@ link_directories(${SGX_LIBRARY_PATH} ${EXTERN_DIR}/lib)
 add_executable(${ENCLAVE_NAME} ${IEE_DIR}/Enclave.cpp ${IEE_DIR}/Enclave_t.c ${IEE_DIR}/crypto.cpp ${IEE_DIR}/ocall_wrappers/ocall_wrapper.cpp)
 
 target_include_directories(${ENCLAVE_NAME} PRIVATE ${FRAMEWORK_INCLUDE_DIR} ${EXTERN_INCLUDE_DIR} ${IEE_DIR} ${IEE_DIR}/ocall_wrappers ${SGX_SDK}/include ${SGX_SDK}/include/libcxx ${SGX_SDK}/include/tlibc)
+
+# To generate a proper enclave, it is recommended to follow below guideline to link the trusted libraries:
+#    1. Link sgx_trts with the `--whole-archive' and `--no-whole-archive' options,
+#       so that the whole content of trts is included in the enclave.
+#    2. For other libraries, you just need to pull the required symbols.
+#       Use `--start-group' and `--end-group' to link these libraries.
+# Do NOT move the libraries linked with `--start-group' and `--end-group' within `--whole-archive' and `--no-whole-archive' options.
+# Otherwise, you may get some undesirable errors.
 target_link_libraries(${ENCLAVE_NAME} -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles
     -Wl,--whole-archive sgx_trts -Wl,--no-whole-archive
     -Wl,--start-group sgx_tstdc sgx_tcxx sgx_tcrypto sgx_tservice ${EXTERN_LIB_NAME} -Wl,--end-group

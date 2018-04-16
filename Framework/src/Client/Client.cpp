@@ -28,21 +28,21 @@ vector<string> get_filenames(int n) {
 }
 
 void iee_comm(const int socket, const void *in, const size_t in_len) {
-    printf("Iee query; %lu bytes\n", in_len);
+    printf("query: %lu bytes; ", in_len);
     socket_send(socket, &in_len, sizeof(size_t));
     socket_send(socket, in, in_len);
 
     // receive response (and discard for now) TODO
     size_t res_len;
     socket_receive(socket, &res_len, sizeof(size_t));
-    printf("Iee res: %lu bytes\n", res_len);
+    printf("res: %lu bytes\n", res_len);
     unsigned char res[res_len];
     socket_receive(socket, res, res_len);
 
 
-    for (int i = 0; i < res_len; ++i)
+    /*for (int i = 0; i < res_len; ++i)
         printf("%c ", res[i]);
-    printf("\n");
+    printf("\n");*/
 }
 
 void init(uint8_t **in, size_t *in_len, unsigned nr_clusters, size_t row_len) {
@@ -57,7 +57,6 @@ void init(uint8_t **in, size_t *in_len, unsigned nr_clusters, size_t row_len) {
 void add_train_images(uint8_t **in, size_t *in_len, const Ptr<SURF> surf, std::string file_name) {
     const char *id = strrchr(file_name.c_str(), '/') + sizeof(char); // +sizeof(char) excludes the slash
     unsigned long num_id = strtoul(id, NULL, 0);
-    printf("%s\n", id);
 
     Mat image = imread(file_name);
     if (!image.data) {
@@ -102,7 +101,6 @@ void add_train_images(uint8_t **in, size_t *in_len, const Ptr<SURF> surf, std::s
 void add_images(uint8_t **in, size_t *in_len, const Ptr<SURF> surf, std::string file_name) {
     const char *id = strrchr(file_name.c_str(), '/') + sizeof(char); // +sizeof(char) excludes the slash
     unsigned long num_id = strtoul(id, NULL, 0);
-    printf("%s\n", id);
 
     Mat image = imread(file_name);
     if (!image.data) {
@@ -160,7 +158,7 @@ void clear(uint8_t **in, size_t *in_len) {
 
 void search(uint8_t **in, size_t *in_len, const Ptr<SURF> surf, const std::string file_name) {
     const char *id = strrchr(file_name.c_str(), '/') + sizeof(char); // +sizeof(char) excludes the slash
-    printf("Search for %s\n", id);
+    printf(" - Search for %s -\n", id);
 
     Mat image = imread(file_name);
     if (!image.data) {
@@ -185,7 +183,7 @@ void search(uint8_t **in, size_t *in_len, const Ptr<SURF> surf, const std::strin
     }
 
     // send
-    *in_len = sizeof(unsigned char) + 2 * sizeof(size_t) + nr_rows * row_len * sizeof(float);
+    *in_len = sizeof(unsigned char) + sizeof(size_t) + nr_rows * row_len * sizeof(float);
 
     *in = (uint8_t *) malloc(*in_len);
     uint8_t *tmp = *in;
@@ -194,9 +192,6 @@ void search(uint8_t **in, size_t *in_len, const Ptr<SURF> surf, const std::strin
     tmp += sizeof(unsigned char);
 
     memcpy(tmp, &nr_rows, sizeof(size_t));
-    tmp += sizeof(size_t);
-
-    memcpy(tmp, &row_len, sizeof(size_t));
     tmp += sizeof(size_t);
 
     memcpy(tmp, descriptors_buffer, nr_rows * row_len * sizeof(float));
@@ -216,6 +211,7 @@ int main(int argc, char **argv) {
     const size_t row_len = 64;
     const size_t nr_clusters = 100;
     const int nr_images = atoi(argv[1]);
+    const double surf_threshold = 400;
 
     // parse terminal arguments
     /*int c;
@@ -241,7 +237,7 @@ int main(int argc, char **argv) {
     const int socket = socket_connect(server_name, server_port);
 
     // image descriptor parameters
-    Ptr<SURF> surf = SURF::create(400);
+    Ptr<SURF> surf = SURF::create(surf_threshold);
     Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create("FlannBased");
     Ptr<BOWImgDescriptorExtractor> bowExtractor = new BOWImgDescriptorExtractor(surf, matcher);
 
@@ -256,6 +252,7 @@ int main(int argc, char **argv) {
     // adding
     const vector<string> files = get_filenames(nr_images);
     for (unsigned i = 0; i < files.size(); i++) {
+        printf("Train img (%u/%lu) %s\n", i, files.size(), files[i].c_str());
         add_train_images(&in, &in_len, surf, files[i]);
         iee_comm(socket, in, in_len);
         free(in);
@@ -268,6 +265,7 @@ int main(int argc, char **argv) {
 
     // add images to repository
     for (unsigned i = 0; i < files.size(); i++) {
+        printf("Add img (%u/%lu)\n", i, files.size());
         add_images(&in, &in_len, surf, files[i]);
         iee_comm(socket, in, in_len);
         free(in);

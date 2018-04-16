@@ -7,6 +7,8 @@ set(EXTERN_DIR ${CMAKE_SOURCE_DIR}/ImageSearch)
 set(EXTERN_LIB_NAME ImageSearch)
 
 ########################################################################################################################
+########################################### PROBABLY NOT NEEDED TO EDIT BELOW ##########################################
+########################################################################################################################
 # paths for binaries
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/lib)
