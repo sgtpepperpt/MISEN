@@ -4,6 +4,16 @@ using namespace cv;
 using namespace cv::xfeatures2d;
 using namespace std;
 
+// TODO now hardcoded for dev
+uint8_t key[AES_BLOCK_SIZE];
+uint8_t ctr[AES_BLOCK_SIZE];
+
+void debug_printbuf(uint8_t* buf, size_t len) {
+    for (size_t l = 0; l < len; ++l)
+        printf("%02x ", buf[l]);
+    printf("\n");
+}
+
 vector<string> get_filenames(int n) {
     string holidayDir = "/home/guilherme/Datasets/inria";
     vector<string> filenames;
@@ -28,21 +38,45 @@ vector<string> get_filenames(int n) {
 }
 
 void iee_comm(const int socket, const void *in, const size_t in_len) {
+    // encrypt before sending
+    /*uint8_t* enc = (uint8_t*)malloc(in_len);
+    memset(ctr, 0x00, AES_BLOCK_SIZE); // TODO do not repeat ctr
+    c_encrypt(enc, (uint8_t *)in, in_len, key, ctr);
+
+    debug_printbuf((uint8_t *)in, in_len);
+
     printf("query: %lu bytes; ", in_len);
     socket_send(socket, &in_len, sizeof(size_t));
-    socket_send(socket, in, in_len);
+    socket_send(socket, enc, in_len);
 
-    // receive response (and discard for now) TODO
+    // receive response (and discard for now) TODO do not
     size_t res_len;
     socket_receive(socket, &res_len, sizeof(size_t));
     printf("res: %lu bytes\n", res_len);
+
     unsigned char res[res_len];
     socket_receive(socket, res, res_len);
 
+    uint8_t* dec = (uint8_t*)malloc(res_len);
+    memset(ctr, 0x00, AES_BLOCK_SIZE); // TODO do not repeat ctr
+    c_decrypt(dec, res, res_len, key, ctr);
 
-    /*for (int i = 0; i < res_len; ++i)
-        printf("%c ", res[i]);
-    printf("\n");*/
+//    debug_printbuf(dec, res_len);
+
+    free(enc);
+    free(dec);*/
+
+    socket_send(socket, &in_len, sizeof(size_t));
+    socket_send(socket, in, in_len);
+
+    size_t res_len;
+    socket_receive(socket, &res_len, sizeof(size_t));
+    printf("res: %lu bytes\n", res_len);
+
+    unsigned char res[res_len];
+    socket_receive(socket, res, res_len);
+
+    debug_printbuf(res, res_len);
 }
 
 void init(uint8_t **in, size_t *in_len, unsigned nr_clusters, size_t row_len) {
@@ -75,7 +109,7 @@ void add_train_images(uint8_t **in, size_t *in_len, const Ptr<SURF> surf, std::s
 
     float *descriptors_buffer = (float *) malloc(desc_len * nr_desc * sizeof(float));
     for (unsigned i = 0; i < nr_desc; i++) {
-        for (int j = 0; j < desc_len; j++)
+        for (size_t j = 0; j < desc_len; j++)
             descriptors_buffer[i * desc_len + j] = *descriptors.ptr<float>(i, j);
     }
 
@@ -119,7 +153,7 @@ void add_images(uint8_t **in, size_t *in_len, const Ptr<SURF> surf, std::string 
 
     float *descriptors_buffer = (float *) malloc(desc_len * nr_desc * sizeof(float));
     for (unsigned i = 0; i < nr_desc; i++) {
-        for (int j = 0; j < desc_len; j++)
+        for (size_t j = 0; j < desc_len; j++)
             descriptors_buffer[i * desc_len + j] = *descriptors.ptr<float>(i, j);
     }
 
@@ -172,18 +206,18 @@ void search(uint8_t **in, size_t *in_len, const Ptr<SURF> surf, const std::strin
     Mat descriptors;
     surf->compute(image, keypoints, descriptors);
 
-    const size_t row_len = (size_t) descriptors.size().width;
-    const size_t nr_rows = (size_t) descriptors.size().height;
+    const size_t desc_len = (size_t) descriptors.size().width;
+    const size_t nr_desc = (size_t) descriptors.size().height;
 
-    float *descriptors_buffer = (float *) malloc(row_len * nr_rows * sizeof(float));
+    float *descriptors_buffer = (float *) malloc(desc_len * nr_desc * sizeof(float));
 
-    for (unsigned i = 0; i < nr_rows; ++i) {
-        for (int j = 0; j < row_len; ++j)
-            descriptors_buffer[i * row_len + j] = *descriptors.ptr<float>(i, j);
+    for (unsigned i = 0; i < nr_desc; ++i) {
+        for (size_t j = 0; j < desc_len; ++j)
+            descriptors_buffer[i * desc_len + j] = *descriptors.ptr<float>(i, j);
     }
 
     // send
-    *in_len = sizeof(unsigned char) + sizeof(size_t) + nr_rows * row_len * sizeof(float);
+    *in_len = sizeof(unsigned char) + sizeof(size_t) + nr_desc * desc_len * sizeof(float);
 
     *in = (uint8_t *) malloc(*in_len);
     uint8_t *tmp = *in;
@@ -191,10 +225,10 @@ void search(uint8_t **in, size_t *in_len, const Ptr<SURF> surf, const std::strin
     tmp[0] = 's';
     tmp += sizeof(unsigned char);
 
-    memcpy(tmp, &nr_rows, sizeof(size_t));
+    memcpy(tmp, &nr_desc, sizeof(size_t));
     tmp += sizeof(size_t);
 
-    memcpy(tmp, descriptors_buffer, nr_rows * row_len * sizeof(float));
+    memcpy(tmp, descriptors_buffer, nr_desc * desc_len * sizeof(float));
 
     free(descriptors_buffer);
 }
@@ -202,6 +236,9 @@ void search(uint8_t **in, size_t *in_len, const Ptr<SURF> surf, const std::strin
 int main(int argc, char **argv) {
     const char *server_name = "localhost";
     const int server_port = 7910;
+
+    memset(key, 0x00, AES_BLOCK_SIZE);
+    memset(ctr, 0x00, AES_BLOCK_SIZE);
 
     if (argc != 2) {
         printf("no arg\n");
@@ -256,6 +293,7 @@ int main(int argc, char **argv) {
         add_train_images(&in, &in_len, surf, files[i]);
         iee_comm(socket, in, in_len);
         free(in);
+        printf("\n");
     }
 
     // train
@@ -265,7 +303,7 @@ int main(int argc, char **argv) {
 
     // add images to repository
     for (unsigned i = 0; i < files.size(); i++) {
-        printf("Add img (%u/%lu)\n", i, files.size());
+        printf("Add img (%u/%lu)\n\n", i, files.size());
         add_images(&in, &in_len, surf, files[i]);
         iee_comm(socket, in, in_len);
         free(in);

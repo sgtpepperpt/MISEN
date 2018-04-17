@@ -68,7 +68,7 @@ img_descriptor* BagOfWordsTrainer::cluster() {
     }
 
     float *all_descriptors = (float*)malloc(total_descriptors * kmeans->desc_len * sizeof(float));
-    sgx_printf("total %lu desc %lu - %lu %p\n", total_descriptors, kmeans->desc_len, total_descriptors * kmeans->desc_len * sizeof(float), all_descriptors);
+    //sgx_printf("total %lu desc %lu - %lu %p\n", total_descriptors, kmeans->desc_len, total_descriptors * kmeans->desc_len * sizeof(float), all_descriptors);
     float *tmp = all_descriptors;
     for (list<img_descriptor*>::iterator it = descriptors.begin(); it != descriptors.end(); ++it) {
         memcpy(tmp, (*it)->buffer, kmeans->desc_len * (*it)->count * sizeof(float));

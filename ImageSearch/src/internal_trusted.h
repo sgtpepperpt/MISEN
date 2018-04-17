@@ -10,9 +10,9 @@
 #include <string>
 #include <stdint.h>
 
+#include "types.h"
 #include "ocall_wrapper.h"
 #include "crypto.h"
-#include "types.h"
 #include "training.h"
 #include "util.h"
 

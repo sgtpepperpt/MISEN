@@ -12,12 +12,11 @@ void debug_printbuf(uint8_t* buf, size_t len) {
     for (size_t l = 0; l < len; ++l)
         sgx_printf("%02x ", buf[l]);
     sgx_printf("\n");
-
 }
 
-void ok_response(void** out, size_t* out_len) {
+void ok_response(uint8_t** out, size_t* out_len) {
     *out_len = 1;
-    unsigned char* ret = (unsigned char*)sgx_untrusted_malloc(sizeof(unsigned char));
+    unsigned char* ret = (unsigned char*)malloc(sizeof(unsigned char));
     ret[0] = 'x';
     *out = ret;
 }

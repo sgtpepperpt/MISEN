@@ -1,5 +1,6 @@
 #include "internal_trusted.h"
 
+using namespace std;
 #include <map>
 
 #define LABEL_LEN (SHA256_OUTPUT_SIZE)
@@ -20,13 +21,7 @@ uint8_t** centre_keys;
 unsigned* counters;
 unsigned total_docs;
 
-void init_repository(const uint8_t* in, const size_t in_len) {
-    unsigned nr_clusters;
-    size_t desc_len;
-
-    memcpy(&nr_clusters, in, sizeof(unsigned));
-    memcpy(&desc_len, in + sizeof(unsigned), sizeof(size_t));
-
+void repository_init(unsigned nr_clusters, size_t desc_len) {
     k = new BagOfWordsTrainer(nr_clusters, desc_len);
 
     // generate keys
@@ -53,7 +48,7 @@ void init_repository(const uint8_t* in, const size_t in_len) {
     server_socket = sgx_open_uee_connection();
 }
 
-void clear_repository() {
+void repository_clear() {
     free(kf);
     free(ke);
 
@@ -117,7 +112,7 @@ static unsigned* process_new_image(const uint8_t* in, const size_t in_len) {
     return frequencies;
 }
 
-static void add_image(void** out, size_t* out_len, const uint8_t* in, const size_t in_len) {
+static void add_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_t in_len) {
     // used for aes TODO better
     unsigned char ctr[AES_BLOCK_SIZE];
     memset(ctr, 0x00, AES_BLOCK_SIZE);
@@ -184,9 +179,6 @@ static void add_image(void** out, size_t* out_len, const uint8_t* in, const size
 
     free(frequencies);
     free(req_buffer);
-
-    // return ok
-    ok_response(out, out_len);
 }
 
 static double* calc_idf(size_t total_docs, unsigned* counters) {
@@ -217,7 +209,7 @@ int compare_results(const void *a, const void *b) {
         return d_a < d_b ? 1 : -1;
 }
 
-void search_image(void** out, size_t* out_len, const uint8_t* in, const size_t in_len) {
+void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_t in_len) {
     unsigned* frequencies = process_new_image(in, in_len);
     for (size_t i = 0; i < k->nr_centres(); ++i) {
         sgx_printf("%u ", frequencies[i]);
@@ -350,17 +342,14 @@ void search_image(void** out, size_t* out_len, const uint8_t* in, const size_t i
     free(res_buffer);
     free(idf);
     free(frequencies);
-
-    ok_response(out, out_len);
 }
 
-void trusted_process_message(void** out, size_t* out_len, const void* in, const size_t in_len) {
-    // decrypt in
-
-
+void trusted_process_message(uint8_t** out, size_t* out_len, const uint8_t* in, const size_t in_len) {
     // pass pointer without op char to processing functions
-    unsigned char* input = ((unsigned char*)in) + sizeof(unsigned char);
+    uint8_t* input = ((uint8_t*)in) + sizeof(unsigned char);
     const size_t input_len = in_len - sizeof(unsigned char);
+
+    //debug_printbuf((uint8_t*)in, in_len);
 
     *out_len = 0;
     *out = NULL;
@@ -368,42 +357,59 @@ void trusted_process_message(void** out, size_t* out_len, const void* in, const 
     switch(((unsigned char*)in)[0]) {
         case 'i': {
             sgx_printf("Init repository!\n");
-            init_repository(input, input_len);
+
+            unsigned nr_clusters;
+            size_t desc_len;
+
+            memcpy(&nr_clusters, input, sizeof(unsigned));
+            memcpy(&desc_len, input + sizeof(unsigned), sizeof(size_t));
+
+            sgx_printf("desc_len %lu %u\n", desc_len, nr_clusters);
+
+            repository_init(nr_clusters, desc_len);
             ok_response(out, out_len);
             break;
         }
         case 'a': {
             sgx_printf("Train add image!\n");
-            train_add_image(k, out, out_len, input, input_len);
+
+            unsigned long id;
+            size_t nr_desc;
+
+            memcpy(&id, input, sizeof(unsigned long));
+            memcpy(&nr_desc, input + sizeof(unsigned long), sizeof(size_t));
+
+            train_add_image(k, id, nr_desc, input, input_len);
+            ok_response(out, out_len);
             break;
         }
         case 'k': {
             sgx_printf("Train kmeans!\n");
-            train_kmeans(k, out, out_len, input, input_len);
+            train_kmeans(k);
+            ok_response(out, out_len);
             break;
         }
         case 'n': {
             sgx_printf("Add after train images!\n");
             add_image(out, out_len, input, input_len);
+            ok_response(out, out_len);
             break;
         }
         case 's': {
             sgx_printf("Search!\n");
             search_image(out, out_len, input, input_len);
+            ok_response(out, out_len);
             break;
         }
         case 'c': {
             sgx_printf("Clear repository!\n");
-            clear_repository();
+            repository_clear();
             ok_response(out, out_len);
             break;
         }
         default: {
-            sgx_printf("Unrecognised op: %c\n", ((unsigned char*)in)[0]);
+            sgx_printf("Unrecognised op: %02x\n", ((unsigned char*)in)[0]);
             break;
         }
     }
-
-    // encrypt out
-
 }

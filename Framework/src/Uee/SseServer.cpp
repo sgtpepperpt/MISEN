@@ -28,7 +28,7 @@ const size_t d_size = 48;
 
 unordered_map<void*, void*, VoidHash<l_size>, VoidEqual<l_size>> I;
 
-static void clear_repository() {
+static void repository_clear() {
     for (unordered_map<void*, void*, VoidHash<l_size>, VoidEqual<l_size>>::iterator it = I.begin(); it != I.end() ; ++it) {
         free(it->first);
         free(it->second);
@@ -64,7 +64,7 @@ void* process_client(void* args) {
         switch (op) {
             case 'i': {
                 // clean previous elements, if any
-                clear_repository();
+                repository_clear();
 
                 printf("Server init\n");
                 //memcpy(&l_size, in_buffer + sizeof(uint8_t), sizeof(size_t));
@@ -103,7 +103,6 @@ void* process_client(void* args) {
 
                 break;
             }
-
             case 's': {
                 printf("Search\n");
 
