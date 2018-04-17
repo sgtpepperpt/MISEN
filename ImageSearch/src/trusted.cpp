@@ -317,6 +317,9 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
         sgx_untrusted_free(res_buffer);
     }
 
+    const unsigned response_size_docs = 15;
+    const unsigned response_imgs = min(docs.size(), response_size_docs);
+
     // put result in simple structure, to sort
     uint8_t* res = (uint8_t*)malloc(docs.size() * (sizeof(unsigned long) + sizeof(double)));
     int pos = 0;
@@ -327,7 +330,7 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
     }
 
     qsort(res, docs.size(), sizeof(unsigned long) + sizeof(double), compare_results);
-    for (size_t m = 0; m < min(docs.size(), 15); ++m) {
+    for (size_t m = 0; m < response_imgs; ++m) {
         unsigned long a;
         double b;
 
@@ -337,11 +340,19 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
         sgx_printf("%lu %f\n", a, b);
     } sgx_printf("\n");
 
-    free(res);
-
     free(res_buffer);
     free(idf);
     free(frequencies);
+
+    // fill response buffer
+    *out_len = sizeof(size_t) + response_size_docs * (sizeof(unsigned long) + sizeof(double));
+    *out = (uint8_t*)malloc(*out_len);
+    memset(*out, 0x00, *out_len);
+
+    memcpy(*out, &response_imgs, sizeof(size_t));
+    memcpy(*out + sizeof(size_t), res, response_imgs * (sizeof(unsigned long) + sizeof(double)));
+
+    free(res);
 }
 
 void trusted_process_message(uint8_t** out, size_t* out_len, const uint8_t* in, const size_t in_len) {
@@ -398,7 +409,6 @@ void trusted_process_message(uint8_t** out, size_t* out_len, const uint8_t* in, 
         case 's': {
             sgx_printf("Search!\n");
             search_image(out, out_len, input, input_len);
-            ok_response(out, out_len);
             break;
         }
         case 'c': {

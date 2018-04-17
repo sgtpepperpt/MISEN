@@ -37,6 +37,18 @@ vector<string> get_filenames(int n) {
     return filenames;
 }
 
+void iee_send(const int socket, const uint8_t* in, const size_t in_len) {
+    socket_send(socket, &in_len, sizeof(size_t));
+    socket_send(socket, in, in_len);
+}
+
+
+void iee_recv(const int socket, uint8_t** out, size_t* out_len) {
+    socket_receive(socket, out_len, sizeof(size_t));
+    *out = (uint8_t*)malloc(*out_len);
+    socket_receive(socket, *out, *out_len);
+}
+
 void iee_comm(const int socket, const void *in, const size_t in_len) {
     // encrypt before sending
     /*uint8_t* enc = (uint8_t*)malloc(in_len);
@@ -66,17 +78,15 @@ void iee_comm(const int socket, const void *in, const size_t in_len) {
     free(enc);
     free(dec);*/
 
-    socket_send(socket, &in_len, sizeof(size_t));
-    socket_send(socket, in, in_len);
+    iee_send(socket, (uint8_t*)in, in_len);
 
     size_t res_len;
-    socket_receive(socket, &res_len, sizeof(size_t));
+    uint8_t* res;
+    iee_recv(socket, &res, &res_len);
+
     printf("res: %lu bytes\n", res_len);
 
-    unsigned char res[res_len];
-    socket_receive(socket, res, res_len);
-
-    debug_printbuf(res, res_len);
+    //debug_printbuf(res, res_len);
 }
 
 void init(uint8_t **in, size_t *in_len, unsigned nr_clusters, size_t row_len) {
@@ -311,8 +321,29 @@ int main(int argc, char **argv) {
 
     // search
     search(&in, &in_len, surf, get_filenames(10)[0]);
-    iee_comm(socket, in, in_len);
+    iee_send(socket, in, in_len);
     free(in);
+
+    // receive response and print
+    size_t res_len;
+    uint8_t* res;
+    iee_recv(socket, &res, &res_len);
+
+    unsigned nr;
+    memcpy(&nr, res, sizeof(unsigned));
+    printf("nr of imgs: %u\n", nr);
+
+    for (unsigned j = 0; j < nr; ++j) {
+        unsigned long id;
+        memcpy(&id, res + sizeof(size_t) + j * (sizeof(unsigned long) + sizeof(double)), sizeof(unsigned long));
+
+        double score;
+        memcpy(&score, res + sizeof(size_t) + j * (sizeof(unsigned long) + sizeof(double)) + sizeof(unsigned long), sizeof(double));
+
+        printf("%lu %f\n", id, score);
+    }
+
+    free(res);
 
     // clear
     clear(&in, &in_len);
