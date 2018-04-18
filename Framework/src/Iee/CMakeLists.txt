@@ -17,7 +17,7 @@ add_custom_target(edgr8r_trusted ALL DEPENDS ${IEE_DIR}/Enclave_t.h ${IEE_DIR}/E
 
 link_directories(${SGX_LIBRARY_PATH} ${EXTERN_DIR}/lib)
 
-add_executable(${ENCLAVE_NAME} ${IEE_DIR}/Enclave.cpp ${IEE_DIR}/Enclave_t.c ${IEE_DIR}/crypto.cpp ${IEE_DIR}/ocall_wrappers/ocall_wrapper.cpp)
+add_executable(${ENCLAVE_NAME} ${IEE_DIR}/Enclave.cpp ${IEE_DIR}/Enclave_t.c ${IEE_DIR}/crypto.cpp ${IEE_DIR}/threading/Worker.cpp ${IEE_DIR}/ocall_wrappers/ocall_wrapper.cpp)
 
 target_include_directories(${ENCLAVE_NAME} PRIVATE ${FRAMEWORK_INCLUDE_DIR} ${EXTERN_INCLUDE_DIR} ${IEE_DIR} ${IEE_DIR}/ocall_wrappers ${SGX_SDK}/include ${SGX_SDK}/include/libcxx ${SGX_SDK}/include/tlibc)
 

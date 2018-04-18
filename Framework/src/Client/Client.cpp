@@ -256,7 +256,7 @@ int main(int argc, char **argv) {
     }
 
     const size_t row_len = 64;
-    const size_t nr_clusters = 100;
+    const size_t nr_clusters = 1000;
     const int nr_images = atoi(argv[1]);
     const double surf_threshold = 400;
 
@@ -320,7 +320,7 @@ int main(int argc, char **argv) {
     }
 
     // search
-    search(&in, &in_len, surf, get_filenames(10)[0]);
+    search(&in, &in_len, surf, get_filenames(10)[1]);
     iee_send(socket, in, in_len);
     free(in);
 

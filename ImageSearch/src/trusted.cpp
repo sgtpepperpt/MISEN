@@ -305,9 +305,9 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
             //sgx_printf("id: %lu %u\n", id, frequency);
 
             if (docs[id])
-                docs[id] += frequency * idf[i];
+                docs[id] += frequencies[i] * 1 + log10(frequency) * idf[i];
             else
-                docs[id] = frequency * idf[i];
+                docs[id] = frequencies[i] * 1 + log10(frequency) * idf[i];
 
             //sgx_printf("tf idf %lf\n", docs[id]);
 
@@ -317,25 +317,26 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
         sgx_untrusted_free(res_buffer);
     }
 
-    const unsigned response_size_docs = 15;
+    const unsigned response_size_docs = 100;
     const unsigned response_imgs = min(docs.size(), response_size_docs);
+    const size_t single_res_len = sizeof(unsigned long) + sizeof(double);
 
     // put result in simple structure, to sort
-    uint8_t* res = (uint8_t*)malloc(docs.size() * (sizeof(unsigned long) + sizeof(double)));
+    uint8_t* res = (uint8_t*)malloc(docs.size() * single_res_len);
     int pos = 0;
     for (map<unsigned long, double>::iterator l = docs.begin(); l != docs.end() ; ++l) {
-        memcpy(res + pos * (sizeof(unsigned long) + sizeof(double)), &l->first, sizeof(unsigned long));
-        memcpy(res + pos * (sizeof(unsigned long) + sizeof(double)) + sizeof(unsigned long), &l->second, sizeof(double));
+        memcpy(res + pos * single_res_len, &l->first, sizeof(unsigned long));
+        memcpy(res + pos * single_res_len + sizeof(unsigned long), &l->second, sizeof(double));
         pos++;
     }
 
-    qsort(res, docs.size(), sizeof(unsigned long) + sizeof(double), compare_results);
+    qsort(res, docs.size(), single_res_len, compare_results);
     for (size_t m = 0; m < response_imgs; ++m) {
         unsigned long a;
         double b;
 
-        memcpy(&a, res + m * (sizeof(unsigned long) + sizeof(double)), sizeof(unsigned long));
-        memcpy(&b, res + m * (sizeof(unsigned long) + sizeof(double)) + sizeof(unsigned long), sizeof(double));
+        memcpy(&a, res + m * single_res_len, sizeof(unsigned long));
+        memcpy(&b, res + m * single_res_len + sizeof(unsigned long), sizeof(double));
 
         sgx_printf("%lu %f\n", a, b);
     } sgx_printf("\n");
@@ -345,12 +346,12 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
     free(frequencies);
 
     // fill response buffer
-    *out_len = sizeof(size_t) + response_size_docs * (sizeof(unsigned long) + sizeof(double));
+    *out_len = sizeof(size_t) + response_size_docs * single_res_len;
     *out = (uint8_t*)malloc(*out_len);
     memset(*out, 0x00, *out_len);
 
     memcpy(*out, &response_imgs, sizeof(size_t));
-    memcpy(*out + sizeof(size_t), res, response_imgs * (sizeof(unsigned long) + sizeof(double)));
+    memcpy(*out + sizeof(size_t), res, response_imgs * single_res_len);
 
     free(res);
 }
@@ -422,4 +423,12 @@ void trusted_process_message(uint8_t** out, size_t* out_len, const uint8_t* in, 
             break;
         }
     }
+}
+
+void trusted_thread_enter() {
+    sgx_printf("hello, tnread\n");
+}
+
+void trusted_init() {
+    sgx_printf("init function!\n");
 }

@@ -17,6 +17,7 @@
 
 #include "ocall.h"
 #include "sgx_handler.h"
+#include "thread_pool.h"
 
 // util
 #include "net_util.h"

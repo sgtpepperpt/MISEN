@@ -35,7 +35,6 @@ void* process_client(void* args) {
 
         // verify return values from sgx
         if (status != SGX_SUCCESS) {
-            printf("SGX error:\n");
             print_error_message(status);
             exit(-1);
         }
@@ -55,6 +54,9 @@ int SGX_CDECL main(int argc, const char **argv) {
     // port to start the server on
     const int server_port = 7910;
 
+    // nr of threads in enclave
+    const unsigned nr_threads = 4;
+
     // register signal handler
     signal(SIGINT, close_all);
 
@@ -65,7 +67,17 @@ int SGX_CDECL main(int argc, const char **argv) {
         return -1;
     }
 
-    printf("Enclave eid is %lu.\n", eid);
+    printf("Enclave id: %lu\n", eid);
+
+    // perform internal enclave initialisation
+    sgx_status_t status = ecall_init_enclave(eid);
+    if (status != SGX_SUCCESS) {
+        print_error_message(status);
+        exit(-1);
+    }
+
+    // initialise thread pool
+    thread_pool* pool = init_thread_pool(eid, nr_threads);
 
     // initialise listener socket
     server_socket = init_server(server_port);
@@ -94,6 +106,8 @@ int SGX_CDECL main(int argc, const char **argv) {
 
     // cleanup and exit
     destroy_enclave(eid);
+    delete_thread_pool(pool);
+
     printf("Enclave successfully terminated.\n");
     return 0;
 }

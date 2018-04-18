@@ -37,3 +37,11 @@ void ecall_process(void** out, size_t* out_len, const void* in, const size_t in_
 
     *out = res;
 }
+
+void ecall_thread_enter() {
+    trusted_thread_enter();
+}
+
+void ecall_init_enclave() {
+    trusted_init();
+}
