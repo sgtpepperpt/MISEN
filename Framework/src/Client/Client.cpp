@@ -295,6 +295,7 @@ int main(int argc, char **argv) {
     init(&in, &in_len, nr_clusters, row_len);
     iee_comm(socket, in, in_len);
     free(in);
+    return 0;
 
     // adding
     const vector<string> files = get_filenames(nr_images);
@@ -329,16 +330,18 @@ int main(int argc, char **argv) {
     uint8_t* res;
     iee_recv(socket, &res, &res_len);
 
+    const size_t single_res_size = sizeof(unsigned long) + sizeof(double);
+
     unsigned nr;
     memcpy(&nr, res, sizeof(unsigned));
     printf("nr of imgs: %u\n", nr);
 
     for (unsigned j = 0; j < nr; ++j) {
         unsigned long id;
-        memcpy(&id, res + sizeof(size_t) + j * (sizeof(unsigned long) + sizeof(double)), sizeof(unsigned long));
+        memcpy(&id, res + sizeof(size_t) + j * single_res_size, sizeof(unsigned long));
 
         double score;
-        memcpy(&score, res + sizeof(size_t) + j * (sizeof(unsigned long) + sizeof(double)) + sizeof(unsigned long), sizeof(double));
+        memcpy(&score, res + sizeof(size_t) + j * single_res_size + sizeof(unsigned long), sizeof(double));
 
         printf("%lu %f\n", id, score);
     }

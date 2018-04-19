@@ -17,9 +17,15 @@ add_custom_target(edgr8r_trusted ALL DEPENDS ${IEE_DIR}/Enclave_t.h ${IEE_DIR}/E
 
 link_directories(${SGX_LIBRARY_PATH} ${EXTERN_DIR}/lib)
 
-add_executable(${ENCLAVE_NAME} ${IEE_DIR}/Enclave.cpp ${IEE_DIR}/Enclave_t.c ${IEE_DIR}/crypto.cpp ${IEE_DIR}/threading/Worker.cpp ${IEE_DIR}/ocall_wrappers/ocall_wrapper.cpp)
+# sources
+set(IEE_ENCLAVE ${IEE_DIR}/Enclave.cpp ${IEE_DIR}/Enclave_t.c ${IEE_DIR}/crypto.cpp)
+set(IEE_THREADING ${IEE_DIR}/threading/thread_handler.cpp)
+set(IEE_OCALL ${IEE_DIR}/ocall_wrappers/ocall_wrapper.cpp)
 
-target_include_directories(${ENCLAVE_NAME} PRIVATE ${FRAMEWORK_INCLUDE_DIR} ${EXTERN_INCLUDE_DIR} ${IEE_DIR} ${IEE_DIR}/ocall_wrappers ${SGX_SDK}/include ${SGX_SDK}/include/libcxx ${SGX_SDK}/include/tlibc)
+add_executable(${ENCLAVE_NAME} ${IEE_ENCLAVE} ${IEE_THREADING} ${IEE_OCALL})
+
+# includes and linking
+target_include_directories(${ENCLAVE_NAME} PRIVATE ${FRAMEWORK_INCLUDE_DIR} ${EXTERN_INCLUDE_DIR} ${IEE_DIR} ${IEE_DIR}/ocall_wrappers ${IEE_DIR}/threading ${SGX_SDK}/include ${SGX_SDK}/include/libcxx ${SGX_SDK}/include/tlibc)
 
 # To generate a proper enclave, it is recommended to follow below guideline to link the trusted libraries:
 #    1. Link sgx_trts with the `--whole-archive' and `--no-whole-archive' options,

@@ -1,4 +1,5 @@
 #include "internal_trusted.h"
+#include "trusted_util.h"
 
 using namespace std;
 #include <map>
@@ -357,6 +358,21 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
 }
 
 void trusted_process_message(uint8_t** out, size_t* out_len, const uint8_t* in, const size_t in_len) {
+    /*sgx_printf("init!\n");
+    uint8_t* c = (uint8_t*)malloc(8);
+    int a = 2;
+    memcpy(c, &a, 4);
+    a = 5;
+    memcpy(c + 4, &a, 4);
+
+    tutil_thread_add_work(c);
+    tutil_thread_add_work(NULL);
+    tutil_thread_add_work(NULL);
+    tutil_thread_add_work(NULL);
+    tutil_thread_do_work();
+
+    sgx_printf("end!\n");*/
+
     // pass pointer without op char to processing functions
     uint8_t* input = ((uint8_t*)in) + sizeof(unsigned char);
     const size_t input_len = in_len - sizeof(unsigned char);
@@ -425,8 +441,8 @@ void trusted_process_message(uint8_t** out, size_t* out_len, const uint8_t* in, 
     }
 }
 
-void trusted_thread_enter() {
-    sgx_printf("hello, tnread\n");
+void trusted_thread_do_task(void* args) {
+    sgx_printf("hello, tnread %lu %ld\n", sgx_curr_time().tv_sec, sgx_curr_time().tv_usec);
 }
 
 void trusted_init() {

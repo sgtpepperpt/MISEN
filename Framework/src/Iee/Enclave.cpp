@@ -1,6 +1,38 @@
 #include "Enclave.h"
 
 #include <string.h>
+#include <mutex>
+#include <condition_variable>
+
+#include "ocall_wrapper.h"
+#include "crypto.h"
+#include "thread_handler.h"
+
+void ecall_init_enclave(unsigned nr_threads) {
+    thread_handler_init(nr_threads);
+
+    // let extern lib do its own init
+    trusted_init();
+}
+
+void ecall_thread_enter() {
+    // register thread as entering
+    thread_data* my_data = thread_handler_add();
+
+    while (1) {
+        // wait until we have work
+        std::unique_lock<std::mutex> lock(*my_data->lock);
+        my_data->cond_var->wait(lock, [&my_data]{return my_data->ready;});
+
+        // extern lib's own handling
+        trusted_thread_do_task(my_data->task_args);
+
+        my_data->ready = 0;
+        my_data->done = 1;
+        lock.unlock();
+        my_data->cond_var->notify_one();
+    }
+}
 
 void ecall_process(void** out, size_t* out_len, const void* in, const size_t in_len) {
     /*// TODO do not use this hardcoded values
@@ -36,12 +68,4 @@ void ecall_process(void** out, size_t* out_len, const void* in, const size_t in_
     free(*out);
 
     *out = res;
-}
-
-void ecall_thread_enter() {
-    trusted_thread_enter();
-}
-
-void ecall_init_enclave() {
-    trusted_init();
 }

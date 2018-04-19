@@ -70,7 +70,7 @@ int SGX_CDECL main(int argc, const char **argv) {
     printf("Enclave id: %lu\n", eid);
 
     // perform internal enclave initialisation
-    sgx_status_t status = ecall_init_enclave(eid);
+    sgx_status_t status = ecall_init_enclave(eid, nr_threads);
     if (status != SGX_SUCCESS) {
         print_error_message(status);
         exit(-1);
