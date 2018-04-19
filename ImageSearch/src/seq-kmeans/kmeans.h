@@ -5,7 +5,7 @@
 #include <string.h>
 #include <float.h>
 
-#include "ocall_wrapper.h"
+#include "../../../Framework/include/untrusted_util.h"
 
 #include "util.h"
 

@@ -1,7 +1,23 @@
-#include "internal_trusted.h"
+#include "trusted.h"
+
+#include <unistd.h>
+#include <string.h>
+#include <math.h>
+#include <stdint.h>
+
+// includes from framework
+#include "types.h"
 #include "trusted_util.h"
+#include "untrusted_util.h"
+#include "trusted_crypto.h"
+
+// training and kmeans
+#include "training.h"
+#include "util.h"
 
 using namespace std;
+using namespace untrusted_util;
+
 #include <map>
 
 #define LABEL_LEN (SHA256_OUTPUT_SIZE)
@@ -28,14 +44,14 @@ void repository_init(unsigned nr_clusters, size_t desc_len) {
     // generate keys
     kf = malloc(SHA256_BLOCK_SIZE);
     ke = malloc(AES_KEY_SIZE);
-    c_random(kf, SHA256_BLOCK_SIZE);
-    c_random(ke, AES_KEY_SIZE);
+    tcrypto::random(kf, SHA256_BLOCK_SIZE);
+    tcrypto::random(ke, AES_KEY_SIZE);
 
     // init key map
     centre_keys = (uint8_t**)malloc(sizeof(uint8_t*) * nr_clusters);
     for (unsigned i = 0; i < nr_clusters; ++i) {
         uint8_t* key = (uint8_t*)malloc(SHA256_OUTPUT_SIZE);
-        c_hmac_sha256(key, &i, sizeof(unsigned), kf, SHA256_BLOCK_SIZE);
+        tcrypto::hmac_sha256(key, &i, sizeof(unsigned), kf, SHA256_BLOCK_SIZE);
 
         centre_keys[i] = key;
     }
@@ -46,7 +62,7 @@ void repository_init(unsigned nr_clusters, size_t desc_len) {
     total_docs = 0;
 
     // establish connection to uee
-    server_socket = sgx_open_uee_connection();
+    server_socket = untrusted_util::open_uee_connection();
 }
 
 void repository_clear() {
@@ -63,7 +79,7 @@ void repository_clear() {
     k->cleanup();
     free(k);
 
-    sgx_close_uee_connection(server_socket);
+    untrusted_util::close_uee_connection(server_socket);
 }
 
 static unsigned* process_new_image(const uint8_t* in, const size_t in_len) {
@@ -71,7 +87,7 @@ static unsigned* process_new_image(const uint8_t* in, const size_t in_len) {
     memcpy(&nr_desc, in, sizeof(size_t));
 
     float* descriptors = (float*)(in + sizeof(size_t));
-    sgx_printf("add: nr_rows %d\n", nr_desc);
+    untrusted_util::printf("add: nr_rows %d\n", nr_desc);
 
     //size_t to_server_len = sizeof(unsigned char) + ;
     //unsigned char* to_server = (unsigned char*)malloc(to_server * to_server_len);
@@ -87,21 +103,21 @@ static unsigned* process_new_image(const uint8_t* in, const size_t in_len) {
         for (int l = 0; l < 64; ++l) {
             sum += *(descriptors + i * k->desc_len() + l);
         }
-        sgx_printf("sum %f\n", sum);*/
+        printf("sum %f\n", sum);*/
         double min_dist = DBL_MAX;
         int pos = -1;
 
-        //sgx_printf("descriptor: \n");
+        //printf("descriptor: \n");
         //debug_print_points(descriptors + i * k->desc_len(), 1, 64);
 
         for (size_t j = 0; j < k->nr_centres(); ++j) {
-            //sgx_printf("centre %u: \n", j);
+            //printf("centre %u: \n", j);
             //debug_print_points(k->get_centre(j), 1, 64);
             double dist_to_centre = normL2Sqr(k->get_centre(j), descriptors + i * k->desc_len(), k->desc_len());
-            //sgx_printf("dist %f\n", dist_to_centre);
+            //printf("dist %f\n", dist_to_centre);
 
             if(dist_to_centre < min_dist) {
-                //sgx_printf("is min %u\n", j);
+                //printf("is min %u\n", j);
                 min_dist = dist_to_centre;
                 pos = j;
             }
@@ -121,14 +137,14 @@ static void add_image(uint8_t** out, size_t* out_len, const uint8_t* in, const s
     // get image id from buffer
     unsigned long id;
     memcpy(&id, in, sizeof(unsigned long));
-    sgx_printf("add, id %lu\n", id);
+    untrusted_util::printf("add, id %lu\n", id);
 
     unsigned* frequencies = process_new_image(in + sizeof(unsigned long), in_len - sizeof(unsigned long));
 
-    sgx_printf("frequencies: ");
+    untrusted_util::printf("frequencies: ");
     for (size_t i = 0; i < k->nr_centres(); i++)
-        sgx_printf("%u ", frequencies[i]);
-    sgx_printf("\n");
+        untrusted_util::printf("%u ", frequencies[i]);
+    untrusted_util::printf("\n");
 
     // prepare request to uee
     size_t req_len = sizeof(unsigned char) + sizeof(size_t) + k->nr_centres() * (LABEL_LEN + ENC_VALUE_LEN);
@@ -146,7 +162,7 @@ static void add_image(uint8_t** out, size_t* out_len, const uint8_t* in, const s
         memset(ctr, 0x00, AES_BLOCK_SIZE);
         // calculate label based on current counter for the centre
         int counter = counters[m];
-        c_hmac_sha256(tmp, &counter, sizeof(unsigned), centre_keys[m], LABEL_LEN);
+        tcrypto::hmac_sha256(tmp, &counter, sizeof(unsigned), centre_keys[m], LABEL_LEN);
         uint8_t* label = tmp; // keep a reference to the label
         //debug_printbuf(tmp, LABEL_LEN);
         tmp += LABEL_LEN;
@@ -165,7 +181,7 @@ static void add_image(uint8_t** out, size_t* out_len, const uint8_t* in, const s
         memcpy(value + LABEL_LEN + sizeof(unsigned long), &frequencies[m], sizeof(unsigned));
 
         // encrypt value
-        c_encrypt(tmp, value, UNENC_VALUE_LEN, ke, ctr);
+        tcrypto::encrypt(tmp, value, UNENC_VALUE_LEN, ke, ctr);
         //debug_printbuf(tmp, ENC_VALUE_LEN);
         tmp += ENC_VALUE_LEN;
     }
@@ -173,8 +189,8 @@ static void add_image(uint8_t** out, size_t* out_len, const uint8_t* in, const s
     // send to server
     size_t res_len;
     void* res;
-    sgx_uee_process(server_socket, &res, &res_len, req_buffer, req_len);
-    sgx_untrusted_free(res);
+    untrusted_util::uee_process(server_socket, &res, &res_len, req_buffer, req_len);
+    untrusted_util::outside_free(res);
 
     total_docs++;
 
@@ -189,7 +205,7 @@ static double* calc_idf(size_t total_docs, unsigned* counters) {
     for(size_t i = 0; i < k->nr_centres(); i++) {
         double non_zero_counters = counters[i] ? (double)counters[i] : (double)counters[i] + 1.0;
         idf[i] = log10((double)total_docs / non_zero_counters);
-        //sgx_printf("%lu %lu %lf\n", total_docs, (size_t)non_zero_counters, log10((double)total_docs / non_zero_counters));
+        //printf("%lu %lu %lf\n", total_docs, (size_t)non_zero_counters, log10((double)total_docs / non_zero_counters));
     }
 
     return idf;
@@ -211,20 +227,24 @@ int compare_results(const void *a, const void *b) {
 }
 
 void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_t in_len) {
+    using namespace untrusted_util;
     unsigned* frequencies = process_new_image(in, in_len);
     for (size_t i = 0; i < k->nr_centres(); ++i) {
-        sgx_printf("%u ", frequencies[i]);
-    } sgx_printf("\n");
+        printf("%u ", frequencies[i]);
+    }
+    printf("\n");
 
     double* idf = calc_idf(total_docs, counters);
     for (size_t i = 0; i < k->nr_centres(); ++i) {
-        sgx_printf("%lf ", idf[i]);
-    } sgx_printf("\n");
+        printf("%lf ", idf[i]);
+    }
+    printf("\n");
 
     //weight_idf(idf, frequencies);
     for (size_t i = 0; i < k->nr_centres(); ++i) {
-        sgx_printf("%lf ", idf[i]);
-    } sgx_printf("\n");
+        printf("%lf ", idf[i]);
+    }
+    printf("\n");
 
 /*
     const unsigned max_labels_batch = 10000;
@@ -250,7 +270,7 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
         if(!frequencies[i])
             continue;
 
-        sgx_printf("centre %lu (%u counters)\n", i, counters[i]);
+        printf("centre %lu (%u counters)\n", i, counters[i]);
 
         size_t req_len = sizeof(unsigned char) + sizeof(size_t) + counters[i] * LABEL_LEN;
         uint8_t* req_buffer = (uint8_t*)malloc(req_len);
@@ -264,7 +284,7 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
         // iterate over all the occurences of that centre
         for (unsigned j = 0; j < counters[i]; ++j) {
             // calc label
-            c_hmac_sha256(tmp, &j, sizeof(unsigned), centre_keys[i], LABEL_LEN);
+            tcrypto::hmac_sha256(tmp, &j, sizeof(unsigned), centre_keys[i], LABEL_LEN);
             tmp += LABEL_LEN;
             //debug_printbuf(req + 1, LABEL_LEN);
         }
@@ -273,7 +293,7 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
         uint8_t* res_buffer;
 
         // perform request to uee
-        sgx_uee_process(server_socket, (void**)&res_buffer, &res_len, req_buffer, req_len);
+        uee_process(server_socket, (void **) &res_buffer, &res_len, req_buffer, req_len);
 
         uint8_t* res_tmp = res_buffer;
 
@@ -283,18 +303,18 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
             unsigned char ctr[AES_BLOCK_SIZE];
             memset(ctr, 0x00, AES_BLOCK_SIZE);
 
-            c_decrypt(res_unenc, res_tmp, ENC_VALUE_LEN, ke, ctr);
+            tcrypto::decrypt(res_unenc, res_tmp, ENC_VALUE_LEN, ke, ctr);
             res_tmp += ENC_VALUE_LEN;
 
             /*sgx_printf("------------\n");
             debug_printbuf(req + sizeof(unsigned char), LABEL_LEN);
             debug_printbuf(res_unenc, UNENC_VALUE_LEN);
-            sgx_printf("------------\n");*/
+            printf("------------\n");*/
 
             int verify = memcmp(res_unenc, (req_buffer + sizeof(unsigned char) + sizeof(size_t)) + j * LABEL_LEN, LABEL_LEN);
             if(verify) {
-                sgx_printf("Label verification doesn't match! Exit\n");
-                sgx_exit(-1);
+                printf("Label verification doesn't match! Exit\n");
+                exit(-1);
             }
 
             unsigned long id;
@@ -303,19 +323,19 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
             unsigned frequency;
             memcpy(&frequency, res_unenc + LABEL_LEN + sizeof(unsigned long), sizeof(unsigned));
 
-            //sgx_printf("id: %lu %u\n", id, frequency);
+            //printf("id: %lu %u\n", id, frequency);
 
             if (docs[id])
                 docs[id] += frequencies[i] * 1 + log10(frequency) * idf[i];
             else
                 docs[id] = frequencies[i] * 1 + log10(frequency) * idf[i];
 
-            //sgx_printf("tf idf %lf\n", docs[id]);
+            //printf("tf idf %lf\n", docs[id]);
 
         }
 
         free(req_buffer);
-        sgx_untrusted_free(res_buffer);
+        untrusted_util::outside_free(res_buffer);
     }
 
     const unsigned response_size_docs = 100;
@@ -339,8 +359,9 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
         memcpy(&a, res + m * single_res_len, sizeof(unsigned long));
         memcpy(&b, res + m * single_res_len + sizeof(unsigned long), sizeof(double));
 
-        sgx_printf("%lu %f\n", a, b);
-    } sgx_printf("\n");
+        printf("%lu %f\n", a, b);
+    }
+    printf("\n");
 
     free(res_buffer);
     free(idf);
@@ -358,21 +379,21 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
 }
 
 void trusted_process_message(uint8_t** out, size_t* out_len, const uint8_t* in, const size_t in_len) {
-    /*sgx_printf("init!\n");
+    /*untrusted_util::printf("init!\n");
     uint8_t* c = (uint8_t*)malloc(8);
     int a = 2;
     memcpy(c, &a, 4);
     a = 5;
     memcpy(c + 4, &a, 4);
 
-    tutil_thread_add_work(c);
-    tutil_thread_add_work(NULL);
-    tutil_thread_add_work(NULL);
-    tutil_thread_add_work(NULL);
-    tutil_thread_do_work();
+    trusted_util::thread_add_work(c);
+    trusted_util::thread_add_work(NULL);
+    trusted_util::thread_add_work(NULL);
+    trusted_util::thread_add_work(NULL);
+    trusted_util::thread_do_work();
 
-    sgx_printf("end!\n");*/
-
+    untrusted_util::printf("end!\n");
+    */
     // pass pointer without op char to processing functions
     uint8_t* input = ((uint8_t*)in) + sizeof(unsigned char);
     const size_t input_len = in_len - sizeof(unsigned char);
@@ -384,7 +405,7 @@ void trusted_process_message(uint8_t** out, size_t* out_len, const uint8_t* in, 
 
     switch(((unsigned char*)in)[0]) {
         case 'i': {
-            sgx_printf("Init repository!\n");
+            untrusted_util::printf("Init repository!\n");
 
             unsigned nr_clusters;
             size_t desc_len;
@@ -392,14 +413,14 @@ void trusted_process_message(uint8_t** out, size_t* out_len, const uint8_t* in, 
             memcpy(&nr_clusters, input, sizeof(unsigned));
             memcpy(&desc_len, input + sizeof(unsigned), sizeof(size_t));
 
-            sgx_printf("desc_len %lu %u\n", desc_len, nr_clusters);
+            untrusted_util::printf("desc_len %lu %u\n", desc_len, nr_clusters);
 
             repository_init(nr_clusters, desc_len);
             ok_response(out, out_len);
             break;
         }
         case 'a': {
-            sgx_printf("Train add image!\n");
+            untrusted_util::printf("Train add image!\n");
 
             unsigned long id;
             size_t nr_desc;
@@ -412,39 +433,46 @@ void trusted_process_message(uint8_t** out, size_t* out_len, const uint8_t* in, 
             break;
         }
         case 'k': {
-            sgx_printf("Train kmeans!\n");
+            untrusted_util::printf("Train kmeans!\n");
             train_kmeans(k);
             ok_response(out, out_len);
             break;
         }
         case 'n': {
-            sgx_printf("Add after train images!\n");
+            untrusted_util::printf("Add after train images!\n");
             add_image(out, out_len, input, input_len);
             ok_response(out, out_len);
             break;
         }
         case 's': {
-            sgx_printf("Search!\n");
+            untrusted_util::printf("Search!\n");
             search_image(out, out_len, input, input_len);
             break;
         }
         case 'c': {
-            sgx_printf("Clear repository!\n");
+            untrusted_util::printf("Clear repository!\n");
             repository_clear();
             ok_response(out, out_len);
             break;
         }
         default: {
-            sgx_printf("Unrecognised op: %02x\n", ((unsigned char*)in)[0]);
+            untrusted_util::printf("Unrecognised op: %02x\n", ((unsigned char *) in)[0]);
             break;
         }
     }
 }
 
 void trusted_thread_do_task(void* args) {
-    sgx_printf("hello, tnread %lu %ld\n", sgx_curr_time().tv_sec, sgx_curr_time().tv_usec);
+    untrusted_util::printf("hello, tnread %lu %ld\n", untrusted_util::curr_time().tv_sec, untrusted_util::curr_time().tv_usec);
+
+    if(args) {
+        int* x = (int*)args;
+
+        untrusted_util::printf("1st arg: %d\n", x[0]);
+        untrusted_util::printf("2nd arg: %d\n", x[1]);
+    }
 }
 
 void trusted_init() {
-    sgx_printf("init function!\n");
+    untrusted_util::printf("init function!\n");
 }

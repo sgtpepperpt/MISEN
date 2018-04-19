@@ -44,6 +44,6 @@ double online_kmeans(float* descriptors, const size_t nr_descs, kmeans_data* dat
         }
     }
 
-    sgx_printf("compactness %f\n", compactness);
+    untrusted_util::printf("compactness %f\n", compactness);
     return 1;//best_compactness;
 }

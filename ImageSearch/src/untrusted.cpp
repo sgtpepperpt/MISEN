@@ -1,4 +1,7 @@
-#include "internal_untrusted.h"
+#include "untrusted.h"
+
+#include <stdlib.h>
+#include <string.h>
 
 void untrusted_process_message(void** out, size_t* out_len, const void* in, const size_t in_len) {
     *out_len = 0;

@@ -1,39 +1,39 @@
-#include "crypto.h"
+#include "trusted_crypto.h"
 
 #include <string.h>
 #include <sgx_trts.h>
 #include <sgx_tcrypto.h>
 
-void c_random(void* out, size_t len) {
+void tcrypto::random(void* out, size_t len) {
     sgx_read_rand((unsigned char *) out, len);
 }
 
-unsigned c_random_uint() {
+unsigned tcrypto::random_uint() {
     unsigned val;
     sgx_read_rand((unsigned char *) &val, sizeof(unsigned));
     return val;
 }
 
-unsigned c_random_uint_range(unsigned min, unsigned max) {
+unsigned tcrypto::random_uint_range(unsigned min, unsigned max) {
     if (max < min)
-        return max + (c_random_uint() % (unsigned) (min - max));
+        return max + (tcrypto::random_uint() % (unsigned) (min - max));
 
-    return min + (c_random_uint() % (unsigned) (max - min));
+    return min + (tcrypto::random_uint() % (unsigned) (max - min));
 }
 
-int c_sha256(unsigned char *out, const unsigned char *in, size_t len) {
+int tcrypto::sha256(unsigned char *out, const unsigned char *in, size_t len) {
     sgx_status_t ret = sgx_sha256_msg(in, len, (unsigned char (*)[SHA256_OUTPUT_SIZE])out);
     return ret != SGX_SUCCESS;
 }
 
-int c_hmac_sha256(void* out, const void* in, const size_t in_len, const void* key, const size_t key_len) {
+int tcrypto::hmac_sha256(void* out, const void* in, const size_t in_len, const void* key, const size_t key_len) {
     unsigned char hmac_key[SHA256_BLOCK_SIZE];
     memset(hmac_key, 0x00, SHA256_BLOCK_SIZE);
 
     if(key_len == SHA256_BLOCK_SIZE) {
         memcpy(hmac_key, key, key_len);
     } else if(key_len > SHA256_BLOCK_SIZE) {
-        if(c_sha256(hmac_key, (unsigned char*)key, key_len))
+        if(tcrypto::sha256(hmac_key, (unsigned char*)key, key_len))
             return 1;
     } else {
         memcpy(hmac_key, key, key_len);
@@ -51,10 +51,10 @@ int c_hmac_sha256(void* out, const void* in, const size_t in_len, const void* ke
     }
 
     // store first hash directly in second hash input
-    if(c_sha256(second_hash_input + SHA256_BLOCK_SIZE, first_hash_input, SHA256_BLOCK_SIZE + in_len))
+    if(tcrypto::sha256(second_hash_input + SHA256_BLOCK_SIZE, first_hash_input, SHA256_BLOCK_SIZE + in_len))
         return 1;
 
-    if(c_sha256((unsigned char*)out, second_hash_input, SHA256_OUTPUT_SIZE + SHA256_BLOCK_SIZE))
+    if(tcrypto::sha256((unsigned char*)out, second_hash_input, SHA256_OUTPUT_SIZE + SHA256_BLOCK_SIZE))
         return 1;
 
     // erase key
@@ -65,13 +65,13 @@ int c_hmac_sha256(void* out, const void* in, const size_t in_len, const void* ke
     return 0;
 }
 
-int c_encrypt(void* out, const unsigned char *in, const size_t in_len, const void* key, unsigned char* ctr) {
+int tcrypto::encrypt(void* out, const unsigned char *in, const size_t in_len, const void* key, unsigned char* ctr) {
     sgx_status_t ret = sgx_aes_ctr_encrypt((unsigned char (*)[AES_KEY_SIZE])key, in, in_len, ctr, 1, (unsigned char*)out);
 
     return ret != SGX_SUCCESS;
 }
 
-int c_decrypt(void* out, const unsigned char *in, const size_t in_len, const void* key, unsigned char* ctr) {
+int tcrypto::decrypt(void* out, const unsigned char *in, const size_t in_len, const void* key, unsigned char* ctr) {
     sgx_status_t ret = sgx_aes_ctr_decrypt((unsigned char (*)[AES_KEY_SIZE])key, in, in_len, ctr, 1, (unsigned char*)out);
 
     return ret != SGX_SUCCESS;

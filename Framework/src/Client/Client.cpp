@@ -295,7 +295,6 @@ int main(int argc, char **argv) {
     init(&in, &in_len, nr_clusters, row_len);
     iee_comm(socket, in, in_len);
     free(in);
-    return 0;
 
     // adding
     const vector<string> files = get_filenames(nr_images);

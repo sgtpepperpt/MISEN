@@ -1,5 +1,6 @@
 #include "thread_handler.h"
-#include "ocall_wrapper.h"
+#include "untrusted_util.h"
+
 // thread_handler data
 thread_data* threads = NULL;
 unsigned entered_threads = 0;
@@ -25,12 +26,12 @@ thread_data* thread_handler_add() {
     return threads + entered_threads++;
 }
 
-unsigned tutil_thread_get_count(){
+unsigned trusted_util::thread_get_count(){
     return entered_threads;
 }
 
 // task related
-int tutil_thread_add_work(void* args) {
+int trusted_util::thread_add_work(void* args) {
     if(nr_tasks < entered_threads) {
         threads[nr_tasks++].task_args = args;
         return 0;
@@ -39,8 +40,8 @@ int tutil_thread_add_work(void* args) {
     return 1;
 }
 
-void tutil_thread_do_work() {
-    sgx_printf("nr tasks %u\n", nr_tasks);
+void trusted_util::thread_do_work() {
+    untrusted_util::printf("nr tasks %u\n", nr_tasks);
     // make threads work
     for (unsigned i = 0; i < nr_tasks; ++i) {
         thread_data* t = &threads[i];

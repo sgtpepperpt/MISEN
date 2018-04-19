@@ -30,7 +30,7 @@ void BagOfWordsTrainer::add_descriptors(img_descriptor* _descriptors) {
 }
 
 int BagOfWordsTrainer::is_full() {
-    sgx_printf("total_descriptors %lu\n", total_descriptors);
+    untrusted_util::printf("total_descriptors %lu\n", total_descriptors);
     //return descriptors.size() >= 10;
     return total_descriptors >= MAX_DESCRIPTORS_MEM;
 }
@@ -68,7 +68,7 @@ img_descriptor* BagOfWordsTrainer::cluster() {
     }
 
     float *all_descriptors = (float*)malloc(total_descriptors * kmeans->desc_len * sizeof(float));
-    //sgx_printf("total %lu desc %lu - %lu %p\n", total_descriptors, kmeans->desc_len, total_descriptors * kmeans->desc_len * sizeof(float), all_descriptors);
+    //printf("total %lu desc %lu - %lu %p\n", total_descriptors, kmeans->desc_len, total_descriptors * kmeans->desc_len * sizeof(float), all_descriptors);
     float *tmp = all_descriptors;
     for (list<img_descriptor*>::iterator it = descriptors.begin(); it != descriptors.end(); ++it) {
         memcpy(tmp, (*it)->buffer, kmeans->desc_len * (*it)->count * sizeof(float));

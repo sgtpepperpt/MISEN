@@ -4,8 +4,8 @@
 #include <mutex>
 #include <condition_variable>
 
-#include "ocall_wrapper.h"
-#include "crypto.h"
+#include "untrusted_util.h"
+#include "trusted_crypto.h"
 #include "thread_handler.h"
 
 void ecall_init_enclave(unsigned nr_threads) {
@@ -52,7 +52,7 @@ void ecall_process(void** out, size_t* out_len, const void* in, const size_t in_
 
     // encrypt output
     memset(ctr, 0x00, AES_BLOCK_SIZE);
-    *out = sgx_untrusted_malloc(*out_len);
+    *out = outside_malloc(*out_len);
     c_encrypt(*out, out_unenc, *out_len, key, ctr);
 
     // cleanup
@@ -62,7 +62,7 @@ void ecall_process(void** out, size_t* out_len, const void* in, const size_t in_
     trusted_process_message((uint8_t**)out, out_len, (const uint8_t*)in, in_len);
 
     // step needed to copy from unencrypted inside to encrypted outside
-    uint8_t* res = (uint8_t*)sgx_untrusted_malloc(*out_len);
+    uint8_t* res = (uint8_t*) untrusted_util::outside_malloc(*out_len);
     memcpy(res, *out, *out_len);
 
     free(*out);
