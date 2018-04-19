@@ -1,5 +1,6 @@
 #include "Enclave.h"
 
+#include <stdint.h>
 #include <string.h>
 #include <mutex>
 #include <condition_variable>
@@ -7,12 +8,13 @@
 #include "untrusted_util.h"
 #include "trusted_crypto.h"
 #include "thread_handler.h"
+#include "extern_lib.h"
 
 void ecall_init_enclave(unsigned nr_threads) {
     thread_handler_init(nr_threads);
 
     // let extern lib do its own init
-    trusted_init();
+    extern_lib::init();
 }
 
 void ecall_thread_enter() {
@@ -25,7 +27,7 @@ void ecall_thread_enter() {
         my_data->cond_var->wait(lock, [&my_data]{return my_data->ready;});
 
         // extern lib's own handling
-        trusted_thread_do_task(my_data->task_args);
+        extern_lib::thread_do_task(my_data->task_args);
 
         my_data->ready = 0;
         my_data->done = 1;
@@ -48,7 +50,7 @@ void ecall_process(void** out, size_t* out_len, const void* in, const size_t in_
 
     // prepare unencrypted output
     uint8_t* out_unenc = NULL;
-    trusted_process_message(&out_unenc, out_len, in_unenc, in_len);
+    process_message(&out_unenc, out_len, in_unenc, in_len);
 
     // encrypt output
     memset(ctr, 0x00, AES_BLOCK_SIZE);
@@ -59,7 +61,7 @@ void ecall_process(void** out, size_t* out_len, const void* in, const size_t in_
     free(in_unenc);
     free(out_unenc);*/
 
-    trusted_process_message((uint8_t**)out, out_len, (const uint8_t*)in, in_len);
+    extern_lib::process_message((uint8_t **) out, out_len, (const uint8_t *) in, in_len);
 
     // step needed to copy from unencrypted inside to encrypted outside
     uint8_t* res = (uint8_t*) untrusted_util::outside_malloc(*out_len);

@@ -12,8 +12,6 @@
 #include <sys/time.h>
 #include <time.h>
 
-// external lib should implement this
-extern void untrusted_process_message(void** out, size_t* out_len, const void* in, const size_t in_len);
 
 #if defined(__cplusplus)
 extern "C" {

@@ -1,9 +1,9 @@
-#include "untrusted.h"
+#include "extern_lib.h"
 
 #include <stdlib.h>
 #include <string.h>
 
-void untrusted_process_message(void** out, size_t* out_len, const void* in, const size_t in_len) {
+void extern_lib_ut::process_message(void **out, size_t *out_len, const void *in, const size_t in_len) {
     *out_len = 0;
     *out = NULL;
 

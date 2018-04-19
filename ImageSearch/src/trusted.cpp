@@ -1,28 +1,26 @@
-#include "trusted.h"
-
 #include <unistd.h>
 #include <string.h>
 #include <math.h>
 #include <stdint.h>
+#include <map>
 
 // includes from framework
 #include "types.h"
 #include "trusted_util.h"
 #include "untrusted_util.h"
 #include "trusted_crypto.h"
+#include "extern_lib.h" // defines the functions we implement here
 
 // training and kmeans
 #include "training.h"
 #include "util.h"
 
-using namespace std;
-using namespace untrusted_util;
-
-#include <map>
-
 #define LABEL_LEN (SHA256_OUTPUT_SIZE)
 #define UNENC_VALUE_LEN (LABEL_LEN + sizeof(unsigned long) + sizeof(unsigned)) // (32 + 8 + 4 = 44)
 #define ENC_VALUE_LEN (UNENC_VALUE_LEN + 4) // AES padding (44 + 4 = 48)
+
+using namespace std;
+using namespace untrusted_util;
 
 BagOfWordsTrainer* k;
 int server_socket;
@@ -378,7 +376,7 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
     free(res);
 }
 
-void trusted_process_message(uint8_t** out, size_t* out_len, const uint8_t* in, const size_t in_len) {
+void extern_lib::process_message(uint8_t **out, size_t *out_len, const uint8_t *in, const size_t in_len) {
     /*untrusted_util::printf("init!\n");
     uint8_t* c = (uint8_t*)malloc(8);
     int a = 2;
@@ -462,7 +460,7 @@ void trusted_process_message(uint8_t** out, size_t* out_len, const uint8_t* in, 
     }
 }
 
-void trusted_thread_do_task(void* args) {
+void extern_lib::thread_do_task(void *args) {
     untrusted_util::printf("hello, tnread %lu %ld\n", untrusted_util::curr_time().tv_sec, untrusted_util::curr_time().tv_usec);
 
     if(args) {
@@ -473,6 +471,6 @@ void trusted_thread_do_task(void* args) {
     }
 }
 
-void trusted_init() {
+void extern_lib::init() {
     untrusted_util::printf("init function!\n");
 }

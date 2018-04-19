@@ -6,7 +6,6 @@
 #include "Enclave_t.h" /* ocalls */
 #include "types.h"
 
-
 /****************************************************** FILE I/O ******************************************************/
 int untrusted_util::open(const char *filename, int mode) {
     int retval;

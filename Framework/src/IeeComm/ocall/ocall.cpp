@@ -1,4 +1,5 @@
 #include "ocall.h"
+#include "extern_lib.h"
 
 /****************************************************** FILE I/O ******************************************************/
 int ocall_open(const char* filename, int mode) {
@@ -73,7 +74,7 @@ void ocall_untrusted_free(void** pointer) {
 
 /****************************************************** GENERIC ******************************************************/
 int ocall_process(void** out, size_t* out_len, const void* in, const size_t in_len) {
-    untrusted_process_message(out, out_len, in, in_len);
+    extern_lib_ut::process_message(out, out_len, in, in_len);
     return 0;
 }
 /**************************************************** END GENERIC ****************************************************/
