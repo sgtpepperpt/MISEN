@@ -2,14 +2,6 @@
 #define ONLINE_KMEANS_H
 
 #include <stdlib.h>
-#include <string.h>
-#include <float.h>
-
-#include "../../../Framework/include/untrusted_util.h"
-
-#include "util.h"
-
-using namespace std;
 
 typedef struct kmeans_data {
     size_t desc_len;

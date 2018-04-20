@@ -27,7 +27,7 @@ void ecall_thread_enter() {
         my_data->cond_var->wait(lock, [&my_data]{return my_data->ready;});
 
         // extern lib's own handling
-        extern_lib::thread_do_task(my_data->task_args);
+        void* res = my_data->task(my_data->task_args); // TODO pass res to thread_handler via my_data?
 
         my_data->ready = 0;
         my_data->done = 1;
@@ -37,7 +37,7 @@ void ecall_thread_enter() {
 }
 
 void ecall_process(void** out, size_t* out_len, const void* in, const size_t in_len) {
-    /*// TODO do not use this hardcoded values
+    /*// TODO do not use these hardcoded values
     uint8_t key[AES_BLOCK_SIZE];
     memset(key, 0x00, AES_BLOCK_SIZE);
 

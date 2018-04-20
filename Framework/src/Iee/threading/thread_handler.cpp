@@ -31,8 +31,9 @@ unsigned trusted_util::thread_get_count(){
 }
 
 // task related
-int trusted_util::thread_add_work(void* args) {
+int trusted_util::thread_add_work(void* (*task)(void*), void* args) {
     if(nr_tasks < entered_threads) {
+        threads[nr_tasks].task = task;
         threads[nr_tasks++].task_args = args;
         return 0;
     }
@@ -41,7 +42,7 @@ int trusted_util::thread_add_work(void* args) {
 }
 
 void trusted_util::thread_do_work() {
-    untrusted_util::printf("nr tasks %u\n", nr_tasks);
+    //untrusted_util::printf("nr tasks %u\n", nr_tasks);
     // make threads work
     for (unsigned i = 0; i < nr_tasks; ++i) {
         thread_data* t = &threads[i];

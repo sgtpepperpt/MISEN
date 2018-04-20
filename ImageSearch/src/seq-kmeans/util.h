@@ -2,7 +2,7 @@
 #define KMEANS_UTIL_H
 
 #include <stdlib.h>
-#include "../../../Framework/include/untrusted_util.h"
+#include "untrusted_util.h"
 
 #define max(x, y) (((x) > (y)) ? (x) : (y))
 #define min(x, y) (((x) < (y)) ? (x) : (y))

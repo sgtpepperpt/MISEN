@@ -5,8 +5,7 @@
 #include <list>
 #include <vector>
 
-#include "../../../Framework/include/untrusted_util.h"
-
+#include "untrusted_util.h"
 #include "kmeans.h"
 
 #define MAX_DESCRIPTORS_MEM 80000

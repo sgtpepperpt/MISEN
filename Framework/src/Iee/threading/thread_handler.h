@@ -13,6 +13,7 @@ typedef struct thread_data {
     int ready;
     int done;
     void* task_args;
+    void* (*task)(void*);
 } thread_data;
 
 void thread_handler_init(unsigned nr_threads);

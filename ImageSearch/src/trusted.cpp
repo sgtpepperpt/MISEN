@@ -14,6 +14,7 @@
 // training and kmeans
 #include "training.h"
 #include "util.h"
+#include "seq-kmeans/util.h"
 
 #define LABEL_LEN (SHA256_OUTPUT_SIZE)
 #define UNENC_VALUE_LEN (LABEL_LEN + sizeof(unsigned long) + sizeof(unsigned)) // (32 + 8 + 4 = 44)
@@ -457,17 +458,6 @@ void extern_lib::process_message(uint8_t **out, size_t *out_len, const uint8_t *
             untrusted_util::printf("Unrecognised op: %02x\n", ((unsigned char *) in)[0]);
             break;
         }
-    }
-}
-
-void extern_lib::thread_do_task(void *args) {
-    untrusted_util::printf("hello, tnread %lu %ld\n", untrusted_util::curr_time().tv_sec, untrusted_util::curr_time().tv_usec);
-
-    if(args) {
-        int* x = (int*)args;
-
-        untrusted_util::printf("1st arg: %d\n", x[0]);
-        untrusted_util::printf("2nd arg: %d\n", x[1]);
     }
 }
 
