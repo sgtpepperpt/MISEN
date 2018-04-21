@@ -244,24 +244,20 @@ void search(uint8_t **in, size_t *in_len, const Ptr<SURF> surf, const std::strin
 }
 
 int main(int argc, char **argv) {
-    const char *server_name = "localhost";
-    const int server_port = 7910;
-
     memset(key, 0x00, AES_BLOCK_SIZE);
     memset(ctr, 0x00, AES_BLOCK_SIZE);
 
-    if (argc != 2) {
-        printf("no arg\n");
-        exit(1);
-    }
-
+    // fixed params
+    const char *server_name = "localhost";
+    const int server_port = 7910;
     const size_t desc_len = 64;
     const double surf_threshold = 400;
-    const size_t nr_clusters = 1000;
-    const int nr_images = atoi(argv[1]);
+
+    // may be specified by user
+    size_t nr_clusters = 1000;
 
     // parse terminal arguments
-    /*int c;
+    int c;
     while ((c = getopt(argc, argv, "c:")) != -1) {
         switch (c) {
         case 'c':
@@ -269,16 +265,25 @@ int main(int argc, char **argv) {
             break;
         case '?':
             if (optopt == 'c')
-                fprintf(stderr, "Option -%c requires an argument.\n", optopt);
+                fprintf(stderr, "-%c requires an argument.\n", optopt);
             else if (isprint(optopt))
                 fprintf(stderr, "Unknown option `-%c'.\n", optopt);
             else
                 fprintf(stderr, "Unknown option character `\\x%x'.\n", optopt);
-            return 1;
+            exit(1);
         default:
-            abort();
+            exit(-1);
         }
-    }*/
+    }
+
+    if (!argv[optind]) {
+        printf("Nr of images not specified!\n");
+        exit(1);
+    }
+
+    const int nr_images = atoi(argv[optind]);
+
+    printf("Running with %d images, %lu clusters\n", nr_images, nr_clusters);
 
     // establish connection to iee_comm server
     const int socket = socket_connect(server_name, server_port);
