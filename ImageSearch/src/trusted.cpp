@@ -86,22 +86,81 @@ void repository_clear() {
 }
 
 #define PARALLEL_IMG_PROCESSING 0
+typedef struct process_args {
+    size_t start;
+    size_t end;
+    float* descriptors;
+    unsigned* frequencies;
+} process_args;
+
+#if PARALLEL_IMG_PROCESSING
+void* parallel_process(void* args) {
+    process_args* arg = (process_args*)args;
+
+    for (size_t i = arg->start; i < arg->end; ++i) {
+        double min_dist = DBL_MAX;
+        int pos = -1;
+
+        for (size_t j = 0; j < k->nr_centres(); ++j) {
+            double dist_to_centre = normL2Sqr(k->get_centre(j), arg->descriptors + i * k->desc_len(), k->desc_len());
+
+            if(dist_to_centre < min_dist) {
+                min_dist = dist_to_centre;
+                pos = j;
+            }
+        }
+
+        arg->frequencies[pos]++;
+    }
+
+    return NULL;
+}
+#endif
+
 
 static unsigned* process_new_image(const uint8_t* in, const size_t in_len) {
+    untrusted_time start = untrusted_util::curr_time();
+
     size_t nr_desc;
     memcpy(&nr_desc, in, sizeof(size_t));
 
     float* descriptors = (float*)(in + sizeof(size_t));
     untrusted_util::printf("proc: nr_descs %d\n", nr_desc);
 
-    //size_t to_server_len = sizeof(unsigned char) + ;
-    //unsigned char* to_server = (unsigned char*)malloc(to_server * to_server_len);
-
     unsigned* frequencies = (unsigned*)malloc(k->nr_centres() * sizeof(unsigned));
     memset(frequencies, 0x00, k->nr_centres() * sizeof(unsigned));
 
-    //debug_print_points(descriptors, nr_desc, 64);
+#if PARALLEL_IMG_PROCESSING
+    // initialisation
+    unsigned nr_threads = trusted_util::thread_get_count();
+    size_t desc_per_thread = nr_desc / nr_threads;
 
+    process_args* args = (process_args*)malloc(nr_threads * sizeof(process_args));
+
+    for (unsigned j = 0; j < nr_threads; ++j) {
+        // each thread receives the generic pointers and the thread ranges
+        args[j].descriptors = descriptors;
+        args[j].frequencies = frequencies;
+
+        if(j == 0) {
+            args[j].start = 0;
+            args[j].end = j * desc_per_thread + desc_per_thread;
+        } else {
+            args[j].start = j * desc_per_thread + 1;
+
+            if (j + 1 == nr_threads)
+                args[j].end = nr_desc;
+            else
+                args[j].end = j * desc_per_thread + desc_per_thread;
+        }
+
+        //untrusted_util::printf("start %lu end %lu\n", args[j].start, args[j].end);
+        trusted_util::thread_add_work(parallel_process, args + j);
+    }
+
+    trusted_util::thread_do_work();
+    free(args);
+#else
     // for each descriptor, calculate its closest centre
     for (size_t i = 0; i < nr_desc; ++i) {
         double min_dist = DBL_MAX;
@@ -118,6 +177,10 @@ static unsigned* process_new_image(const uint8_t* in, const size_t in_len) {
 
         frequencies[pos]++;
     }
+#endif
+
+    untrusted_time end = untrusted_util::curr_time();
+    //untrusted_util::printf("elapsed %ld\n", time_elapsed(start, end));
 
     return frequencies;
 }
