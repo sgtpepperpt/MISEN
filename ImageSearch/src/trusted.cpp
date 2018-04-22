@@ -22,6 +22,7 @@
 #define ENC_VALUE_LEN (UNENC_VALUE_LEN + 4) // AES padding (44 + 4 = 48)
 
 #define ADD_MAX_BATCH_LEN 1000
+#define SEARCH_MAX_BATCH_LEN 1000
 
 using namespace std;
 using namespace untrusted_util;
@@ -84,12 +85,14 @@ void repository_clear() {
     untrusted_util::close_uee_connection(server_socket);
 }
 
+#define PARALLEL_IMG_PROCESSING 0
+
 static unsigned* process_new_image(const uint8_t* in, const size_t in_len) {
     size_t nr_desc;
     memcpy(&nr_desc, in, sizeof(size_t));
 
     float* descriptors = (float*)(in + sizeof(size_t));
-    untrusted_util::printf("add: nr_descs %d\n", nr_desc);
+    untrusted_util::printf("proc: nr_descs %d\n", nr_desc);
 
     //size_t to_server_len = sizeof(unsigned char) + ;
     //unsigned char* to_server = (unsigned char*)malloc(to_server * to_server_len);
@@ -101,25 +104,13 @@ static unsigned* process_new_image(const uint8_t* in, const size_t in_len) {
 
     // for each descriptor, calculate its closest centre
     for (size_t i = 0; i < nr_desc; ++i) {
-        /*double sum = 0;
-        for (int l = 0; l < 64; ++l) {
-            sum += *(descriptors + i * k->desc_len() + l);
-        }
-        printf("sum %f\n", sum);*/
         double min_dist = DBL_MAX;
         int pos = -1;
 
-        //printf("descriptor: \n");
-        //debug_print_points(descriptors + i * k->desc_len(), 1, 64);
-
         for (size_t j = 0; j < k->nr_centres(); ++j) {
-            //printf("centre %u: \n", j);
-            //debug_print_points(k->get_centre(j), 1, 64);
             double dist_to_centre = normL2Sqr(k->get_centre(j), descriptors + i * k->desc_len(), k->desc_len());
-            //printf("dist %f\n", dist_to_centre);
 
             if(dist_to_centre < min_dist) {
-                //printf("is min %u\n", j);
                 min_dist = dist_to_centre;
                 pos = j;
             }
@@ -151,8 +142,8 @@ static void add_image(uint8_t** out, size_t* out_len, const uint8_t* in, const s
     // prepare request to uee
     const size_t pair_len = LABEL_LEN + ENC_VALUE_LEN;
 
-    size_t req_len = sizeof(unsigned char) + sizeof(size_t) + ADD_MAX_BATCH_LEN * pair_len;
-    uint8_t* req_buffer = (uint8_t*)malloc(req_len);
+    size_t max_req_len = sizeof(unsigned char) + sizeof(size_t) + ADD_MAX_BATCH_LEN * pair_len;
+    uint8_t* req_buffer = (uint8_t*)malloc(max_req_len);
     req_buffer[0] = 'a';
 
     size_t to_send = k->nr_centres();
@@ -176,7 +167,7 @@ static void add_image(uint8_t** out, size_t* out_len, const uint8_t* in, const s
             tmp += LABEL_LEN;
 
             // increase the centre's counter, if present
-            if(frequencies[centre_pos])
+            if(frequencies[centre_pos])//TODO remove this if, counter is increased even if 0
                 ++counters[centre_pos];
 
             // calculate value
@@ -197,7 +188,7 @@ static void add_image(uint8_t** out, size_t* out_len, const uint8_t* in, const s
         // send batch to server
         size_t res_len;
         void* res;
-        untrusted_util::uee_process(server_socket, &res, &res_len, req_buffer, req_len);
+        untrusted_util::uee_process(server_socket, &res, &res_len, req_buffer, sizeof(unsigned char) + sizeof(size_t) + batch_len * pair_len);
         untrusted_util::outside_free(res); // discard ok response
     }
 
@@ -254,58 +245,63 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
     }
     printf("\n");
 
-/*
-    const unsigned max_labels_batch = 10000;
-    uint8_t* req_buffer = (uint8_t*)malloc(max_labels_batch * LABEL_LEN);
-    memset(req_buffer, 0x00, max_labels_batch * LABEL_LEN);
-*/
-    // calc size of request
+
+    // calc size of request; ie sum of counters (for all centres of searched image)
     size_t nr_labels = 0;
     for (size_t i = 0; i < k->nr_centres(); ++i) {
         if(frequencies[i])
             nr_labels += counters[i];
     }
 
-    uint8_t* res_buffer = (uint8_t*)malloc(nr_labels * LABEL_LEN);
-    memset(res_buffer, 0x00, nr_labels * LABEL_LEN);
-
-    //uint8_t* tmp = res_buffer;
-
+    // will hold result
     std::map<unsigned long, double> docs;
 
-    // TODO randomise, batch_requests, do not ignore zero counters
-    for (size_t i = 0; i < k->nr_centres(); ++i) {
-        if(!frequencies[i])
-            continue;
+    // prepare request to uee
+    size_t max_req_len = sizeof(unsigned char) + sizeof(size_t) + SEARCH_MAX_BATCH_LEN * LABEL_LEN;
+    uint8_t* req_buffer = (uint8_t*)malloc(max_req_len);
+    req_buffer[0] = 's';
 
-        printf("centre %lu (%u counters)\n", i, counters[i]);
+    size_t to_send = nr_labels;
+    size_t centre_pos = 0;
+    size_t counter_pos = 0;
 
-        size_t req_len = sizeof(unsigned char) + sizeof(size_t) + counters[i] * LABEL_LEN;
-        uint8_t* req_buffer = (uint8_t*)malloc(req_len);
-        req_buffer[0] = 's';
+    unsigned batch_counter = 0;
+    while (to_send > 0) {
+        printf("(%02u) centre %lu; %lu counters\n", batch_counter++, centre_pos, counter_pos);
+
+        size_t batch_len = min(SEARCH_MAX_BATCH_LEN, to_send);
+
+        // add number of labels to buffer
         uint8_t* tmp = req_buffer + sizeof(unsigned char);
-
-        size_t count = counters[i];
-        memcpy(tmp, &count, sizeof(size_t));
+        memcpy(tmp, &batch_len, sizeof(size_t));
         tmp += sizeof(size_t);
 
-        // iterate over all the occurences of that centre
-        for (unsigned j = 0; j < counters[i]; ++j) {
+        // add all batch labels to buffer
+        for (size_t i = 0; i < batch_len; ++i) {
             // calc label
-            tcrypto::hmac_sha256(tmp, &j, sizeof(unsigned), centre_keys[i], LABEL_LEN);
+            tcrypto::hmac_sha256(tmp, &counter_pos, sizeof(unsigned), centre_keys[centre_pos], LABEL_LEN);
             tmp += LABEL_LEN;
-            //debug_printbuf(req + 1, LABEL_LEN);
+
+            to_send--;
+
+            // update pointers
+            ++counter_pos;
+            if(counter_pos == counters[centre_pos]) {
+                // search for the next centre where the searched image's frequency is non-zero
+                while (!frequencies[++centre_pos])
+                    ;
+                counter_pos = 0;
+            }
         }
 
-        size_t res_len;
-        uint8_t* res_buffer;
-
         // perform request to uee
-        uee_process(server_socket, (void **) &res_buffer, &res_len, req_buffer, req_len);
+        size_t res_len;
+        uint8_t* res;
+        uee_process(server_socket, (void **)&res, &res_len, req_buffer, sizeof(unsigned char) + sizeof(size_t) + batch_len * LABEL_LEN);
+        uint8_t* res_tmp = res;
 
-        uint8_t* res_tmp = res_buffer;
-
-        for (unsigned j = 0; j < counters[i]; ++j) {
+        // process all answers
+        for (size_t i = 0; i < batch_len; ++i) {
             // decode res
             uint8_t res_unenc[UNENC_VALUE_LEN];
             unsigned char ctr[AES_BLOCK_SIZE];
@@ -314,12 +310,7 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
             tcrypto::decrypt(res_unenc, res_tmp, ENC_VALUE_LEN, ke, ctr);
             res_tmp += ENC_VALUE_LEN;
 
-            /*sgx_printf("------------\n");
-            debug_printbuf(req + sizeof(unsigned char), LABEL_LEN);
-            debug_printbuf(res_unenc, UNENC_VALUE_LEN);
-            printf("------------\n");*/
-
-            int verify = memcmp(res_unenc, (req_buffer + sizeof(unsigned char) + sizeof(size_t)) + j * LABEL_LEN, LABEL_LEN);
+            int verify = memcmp(res_unenc, (req_buffer + sizeof(unsigned char) + sizeof(size_t)) + i * LABEL_LEN, LABEL_LEN);
             if(verify) {
                 printf("Label verification doesn't match! Exit\n");
                 exit(-1);
@@ -331,21 +322,18 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
             unsigned frequency;
             memcpy(&frequency, res_unenc + LABEL_LEN + sizeof(unsigned long), sizeof(unsigned));
 
-            //printf("id: %lu %u\n", id, frequency);
-
             if (docs[id])
                 docs[id] += frequencies[i] * 1 + log10(frequency) * idf[i];
             else
                 docs[id] = frequencies[i] * 1 + log10(frequency) * idf[i];
-
-            //printf("tf idf %lf\n", docs[id]);
-
         }
 
-        free(req_buffer);
-        untrusted_util::outside_free(res_buffer);
+        untrusted_util::outside_free(res);
     }
 
+    // TODO randomise, do not ignore zero counters
+
+    // calculate score and respond to client
     const unsigned response_size_docs = 100;
     const unsigned response_imgs = min(docs.size(), response_size_docs);
     const size_t single_res_len = sizeof(unsigned long) + sizeof(double);
@@ -371,7 +359,6 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
     }
     printf("\n");
 
-    free(res_buffer);
     free(idf);
     free(frequencies);
 

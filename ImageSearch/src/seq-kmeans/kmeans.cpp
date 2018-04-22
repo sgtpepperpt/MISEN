@@ -91,6 +91,7 @@ double online_kmeans(float* descriptors, const size_t nr_descs, kmeans_data* dat
 
 #if PARALLEL_KMEANS
         for (unsigned j = 0; j < nr_threads; ++j) {
+            // each thread receives the generic pointers and the thread ranges
             args[j].desc_len = data->desc_len;
             args[j].centres = data->centres;
             args[j].descriptors = descriptors;

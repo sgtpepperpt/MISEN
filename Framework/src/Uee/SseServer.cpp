@@ -120,6 +120,11 @@ void* process_client(void* args) {
                     memcpy(label, tmp, l_size);
                     tmp += l_size;
 
+                    if(!I[label]) {
+                        printf("error: %lu/%lu", i, nr_labels);
+                        exit(1);
+                    }
+
                     memcpy(out + i * d_size, I[label], d_size);
                 }
 

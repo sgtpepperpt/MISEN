@@ -255,13 +255,17 @@ int main(int argc, char **argv) {
 
     // may be specified by user
     size_t nr_clusters = 1000;
+    int src_img = 0;
 
     // parse terminal arguments
     int c;
-    while ((c = getopt(argc, argv, "c:")) != -1) {
+    while ((c = getopt(argc, argv, "c:i:")) != -1) {
         switch (c) {
         case 'c':
             nr_clusters = stoul(optarg);
+            break;
+        case 'i':
+            src_img = atoi(optarg);
             break;
         case '?':
             if (optopt == 'c')
@@ -325,7 +329,7 @@ int main(int argc, char **argv) {
     }
 
     // search
-    search(&in, &in_len, surf, get_filenames(10)[0]);
+    search(&in, &in_len, surf, get_filenames(10)[src_img]);
     iee_send(socket, in, in_len);
     free(in);
 
