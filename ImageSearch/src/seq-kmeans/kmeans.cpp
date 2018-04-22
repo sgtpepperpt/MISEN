@@ -3,7 +3,7 @@
 #include <string.h>
 #include <float.h>
 
-#include "untrusted_util.h"
+#include "outside_util.h"
 #include "trusted_util.h"
 #include "util.h"
 
@@ -24,14 +24,6 @@ typedef struct dist_args {
 
     dist_res* res;
 } dist_args;
-
-long time_elapsed(untrusted_time start, untrusted_time end) {
-    long secs_used, micros_used;
-
-    secs_used = (end.tv_sec - start.tv_sec); //avoid overflow by subtracting first
-    micros_used = ((secs_used*1000000) + end.tv_usec) - (start.tv_usec);
-    return micros_used;
-}
 
 void online_kmeans_init(float* descriptors, const size_t nr_descs, kmeans_data* data) {
     assertion(nr_descs >= data->k);
@@ -72,7 +64,7 @@ void* calc_distances(void* args) {
 #endif
 
 double online_kmeans(float* descriptors, const size_t nr_descs, kmeans_data* data) {
-    untrusted_time start = untrusted_util::curr_time();
+    untrusted_time start = outside_util::curr_time();
 
     double compactness = 0;
 
@@ -108,7 +100,7 @@ double online_kmeans(float* descriptors, const size_t nr_descs, kmeans_data* dat
                     args[j].end = j * k_per_thread + k_per_thread;
             }
 
-            //untrusted_util::printf("start %lu end %lu\n", args[j].start, args[j].end);
+            //outside_util::printf("start %lu end %lu\n", args[j].start, args[j].end);
             trusted_util::thread_add_work(calc_distances, args + j);
         }
 
@@ -150,9 +142,9 @@ double online_kmeans(float* descriptors, const size_t nr_descs, kmeans_data* dat
     free(args);
 #endif
 
-    untrusted_time end = untrusted_util::curr_time();
-    untrusted_util::printf("elapsed %ld\n", time_elapsed(start, end));
+    untrusted_time end = outside_util::curr_time();
+    outside_util::printf("elapsed %ld\n", trusted_util::time_elapsed(start, end));
 
-    untrusted_util::printf("compactness %f\n", compactness);
+    outside_util::printf("compactness %f\n", compactness);
     return 1;//best_compactness;
 }

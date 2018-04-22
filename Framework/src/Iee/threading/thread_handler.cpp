@@ -1,5 +1,5 @@
 #include "thread_handler.h"
-#include "untrusted_util.h"
+#include "outside_util.h"
 
 // thread_handler data
 thread_data* threads = NULL;
@@ -42,7 +42,7 @@ int trusted_util::thread_add_work(void* (*task)(void*), void* args) {
 }
 
 void trusted_util::thread_do_work() {
-    //untrusted_util::printf("nr tasks %u\n", nr_tasks);
+    //outside_util::printf("nr tasks %u\n", nr_tasks);
     // make threads work
     for (unsigned i = 0; i < nr_tasks; ++i) {
         thread_data* t = &threads[i];

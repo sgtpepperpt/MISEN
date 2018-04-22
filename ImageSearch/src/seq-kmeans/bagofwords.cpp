@@ -30,7 +30,7 @@ void BagOfWordsTrainer::add_descriptors(img_descriptor* _descriptors) {
 }
 
 int BagOfWordsTrainer::is_full() {
-    untrusted_util::printf("total_descriptors %lu\n", total_descriptors);
+    outside_util::printf("total_descriptors %lu\n", total_descriptors);
     //return descriptors.size() >= 10;
     return total_descriptors >= MAX_DESCRIPTORS_MEM;
 }

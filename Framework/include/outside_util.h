@@ -1,5 +1,5 @@
-#ifndef __OCALL_WRAPPER_H_
-#define __OCALL_WRAPPER_H_
+#ifndef __OUTSIDE_UTIL_H_
+#define __OUTSIDE_UTIL_H_
 
 #include <stdlib.h>
 #include "types.h"
@@ -15,7 +15,7 @@
 
 #endif
 
-namespace untrusted_util {
+namespace outside_util {
     // file i/o
     int open(const char *filename, int mode);
     ssize_t read(int file, void *buf, size_t len);

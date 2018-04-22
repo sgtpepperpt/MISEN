@@ -5,7 +5,7 @@
 #include <mutex>
 #include <condition_variable>
 
-#include "untrusted_util.h"
+#include "outside_util.h"
 #include "trusted_crypto.h"
 #include "thread_handler.h"
 #include "extern_lib.h"
@@ -64,7 +64,7 @@ void ecall_process(void** out, size_t* out_len, const void* in, const size_t in_
     extern_lib::process_message((uint8_t **) out, out_len, (const uint8_t *) in, in_len);
 
     // step needed to copy from unencrypted inside to encrypted outside
-    uint8_t* res = (uint8_t*) untrusted_util::outside_malloc(*out_len);
+    uint8_t* res = (uint8_t*) outside_util::outside_malloc(*out_len);
     memcpy(res, *out, *out_len);
 
     free(*out);

@@ -8,7 +8,7 @@
 // includes from framework
 #include "types.h"
 #include "trusted_util.h"
-#include "untrusted_util.h"
+#include "outside_util.h"
 #include "trusted_crypto.h"
 #include "extern_lib.h" // defines the functions we implement here
 
@@ -25,7 +25,7 @@
 #define SEARCH_MAX_BATCH_LEN 1000
 
 using namespace std;
-using namespace untrusted_util;
+using namespace outside_util;
 
 BagOfWordsTrainer* k;
 int server_socket;
@@ -65,7 +65,7 @@ void repository_init(unsigned nr_clusters, size_t desc_len) {
     total_docs = 0;
 
     // establish connection to uee
-    server_socket = untrusted_util::open_uee_connection();
+    server_socket = outside_util::open_uee_connection();
 }
 
 void repository_clear() {
@@ -82,10 +82,10 @@ void repository_clear() {
     k->cleanup();
     free(k);
 
-    untrusted_util::close_uee_connection(server_socket);
+    outside_util::close_uee_connection(server_socket);
 }
 
-#define PARALLEL_IMG_PROCESSING 0
+#define PARALLEL_IMG_PROCESSING 1
 typedef struct process_args {
     size_t start;
     size_t end;
@@ -119,13 +119,13 @@ void* parallel_process(void* args) {
 
 
 static unsigned* process_new_image(const uint8_t* in, const size_t in_len) {
-    untrusted_time start = untrusted_util::curr_time();
+    untrusted_time start = outside_util::curr_time();
 
     size_t nr_desc;
     memcpy(&nr_desc, in, sizeof(size_t));
 
     float* descriptors = (float*)(in + sizeof(size_t));
-    untrusted_util::printf("proc: nr_descs %d\n", nr_desc);
+    outside_util::printf("proc: nr_descs %d\n", nr_desc);
 
     unsigned* frequencies = (unsigned*)malloc(k->nr_centres() * sizeof(unsigned));
     memset(frequencies, 0x00, k->nr_centres() * sizeof(unsigned));
@@ -154,7 +154,7 @@ static unsigned* process_new_image(const uint8_t* in, const size_t in_len) {
                 args[j].end = j * desc_per_thread + desc_per_thread;
         }
 
-        //untrusted_util::printf("start %lu end %lu\n", args[j].start, args[j].end);
+        //outside_util::printf("start %lu end %lu\n", args[j].start, args[j].end);
         trusted_util::thread_add_work(parallel_process, args + j);
     }
 
@@ -179,8 +179,8 @@ static unsigned* process_new_image(const uint8_t* in, const size_t in_len) {
     }
 #endif
 
-    untrusted_time end = untrusted_util::curr_time();
-    //untrusted_util::printf("elapsed %ld\n", time_elapsed(start, end));
+    untrusted_time end = outside_util::curr_time();
+    outside_util::printf("elapsed %ld\n", trusted_util::time_elapsed(start, end));
 
     return frequencies;
 }
@@ -193,14 +193,14 @@ static void add_image(uint8_t** out, size_t* out_len, const uint8_t* in, const s
     // get image id from buffer
     unsigned long id;
     memcpy(&id, in, sizeof(unsigned long));
-    untrusted_util::printf("add, id %lu\n", id);
+    outside_util::printf("add, id %lu\n", id);
 
     unsigned* frequencies = process_new_image(in + sizeof(unsigned long), in_len - sizeof(unsigned long));
 
-    untrusted_util::printf("frequencies: ");
+    outside_util::printf("frequencies: ");
     for (size_t i = 0; i < k->nr_centres(); i++)
-        untrusted_util::printf("%u ", frequencies[i]);
-    untrusted_util::printf("\n");
+        outside_util::printf("%u ", frequencies[i]);
+    outside_util::printf("\n");
 
     // prepare request to uee
     const size_t pair_len = LABEL_LEN + ENC_VALUE_LEN;
@@ -251,8 +251,8 @@ static void add_image(uint8_t** out, size_t* out_len, const uint8_t* in, const s
         // send batch to server
         size_t res_len;
         void* res;
-        untrusted_util::uee_process(server_socket, &res, &res_len, req_buffer, sizeof(unsigned char) + sizeof(size_t) + batch_len * pair_len);
-        untrusted_util::outside_free(res); // discard ok response
+        outside_util::uee_process(server_socket, &res, &res_len, req_buffer, sizeof(unsigned char) + sizeof(size_t) + batch_len * pair_len);
+        outside_util::outside_free(res); // discard ok response
     }
 
     total_docs++;
@@ -289,7 +289,7 @@ int compare_results(const void *a, const void *b) {
 }
 
 void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_t in_len) {
-    using namespace untrusted_util;
+    using namespace outside_util;
     unsigned* frequencies = process_new_image(in, in_len);
     for (size_t i = 0; i < k->nr_centres(); ++i) {
         printf("%u ", frequencies[i]);
@@ -391,7 +391,7 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
                 docs[id] = frequencies[i] * 1 + log10(frequency) * idf[i];
         }
 
-        untrusted_util::outside_free(res);
+        outside_util::outside_free(res);
     }
 
     // TODO randomise, do not ignore zero counters
@@ -437,7 +437,7 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
 }
 
 void extern_lib::process_message(uint8_t **out, size_t *out_len, const uint8_t *in, const size_t in_len) {
-    /*untrusted_util::printf("init!\n");
+    /*outside_util::printf("init!\n");
     uint8_t* c = (uint8_t*)malloc(8);
     int a = 2;
     memcpy(c, &a, 4);
@@ -450,7 +450,7 @@ void extern_lib::process_message(uint8_t **out, size_t *out_len, const uint8_t *
     trusted_util::thread_add_work(NULL);
     trusted_util::thread_do_work();
 
-    untrusted_util::printf("end!\n");
+    outside_util::printf("end!\n");
     */
     // pass pointer without op char to processing functions
     uint8_t* input = ((uint8_t*)in) + sizeof(unsigned char);
@@ -463,7 +463,7 @@ void extern_lib::process_message(uint8_t **out, size_t *out_len, const uint8_t *
 
     switch(((unsigned char*)in)[0]) {
         case 'i': {
-            untrusted_util::printf("Init repository!\n");
+            outside_util::printf("Init repository!\n");
 
             unsigned nr_clusters;
             size_t desc_len;
@@ -471,14 +471,14 @@ void extern_lib::process_message(uint8_t **out, size_t *out_len, const uint8_t *
             memcpy(&nr_clusters, input, sizeof(unsigned));
             memcpy(&desc_len, input + sizeof(unsigned), sizeof(size_t));
 
-            untrusted_util::printf("desc_len %lu %u\n", desc_len, nr_clusters);
+            outside_util::printf("desc_len %lu %u\n", desc_len, nr_clusters);
 
             repository_init(nr_clusters, desc_len);
             ok_response(out, out_len);
             break;
         }
         case 'a': {
-            untrusted_util::printf("Train add image!\n");
+            outside_util::printf("Train add image!\n");
 
             unsigned long id;
             size_t nr_desc;
@@ -491,35 +491,35 @@ void extern_lib::process_message(uint8_t **out, size_t *out_len, const uint8_t *
             break;
         }
         case 'k': {
-            untrusted_util::printf("Train kmeans!\n");
+            outside_util::printf("Train kmeans!\n");
             train_kmeans(k);
             ok_response(out, out_len);
             break;
         }
         case 'n': {
-            untrusted_util::printf("Add after train images!\n");
+            outside_util::printf("Add after train images!\n");
             add_image(out, out_len, input, input_len);
             ok_response(out, out_len);
             break;
         }
         case 's': {
-            untrusted_util::printf("Search!\n");
+            outside_util::printf("Search!\n");
             search_image(out, out_len, input, input_len);
             break;
         }
         case 'c': {
-            untrusted_util::printf("Clear repository!\n");
+            outside_util::printf("Clear repository!\n");
             repository_clear();
             ok_response(out, out_len);
             break;
         }
         default: {
-            untrusted_util::printf("Unrecognised op: %02x\n", ((unsigned char *) in)[0]);
+            outside_util::printf("Unrecognised op: %02x\n", ((unsigned char *) in)[0]);
             break;
         }
     }
 }
 
 void extern_lib::init() {
-    untrusted_util::printf("init function!\n");
+    outside_util::printf("init function!\n");
 }
