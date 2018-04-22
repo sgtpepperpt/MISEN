@@ -2,6 +2,7 @@
 #include <string.h>
 #include <math.h>
 #include <stdint.h>
+#include <float.h>
 #include <map>
 
 // includes from framework
@@ -19,6 +20,8 @@
 #define LABEL_LEN (SHA256_OUTPUT_SIZE)
 #define UNENC_VALUE_LEN (LABEL_LEN + sizeof(unsigned long) + sizeof(unsigned)) // (32 + 8 + 4 = 44)
 #define ENC_VALUE_LEN (UNENC_VALUE_LEN + 4) // AES padding (44 + 4 = 48)
+
+#define ADD_MAX_BATCH_LEN 1000
 
 using namespace std;
 using namespace untrusted_util;
@@ -86,7 +89,7 @@ static unsigned* process_new_image(const uint8_t* in, const size_t in_len) {
     memcpy(&nr_desc, in, sizeof(size_t));
 
     float* descriptors = (float*)(in + sizeof(size_t));
-    untrusted_util::printf("add: nr_rows %d\n", nr_desc);
+    untrusted_util::printf("add: nr_descs %d\n", nr_desc);
 
     //size_t to_server_len = sizeof(unsigned char) + ;
     //unsigned char* to_server = (unsigned char*)malloc(to_server * to_server_len);
@@ -146,53 +149,59 @@ static void add_image(uint8_t** out, size_t* out_len, const uint8_t* in, const s
     untrusted_util::printf("\n");
 
     // prepare request to uee
-    size_t req_len = sizeof(unsigned char) + sizeof(size_t) + k->nr_centres() * (LABEL_LEN + ENC_VALUE_LEN);
+    const size_t pair_len = LABEL_LEN + ENC_VALUE_LEN;
+
+    size_t req_len = sizeof(unsigned char) + sizeof(size_t) + ADD_MAX_BATCH_LEN * pair_len;
     uint8_t* req_buffer = (uint8_t*)malloc(req_len);
     req_buffer[0] = 'a';
 
-    uint8_t* tmp = req_buffer + sizeof(unsigned char);
+    size_t to_send = k->nr_centres();
+    size_t centre_pos = 0;
+    while (to_send > 0) {
+        size_t batch_len = min(ADD_MAX_BATCH_LEN, to_send);
 
-    size_t len = k->nr_centres();
-    memcpy(tmp, &len, sizeof(size_t));
-    tmp += sizeof(size_t);
+        // add number of pairs to buffer
+        uint8_t* tmp = req_buffer + sizeof(unsigned char);
+        memcpy(tmp, &batch_len, sizeof(size_t));
+        tmp += sizeof(size_t);
 
-    // add visual words to server with their frequencies
-    for (size_t m = 0; m < k->nr_centres(); ++m) { //TODO batches
-        memset(ctr, 0x00, AES_BLOCK_SIZE);
-        // calculate label based on current counter for the centre
-        int counter = counters[m];
-        tcrypto::hmac_sha256(tmp, &counter, sizeof(unsigned), centre_keys[m], LABEL_LEN);
-        uint8_t* label = tmp; // keep a reference to the label
-        //debug_printbuf(tmp, LABEL_LEN);
-        tmp += LABEL_LEN;
+        // add all batch pairs to buffer
+        for (size_t i = 0; i < batch_len; ++i) {
+            memset(ctr, 0x00, AES_BLOCK_SIZE);
 
-        // increase the centre counter, if present
-        if(frequencies[m])
-            counters[m]++;
+            // calculate label based on current counter for the centre
+            int counter = counters[centre_pos];
+            tcrypto::hmac_sha256(tmp, &counter, sizeof(unsigned), centre_keys[centre_pos], LABEL_LEN);
+            uint8_t* label = tmp; // keep a reference to the label
+            tmp += LABEL_LEN;
 
-        //debug_printbuf(label, LABEL_LEN);
+            // increase the centre's counter, if present
+            if(frequencies[centre_pos])
+                ++counters[centre_pos];
 
-        // calculate value
-        // label + img_id + frequency
-        unsigned char value[UNENC_VALUE_LEN];
-        memcpy(value, label, LABEL_LEN);
-        memcpy(value + LABEL_LEN, &id, sizeof(unsigned long));
-        memcpy(value + LABEL_LEN + sizeof(unsigned long), &frequencies[m], sizeof(unsigned));
+            // calculate value
+            // label + img_id + frequency
+            unsigned char value[UNENC_VALUE_LEN];
+            memcpy(value, label, LABEL_LEN);
+            memcpy(value + LABEL_LEN, &id, sizeof(unsigned long));
+            memcpy(value + LABEL_LEN + sizeof(unsigned long), &frequencies[centre_pos], sizeof(unsigned));
 
-        // encrypt value
-        tcrypto::encrypt(tmp, value, UNENC_VALUE_LEN, ke, ctr);
-        //debug_printbuf(tmp, ENC_VALUE_LEN);
-        tmp += ENC_VALUE_LEN;
+            // encrypt value
+            tcrypto::encrypt(tmp, value, UNENC_VALUE_LEN, ke, ctr);
+            tmp += ENC_VALUE_LEN;
+
+            to_send--;
+            centre_pos++;
+        }
+
+        // send batch to server
+        size_t res_len;
+        void* res;
+        untrusted_util::uee_process(server_socket, &res, &res_len, req_buffer, req_len);
+        untrusted_util::outside_free(res); // discard ok response
     }
 
-    // send to server
-    size_t res_len;
-    void* res;
-    untrusted_util::uee_process(server_socket, &res, &res_len, req_buffer, req_len);
-    untrusted_util::outside_free(res);
-
     total_docs++;
-
     free(frequencies);
     free(req_buffer);
 }
