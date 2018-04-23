@@ -121,7 +121,6 @@ void* parallel_process(void* args) {
 }
 #endif
 
-
 static unsigned* process_new_image(const uint8_t* in, const size_t in_len) {
     untrusted_time start = outside_util::curr_time();
 
@@ -306,7 +305,7 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
 
     unsigned batch_counter = 0;
     while (to_send > 0) {
-        printf("(%02u) centre %lu; %lu counters\n", batch_counter++, centre_pos, counter_pos);
+        printf("(%02u) centre %lu; counter %lu \n", batch_counter++, centre_pos, counter_pos);
 
         size_t batch_len = min(SEARCH_MAX_BATCH_LEN, to_send);
 
@@ -321,8 +320,6 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
             tcrypto::hmac_sha256(tmp, &counter_pos, sizeof(unsigned), centre_keys[centre_pos], LABEL_LEN);
             tmp += LABEL_LEN;
 
-            to_send--;
-
             // update pointers
             ++counter_pos;
             if(counter_pos == counters[centre_pos]) {
@@ -332,6 +329,8 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
                 counter_pos = 0;
             }
         }
+
+        to_send -= batch_len;
 
         // perform request to uee
         size_t res_len;
@@ -362,9 +361,9 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
             memcpy(&frequency, res_unenc + LABEL_LEN + sizeof(unsigned long), sizeof(unsigned));
 
             if (docs[id])
-                docs[id] += frequencies[i] * 1 + log10(frequency) * idf[i];
+                docs[id] += frequency? frequencies[i] * (1 + log10(frequency)) * idf[i] : 0;
             else
-                docs[id] = frequencies[i] * 1 + log10(frequency) * idf[i];
+                docs[id] = frequency? frequencies[i] * (1 + log10(frequency)) * idf[i] : 0;
         }
 
         outside_util::outside_free(res);
@@ -383,10 +382,10 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
     uint8_t* res;
 
     ////////////////////
-    //sort_docs(docs, response_imgs, &res);
+    //sort_docs(docs, response_imgs, &res); // TODO
     res = (uint8_t*)malloc(docs.size() * single_res_len);
     int pos = 0;
-    for (std::map<unsigned long, double>::iterator l = docs.begin(); l != docs.end() ; ++l) {
+    for (map<unsigned long, double>::iterator l = docs.begin(); l != docs.end() ; ++l) {
         memcpy(res + pos * single_res_len, &l->first, sizeof(unsigned long));
         memcpy(res + pos * single_res_len + sizeof(unsigned long), &l->second, sizeof(double));
         pos++;

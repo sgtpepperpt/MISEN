@@ -263,9 +263,9 @@ int main(int argc, char** argv) {
 
     // parse terminal arguments
     int c;
-    while ((c = getopt(argc, argv, "c:i:")) != -1) {
+    while ((c = getopt(argc, argv, "k:i:")) != -1) {
         switch (c) {
-            case 'c':
+            case 'k':
                 nr_clusters = stoul(optarg);
                 break;
             case 'i':
