@@ -10,6 +10,7 @@
 #include <dirent.h>
 
 #include "net_util.h"
+#include "time_util.h"
 #include "crypto.h"
 
 typedef struct img_descriptor {

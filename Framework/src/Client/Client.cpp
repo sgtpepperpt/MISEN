@@ -18,8 +18,8 @@ vector<string> get_filenames(int n) {
     string holidayDir = "/home/guilherme/Datasets/inria";
     vector<string> filenames;
 
-    DIR *dir;
-    struct dirent *ent;
+    DIR* dir;
+    struct dirent* ent;
     int i = 0;
     if ((dir = opendir(holidayDir.c_str()))) {
         while ((ent = readdir(dir)) != NULL && i < n) {
@@ -49,7 +49,7 @@ void iee_recv(const int socket, uint8_t** out, size_t* out_len) {
     socket_receive(socket, *out, *out_len);
 }
 
-void iee_comm(const int socket, const void *in, const size_t in_len) {
+void iee_comm(const int socket, const void* in, const size_t in_len) {
     // encrypt before sending
     /*uint8_t* enc = (uint8_t*)malloc(in_len);
     memset(ctr, 0x00, AES_BLOCK_SIZE); // TODO do not repeat ctr
@@ -89,17 +89,17 @@ void iee_comm(const int socket, const void *in, const size_t in_len) {
     //debug_printbuf(res, res_len);
 }
 
-void init(uint8_t **in, size_t *in_len, unsigned nr_clusters, size_t row_len) {
+void init(uint8_t** in, size_t* in_len, unsigned nr_clusters, size_t row_len) {
     *in_len = sizeof(unsigned char) + sizeof(unsigned) + sizeof(size_t);
-    *in = (uint8_t *) malloc(*in_len);
+    *in = (uint8_t*)malloc(*in_len);
 
     *in[0] = 'i';
     memcpy(*in + sizeof(unsigned char), &nr_clusters, sizeof(unsigned));
     memcpy(*in + sizeof(unsigned char) + sizeof(unsigned), &row_len, sizeof(size_t));
 }
 
-void add_train_images(uint8_t **in, size_t *in_len, const Ptr<SURF> surf, std::string file_name) {
-    const char *id = strrchr(file_name.c_str(), '/') + sizeof(char); // +sizeof(char) excludes the slash
+void add_train_images(uint8_t** in, size_t* in_len, const Ptr<SURF> surf, std::string file_name) {
+    const char* id = strrchr(file_name.c_str(), '/') + sizeof(char); // +sizeof(char) excludes the slash
     unsigned long num_id = strtoul(id, NULL, 0);
 
     Mat image = imread(file_name);
@@ -114,10 +114,10 @@ void add_train_images(uint8_t **in, size_t *in_len, const Ptr<SURF> surf, std::s
     Mat descriptors;
     surf->compute(image, keypoints, descriptors);
 
-    const size_t desc_len = (size_t) descriptors.size().width;
-    const size_t nr_desc = (size_t) descriptors.size().height;
+    const size_t desc_len = (size_t)descriptors.size().width;
+    const size_t nr_desc = (size_t)descriptors.size().height;
 
-    float *descriptors_buffer = (float *) malloc(desc_len * nr_desc * sizeof(float));
+    float* descriptors_buffer = (float*)malloc(desc_len * nr_desc * sizeof(float));
     for (unsigned i = 0; i < nr_desc; i++) {
         for (size_t j = 0; j < desc_len; j++)
             descriptors_buffer[i * desc_len + j] = *descriptors.ptr<float>(i, j);
@@ -125,8 +125,8 @@ void add_train_images(uint8_t **in, size_t *in_len, const Ptr<SURF> surf, std::s
 
     // send
     *in_len = sizeof(unsigned char) + sizeof(unsigned long) + sizeof(size_t) + nr_desc * desc_len * sizeof(float);
-    *in = (uint8_t *) malloc(*in_len);
-    uint8_t *tmp = *in;
+    *in = (uint8_t*)malloc(*in_len);
+    uint8_t* tmp = *in;
 
     tmp[0] = 'a';
     tmp += sizeof(unsigned char);
@@ -142,8 +142,8 @@ void add_train_images(uint8_t **in, size_t *in_len, const Ptr<SURF> surf, std::s
     free(descriptors_buffer);
 }
 
-void add_images(uint8_t **in, size_t *in_len, const Ptr<SURF> surf, std::string file_name) {
-    const char *id = strrchr(file_name.c_str(), '/') + sizeof(char); // +sizeof(char) excludes the slash
+void add_images(uint8_t** in, size_t* in_len, const Ptr<SURF> surf, std::string file_name) {
+    const char* id = strrchr(file_name.c_str(), '/') + sizeof(char); // +sizeof(char) excludes the slash
     unsigned long num_id = strtoul(id, NULL, 0);
 
     Mat image = imread(file_name);
@@ -158,10 +158,10 @@ void add_images(uint8_t **in, size_t *in_len, const Ptr<SURF> surf, std::string 
     Mat descriptors;
     surf->compute(image, keypoints, descriptors);
 
-    const size_t desc_len = (size_t) descriptors.size().width;
-    const size_t nr_desc = (size_t) descriptors.size().height;
+    const size_t desc_len = (size_t)descriptors.size().width;
+    const size_t nr_desc = (size_t)descriptors.size().height;
 
-    float *descriptors_buffer = (float *) malloc(desc_len * nr_desc * sizeof(float));
+    float* descriptors_buffer = (float*)malloc(desc_len * nr_desc * sizeof(float));
     for (unsigned i = 0; i < nr_desc; i++) {
         for (size_t j = 0; j < desc_len; j++)
             descriptors_buffer[i * desc_len + j] = *descriptors.ptr<float>(i, j);
@@ -169,8 +169,8 @@ void add_images(uint8_t **in, size_t *in_len, const Ptr<SURF> surf, std::string 
 
     // send
     *in_len = sizeof(unsigned char) + sizeof(unsigned long) + sizeof(size_t) + nr_desc * desc_len * sizeof(float);
-    *in = (uint8_t *) malloc(*in_len);
-    uint8_t *tmp = *in;
+    *in = (uint8_t*)malloc(*in_len);
+    uint8_t* tmp = *in;
 
     tmp[0] = 'n';
     tmp += sizeof(unsigned char);
@@ -186,22 +186,22 @@ void add_images(uint8_t **in, size_t *in_len, const Ptr<SURF> surf, std::string 
     free(descriptors_buffer);
 }
 
-void train(uint8_t **in, size_t *in_len) {
+void train(uint8_t** in, size_t* in_len) {
     *in_len = sizeof(unsigned char);
 
-    *in = (uint8_t *) malloc(*in_len);
+    *in = (uint8_t*)malloc(*in_len);
     *in[0] = 'k';
 }
 
-void clear(uint8_t **in, size_t *in_len) {
+void clear(uint8_t** in, size_t* in_len) {
     *in_len = sizeof(unsigned char);
 
-    *in = (uint8_t *) malloc(*in_len);
+    *in = (uint8_t*)malloc(*in_len);
     *in[0] = 'c';
 }
 
-void search(uint8_t **in, size_t *in_len, const Ptr<SURF> surf, const std::string file_name) {
-    const char *id = strrchr(file_name.c_str(), '/') + sizeof(char); // +sizeof(char) excludes the slash
+void search(uint8_t** in, size_t* in_len, const Ptr<SURF> surf, const std::string file_name) {
+    const char* id = strrchr(file_name.c_str(), '/') + sizeof(char); // +sizeof(char) excludes the slash
     printf(" - Search for %s -\n", id);
 
     Mat image = imread(file_name);
@@ -216,10 +216,10 @@ void search(uint8_t **in, size_t *in_len, const Ptr<SURF> surf, const std::strin
     Mat descriptors;
     surf->compute(image, keypoints, descriptors);
 
-    const size_t desc_len = (size_t) descriptors.size().width;
-    const size_t nr_desc = (size_t) descriptors.size().height;
+    const size_t desc_len = (size_t)descriptors.size().width;
+    const size_t nr_desc = (size_t)descriptors.size().height;
 
-    float *descriptors_buffer = (float *) malloc(desc_len * nr_desc * sizeof(float));
+    float* descriptors_buffer = (float*)malloc(desc_len * nr_desc * sizeof(float));
 
     for (unsigned i = 0; i < nr_desc; ++i) {
         for (size_t j = 0; j < desc_len; ++j)
@@ -229,8 +229,8 @@ void search(uint8_t **in, size_t *in_len, const Ptr<SURF> surf, const std::strin
     // send
     *in_len = sizeof(unsigned char) + sizeof(size_t) + nr_desc * desc_len * sizeof(float);
 
-    *in = (uint8_t *) malloc(*in_len);
-    uint8_t *tmp = *in;
+    *in = (uint8_t*)malloc(*in_len);
+    uint8_t* tmp = *in;
 
     tmp[0] = 's';
     tmp += sizeof(unsigned char);
@@ -243,12 +243,12 @@ void search(uint8_t **in, size_t *in_len, const Ptr<SURF> surf, const std::strin
     free(descriptors_buffer);
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
     memset(key, 0x00, AES_BLOCK_SIZE);
     memset(ctr, 0x00, AES_BLOCK_SIZE);
 
     // fixed params
-    const char *server_name = "localhost";
+    const char* server_name = "localhost";
     const int server_port = 7910;
     const size_t desc_len = 64;
     const double surf_threshold = 400;
@@ -261,22 +261,22 @@ int main(int argc, char **argv) {
     int c;
     while ((c = getopt(argc, argv, "c:i:")) != -1) {
         switch (c) {
-        case 'c':
-            nr_clusters = stoul(optarg);
-            break;
-        case 'i':
-            src_img = atoi(optarg);
-            break;
-        case '?':
-            if (optopt == 'c')
-                fprintf(stderr, "-%c requires an argument.\n", optopt);
-            else if (isprint(optopt))
-                fprintf(stderr, "Unknown option `-%c'.\n", optopt);
-            else
-                fprintf(stderr, "Unknown option character `\\x%x'.\n", optopt);
-            exit(1);
-        default:
-            exit(-1);
+            case 'c':
+                nr_clusters = stoul(optarg);
+                break;
+            case 'i':
+                src_img = atoi(optarg);
+                break;
+            case '?':
+                if (optopt == 'c')
+                    fprintf(stderr, "-%c requires an argument.\n", optopt);
+                else if (isprint(optopt))
+                    fprintf(stderr, "Unknown option `-%c'.\n", optopt);
+                else
+                    fprintf(stderr, "Unknown option character `\\x%x'.\n", optopt);
+                exit(1);
+            default:
+                exit(-1);
         }
     }
 
@@ -289,6 +289,9 @@ int main(int argc, char **argv) {
 
     printf("Running with %d images, %lu clusters\n", nr_images, nr_clusters);
 
+    struct timeval start;
+    gettimeofday(&start, NULL);
+
     // establish connection to iee_comm server
     const int socket = socket_connect(server_name, server_port);
 
@@ -299,7 +302,7 @@ int main(int argc, char **argv) {
 
     // init iee and server
     size_t in_len = 0;
-    uint8_t *in = NULL;
+    uint8_t* in = NULL;
 
     init(&in, &in_len, nr_clusters, desc_len);
     iee_comm(socket, in, in_len);
@@ -360,6 +363,10 @@ int main(int argc, char **argv) {
     clear(&in, &in_len);
     iee_comm(socket, in, in_len);
     free(in);
+
+    struct timeval end;
+    gettimeofday(&end, NULL);
+    printf("Total elapsed time: %ldms\n", util_time_elapsed(start, end));
 
     return 0;
 }
