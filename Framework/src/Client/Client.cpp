@@ -370,7 +370,7 @@ int main(int argc, char** argv) {
 
     struct timeval end;
     gettimeofday(&end, NULL);
-    printf("Total elapsed time: %ldms\n", untrusted_util::time_elapsed(start, end));
+    printf("Total elapsed time: %ldms\n", untrusted_util::time_elapsed_ms(start, end));
 
     return 0;
 }

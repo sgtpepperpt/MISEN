@@ -10,7 +10,7 @@ namespace trusted_util {
     void thread_do_work();
 
     // time
-    long time_elapsed(untrusted_time start, untrusted_time end);
+    long time_elapsed_ms(untrusted_time start, untrusted_time end);
 }
 
 #endif

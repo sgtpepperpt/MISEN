@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-#include "../../Framework/include/outside_util.h"
+#include "outside_util.h"
 
 void debug_print_points(float* points, size_t nr_rows, size_t row_len);
 void debug_printbuf(uint8_t* buf, size_t len);

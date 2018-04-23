@@ -107,7 +107,7 @@ void* process_client(void* args) {
 
                 ok_response(&out, &out_len);
                 gettimeofday(&end, NULL);
-                total_add_time += untrusted_util::time_elapsed(start, end);
+                total_add_time += untrusted_util::time_elapsed_ms(start, end);
 
                 break;
             }

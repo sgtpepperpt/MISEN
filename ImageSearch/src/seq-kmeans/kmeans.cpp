@@ -143,7 +143,7 @@ double online_kmeans(float* descriptors, const size_t nr_descs, kmeans_data* dat
 #endif
 
     untrusted_time end = outside_util::curr_time();
-    outside_util::printf("elapsed %ld\n", trusted_util::time_elapsed(start, end));
+    outside_util::printf("elapsed %ld\n", trusted_util::time_elapsed_ms(start, end));
 
     outside_util::printf("compactness %f\n", compactness);
     return 1;//best_compactness;

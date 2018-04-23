@@ -13,6 +13,7 @@
 #include "extern_lib.h" // defines the functions we implement here
 
 // training and kmeans
+#include "scoring.h"
 #include "training.h"
 #include "util.h"
 #include "seq-kmeans/util.h"
@@ -21,8 +22,10 @@
 #define UNENC_VALUE_LEN (LABEL_LEN + sizeof(unsigned long) + sizeof(unsigned)) // (32 + 8 + 4 = 44)
 #define ENC_VALUE_LEN (UNENC_VALUE_LEN + 4) // AES padding (44 + 4 = 48)
 
-#define ADD_MAX_BATCH_LEN 1000
+#define ADD_MAX_BATCH_LEN 2000
 #define SEARCH_MAX_BATCH_LEN 1000
+
+#define RESPONSE_DOCS 100
 
 using namespace std;
 using namespace outside_util;
@@ -80,7 +83,7 @@ void repository_clear() {
 
     // cleanup bag-of-words class
     k->cleanup();
-    free(k);
+    delete k;
 
     outside_util::close_uee_connection(server_socket);
 }
@@ -180,7 +183,7 @@ static unsigned* process_new_image(const uint8_t* in, const size_t in_len) {
 #endif
 
     untrusted_time end = outside_util::curr_time();
-    outside_util::printf("elapsed %ld\n", trusted_util::time_elapsed(start, end));
+    outside_util::printf("elapsed %ld\n", trusted_util::time_elapsed_ms(start, end));
 
     return frequencies;
 }
@@ -260,34 +263,6 @@ static void add_image(uint8_t** out, size_t* out_len, const uint8_t* in, const s
     free(req_buffer);
 }
 
-static double* calc_idf(size_t total_docs, unsigned* counters) {
-    double* idf = (double*)malloc(k->nr_centres() * sizeof(double));
-    memset(idf, 0x00, k->nr_centres() * sizeof(double));
-
-    for(size_t i = 0; i < k->nr_centres(); i++) {
-        double non_zero_counters = counters[i] ? (double)counters[i] : (double)counters[i] + 1.0;
-        idf[i] = log10((double)total_docs / non_zero_counters);
-        //printf("%lu %lu %lf\n", total_docs, (size_t)non_zero_counters, log10((double)total_docs / non_zero_counters));
-    }
-
-    return idf;
-}
-
-void weight_idf(double *idf, unsigned* frequencies) {
-    for (size_t i = 0; i < k->nr_centres(); ++i)
-        idf[i] *= frequencies[i];
-}
-
-int compare_results(const void *a, const void *b) {
-    double d_a = *((const double*) ((const uint8_t *)a + sizeof(unsigned long)));
-    double d_b = *((const double*) ((const uint8_t *)b + sizeof(unsigned long)));
-
-    if (d_a == d_b)
-        return 0;
-    else
-        return d_a < d_b ? 1 : -1;
-}
-
 void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_t in_len) {
     using namespace outside_util;
     unsigned* frequencies = process_new_image(in, in_len);
@@ -296,7 +271,7 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
     }
     printf("\n");
 
-    double* idf = calc_idf(total_docs, counters);
+    double* idf = calc_idf(total_docs, counters, k->nr_centres());
     for (size_t i = 0; i < k->nr_centres(); ++i) {
         printf("%lf ", idf[i]);
     }
@@ -394,17 +369,20 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
         outside_util::outside_free(res);
     }
 
-    // TODO randomise, do not ignore zero counters
+    // TODO randomise, do not ignore zero counters, fix batch search for 2000
 
     // calculate score and respond to client
-    const unsigned response_size_docs = 100;
-    const unsigned response_imgs = min(docs.size(), response_size_docs);
+    const unsigned response_imgs = min(docs.size(), RESPONSE_DOCS);
     const size_t single_res_len = sizeof(unsigned long) + sizeof(double);
 
     // put result in simple structure, to sort
-    uint8_t* res = (uint8_t*)malloc(docs.size() * single_res_len);
+    uint8_t* res;
+
+    ////////////////////
+    //const size_t single_res_len = sizeof(unsigned long) + sizeof(double);
+    res = (uint8_t*)malloc(docs.size() * single_res_len);
     int pos = 0;
-    for (map<unsigned long, double>::iterator l = docs.begin(); l != docs.end() ; ++l) {
+    for (std::map<unsigned long, double>::iterator l = docs.begin(); l != docs.end() ; ++l) {
         memcpy(res + pos * single_res_len, &l->first, sizeof(unsigned long));
         memcpy(res + pos * single_res_len + sizeof(unsigned long), &l->second, sizeof(double));
         pos++;
@@ -418,15 +396,16 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
         memcpy(&a, res + m * single_res_len, sizeof(unsigned long));
         memcpy(&b, res + m * single_res_len + sizeof(unsigned long), sizeof(double));
 
-        printf("%lu %f\n", a, b);
+        outside_util::printf("%lu %f\n", a, b);
     }
-    printf("\n");
+    outside_util::printf("\n");
+    ////////////////////
 
     free(idf);
     free(frequencies);
 
     // fill response buffer
-    *out_len = sizeof(size_t) + response_size_docs * single_res_len;
+    *out_len = sizeof(size_t) + RESPONSE_DOCS * single_res_len;
     *out = (uint8_t*)malloc(*out_len);
     memset(*out, 0x00, *out_len);
 
