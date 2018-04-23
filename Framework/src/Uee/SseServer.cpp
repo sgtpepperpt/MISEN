@@ -70,7 +70,7 @@ void* process_client(void* args) {
         unsigned char op = in_buffer[0];
 
         switch (op) {
-            case 'i': {
+            case OP_UEE_INIT: {
                 // clean previous elements, if any
                 repository_clear();
 
@@ -81,7 +81,7 @@ void* process_client(void* args) {
                 ok_response(&out, &out_len);
                 break;
             }
-            case 'a': {
+            case OP_UEE_ADD: {
                 printf("Add image (c. %lu)\n", I.size());
 
                 struct timeval start, end;
@@ -111,7 +111,7 @@ void* process_client(void* args) {
 
                 break;
             }
-            case 's': {
+            case OP_UEE_SEARCH: {
                 printf("Search\n");
 
                 uint8_t* tmp = in_buffer + sizeof(unsigned char);

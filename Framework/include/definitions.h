@@ -7,4 +7,16 @@
 #define UEE_HOSTNAME "localhost"
 #define UEE_PORT 7911
 
+// op codes
+#define OP_IEE_INIT 'i'
+#define OP_IEE_TRAIN_ADD 'a'
+#define OP_IEE_TRAIN 'k'
+#define OP_IEE_ADD 'n'
+#define OP_IEE_SEARCH 's'
+#define OP_IEE_CLEAR 'c'
+
+#define OP_UEE_INIT 'i'
+#define OP_UEE_ADD 'a'
+#define OP_UEE_SEARCH 's'
+
 #endif

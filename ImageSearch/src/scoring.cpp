@@ -36,6 +36,26 @@ void weight_idf(double *idf, unsigned* frequencies, const size_t nr_centres) {
         return d_a < d_b ? 1 : -1;
 }
 
-void sort_docs(std::map<unsigned long, double> docs, const unsigned int response_imgs, uint8_t** res) {
+void sort_docs(std::map<unsigned long, double> docs, const unsigned response_imgs, uint8_t** res) {
+    const size_t single_res_len = sizeof(unsigned long) + sizeof(double);
 
+    *res = (uint8_t*)malloc(docs.size() * single_res_len);
+    int pos = 0;
+    for (std::map<unsigned long, double>::iterator l = docs.begin(); l != docs.end() ; ++l) {
+        memcpy(res + pos * single_res_len, &l->first, sizeof(unsigned long));
+        memcpy(res + pos * single_res_len + sizeof(unsigned long), &l->second, sizeof(double));
+        pos++;
+    }
+
+    qsort(res, docs.size(), single_res_len, compare_results);
+    for (size_t m = 0; m < response_imgs; ++m) {
+        unsigned long a;
+        double b;
+
+        memcpy(&a, res + m * single_res_len, sizeof(unsigned long));
+        memcpy(&b, res + m * single_res_len + sizeof(unsigned long), sizeof(double));
+
+        outside_util::printf("%lu %f\n", a, b);
+    }
+    outside_util::printf("\n");
 }

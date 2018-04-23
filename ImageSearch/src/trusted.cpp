@@ -7,6 +7,7 @@
 
 // includes from framework
 #include "types.h"
+#include "definitions.h"
 #include "trusted_util.h"
 #include "outside_util.h"
 #include "trusted_crypto.h"
@@ -210,7 +211,7 @@ static void add_image(uint8_t** out, size_t* out_len, const uint8_t* in, const s
 
     size_t max_req_len = sizeof(unsigned char) + sizeof(size_t) + ADD_MAX_BATCH_LEN * pair_len;
     uint8_t* req_buffer = (uint8_t*)malloc(max_req_len);
-    req_buffer[0] = 'a';
+    req_buffer[0] = OP_UEE_ADD;
 
     size_t to_send = k->nr_centres();
     size_t centre_pos = 0;
@@ -297,7 +298,7 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
     // prepare request to uee
     size_t max_req_len = sizeof(unsigned char) + sizeof(size_t) + SEARCH_MAX_BATCH_LEN * LABEL_LEN;
     uint8_t* req_buffer = (uint8_t*)malloc(max_req_len);
-    req_buffer[0] = 's';
+    req_buffer[0] = OP_UEE_SEARCH;
 
     size_t to_send = nr_labels;
     size_t centre_pos = 0;
@@ -369,6 +370,9 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
         outside_util::outside_free(res);
     }
 
+    free(idf);
+    free(frequencies);
+
     // TODO randomise, do not ignore zero counters, fix batch search for 2000
 
     // calculate score and respond to client
@@ -379,7 +383,7 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
     uint8_t* res;
 
     ////////////////////
-    //const size_t single_res_len = sizeof(unsigned long) + sizeof(double);
+    //sort_docs(docs, response_imgs, &res);
     res = (uint8_t*)malloc(docs.size() * single_res_len);
     int pos = 0;
     for (std::map<unsigned long, double>::iterator l = docs.begin(); l != docs.end() ; ++l) {
@@ -400,9 +404,6 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
     }
     outside_util::printf("\n");
     ////////////////////
-
-    free(idf);
-    free(frequencies);
 
     // fill response buffer
     *out_len = sizeof(size_t) + RESPONSE_DOCS * single_res_len;
@@ -441,7 +442,7 @@ void extern_lib::process_message(uint8_t **out, size_t *out_len, const uint8_t *
     *out = NULL;
 
     switch(((unsigned char*)in)[0]) {
-        case 'i': {
+        case OP_IEE_INIT: {
             outside_util::printf("Init repository!\n");
 
             unsigned nr_clusters;
@@ -453,10 +454,11 @@ void extern_lib::process_message(uint8_t **out, size_t *out_len, const uint8_t *
             outside_util::printf("desc_len %lu %u\n", desc_len, nr_clusters);
 
             repository_init(nr_clusters, desc_len);
+            // TODO server init
             ok_response(out, out_len);
             break;
         }
-        case 'a': {
+        case OP_IEE_TRAIN_ADD: {
             outside_util::printf("Train add image!\n");
 
             unsigned long id;
@@ -469,24 +471,24 @@ void extern_lib::process_message(uint8_t **out, size_t *out_len, const uint8_t *
             ok_response(out, out_len);
             break;
         }
-        case 'k': {
+        case OP_IEE_TRAIN: {
             outside_util::printf("Train kmeans!\n");
             train_kmeans(k);
             ok_response(out, out_len);
             break;
         }
-        case 'n': {
+        case OP_IEE_ADD: {
             outside_util::printf("Add after train images!\n");
             add_image(out, out_len, input, input_len);
             ok_response(out, out_len);
             break;
         }
-        case 's': {
+        case OP_IEE_SEARCH: {
             outside_util::printf("Search!\n");
             search_image(out, out_len, input, input_len);
             break;
         }
-        case 'c': {
+        case OP_IEE_CLEAR: {
             outside_util::printf("Clear repository!\n");
             repository_clear();
             ok_response(out, out_len);

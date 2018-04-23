@@ -97,7 +97,7 @@ void init(uint8_t** in, size_t* in_len, unsigned nr_clusters, size_t row_len) {
     *in_len = sizeof(unsigned char) + sizeof(unsigned) + sizeof(size_t);
     *in = (uint8_t*)malloc(*in_len);
 
-    *in[0] = 'i';
+    *in[0] = OP_IEE_INIT;
     memcpy(*in + sizeof(unsigned char), &nr_clusters, sizeof(unsigned));
     memcpy(*in + sizeof(unsigned char) + sizeof(unsigned), &row_len, sizeof(size_t));
 }
@@ -132,7 +132,7 @@ void add_train_images(uint8_t** in, size_t* in_len, const Ptr<SURF> surf, std::s
     *in = (uint8_t*)malloc(*in_len);
     uint8_t* tmp = *in;
 
-    tmp[0] = 'a';
+    tmp[0] = OP_IEE_TRAIN_ADD;
     tmp += sizeof(unsigned char);
 
     memcpy(tmp, &num_id, sizeof(unsigned long));
@@ -176,7 +176,7 @@ void add_images(uint8_t** in, size_t* in_len, const Ptr<SURF> surf, std::string 
     *in = (uint8_t*)malloc(*in_len);
     uint8_t* tmp = *in;
 
-    tmp[0] = 'n';
+    tmp[0] = OP_IEE_ADD;
     tmp += sizeof(unsigned char);
 
     memcpy(tmp, &num_id, sizeof(unsigned long));
@@ -194,14 +194,14 @@ void train(uint8_t** in, size_t* in_len) {
     *in_len = sizeof(unsigned char);
 
     *in = (uint8_t*)malloc(*in_len);
-    *in[0] = 'k';
+    *in[0] = OP_IEE_TRAIN;
 }
 
 void clear(uint8_t** in, size_t* in_len) {
     *in_len = sizeof(unsigned char);
 
     *in = (uint8_t*)malloc(*in_len);
-    *in[0] = 'c';
+    *in[0] = OP_IEE_CLEAR;
 }
 
 void search(uint8_t** in, size_t* in_len, const Ptr<SURF> surf, const std::string file_name) {
@@ -236,7 +236,7 @@ void search(uint8_t** in, size_t* in_len, const Ptr<SURF> surf, const std::strin
     *in = (uint8_t*)malloc(*in_len);
     uint8_t* tmp = *in;
 
-    tmp[0] = 's';
+    tmp[0] = OP_IEE_SEARCH;
     tmp += sizeof(unsigned char);
 
     memcpy(tmp, &nr_desc, sizeof(size_t));
