@@ -7,7 +7,6 @@ set(CMAKE_CXX_STANDARD 11)
 
 # lib util
 set(LIBUTIL_DIR ${FRAMEWORK_DIR}/src/Util)
-set(LIBUTIL_INCLUDE_DIR ${FRAMEWORK_DIR}/src/Util)
 add_subdirectory(${LIBUTIL_DIR})
 
 # uee module

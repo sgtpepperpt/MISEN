@@ -5,3 +5,4 @@ set(CMAKE_CXX_STANDARD 11)
 
 file(GLOB SOURCES ${LIBUTIL_DIR}/*.cpp)
 add_library(Util ${SOURCES})
+target_include_directories(Util PRIVATE ${FRAMEWORK_INCLUDE_DIR})

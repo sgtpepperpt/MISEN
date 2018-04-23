@@ -12,8 +12,6 @@
 #include <err.h>
 #include <signal.h>
 
-#include "net_util.h"
-#include "time_util.h"
 #include "MapUtil.h"
 
 using namespace std;

@@ -1,4 +1,15 @@
-#include "net_util.h"
+#include "untrusted_util.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
 
 static int send_all(int socket, const void* buf, size_t len) {
     size_t total = 0;        // how many bytes we've sent
@@ -31,21 +42,21 @@ static ssize_t receive_all(int socket, void* buff, size_t len) {
     return r;
 }
 
-void socket_send(int socket, const void* buff, size_t len) {
+void untrusted_util::socket_send(int socket, const void* buff, size_t len) {
     if (send_all(socket, buff, len) < 0) {
         printf("ERROR writing to socket\n");
         exit(1);
     }
 }
 
-void socket_receive(int socket, void* buff, size_t len) {
+void untrusted_util::socket_receive(int socket, void* buff, size_t len) {
     if (receive_all(socket, buff, len) < 0) {
         printf("EERROR reading from socket\n");
         exit(1);
     }
 }
 
-int init_server(const int server_port) {
+int untrusted_util::init_server(const int server_port) {
     struct sockaddr_in server_addr;
     memset(&server_addr, 0x00, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
@@ -77,7 +88,7 @@ int init_server(const int server_port) {
     return listen_socket;
 }
 
-int socket_connect(const char* server_name, const int server_port) {
+int untrusted_util::socket_connect(const char* server_name, const int server_port) {
     struct sockaddr_in server_addr;
     memset(&server_addr, 0x00, sizeof(server_addr));
     server_addr.sin_family = AF_INET;

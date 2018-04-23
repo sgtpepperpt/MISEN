@@ -1,5 +1,13 @@
 #include "SseServer.h"
 
+#include <sys/time.h>
+#include <time.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+
+#include "definitions.h"
+#include "untrusted_util.h"
+
 using namespace std;
 
 /****************************************************** NET DATA ******************************************************/
@@ -51,10 +59,10 @@ void* process_client(void* args) {
 
     while (1) {
         size_t in_len;
-        socket_receive(socket, &in_len, sizeof(size_t));
+        untrusted_util::socket_receive(socket, &in_len, sizeof(size_t));
 
         uint8_t* in_buffer = (uint8_t*)malloc(in_len);
-        socket_receive(socket, in_buffer, in_len);
+        untrusted_util::socket_receive(socket, in_buffer, in_len);
 
         uint8_t* out = NULL;
         size_t out_len = 0;
@@ -99,7 +107,7 @@ void* process_client(void* args) {
 
                 ok_response(&out, &out_len);
                 gettimeofday(&end, NULL);
-                total_add_time += util_time_elapsed(start, end);
+                total_add_time += untrusted_util::time_elapsed(start, end);
 
                 break;
             }
@@ -137,8 +145,8 @@ void* process_client(void* args) {
         free(in_buffer);
 
         // send response
-        socket_send(socket, &out_len, sizeof(size_t));
-        socket_send(socket, out, out_len);
+        untrusted_util::socket_send(socket, &out_len, sizeof(size_t));
+        untrusted_util::socket_send(socket, out, out_len);
 
         free(out);
     }
@@ -148,13 +156,13 @@ void* process_client(void* args) {
 }
 
 int main(int argc, const char ** argv) {
-    const int server_port = 7911;
+    const int server_port = UEE_PORT;
 
     // register signal handler
     signal(SIGINT, close_all);
 
     // initialise listener socket
-    int server_socket = init_server(server_port);
+    int server_socket = untrusted_util::init_server(server_port);
 
     struct sockaddr_in client_addr;
     socklen_t client_addr_len = 0;

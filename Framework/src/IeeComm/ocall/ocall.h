@@ -7,11 +7,8 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include "Enclave_u.h"
-#include "net_util.h"
-#include "types.h"
 #include <sys/time.h>
 #include <time.h>
-
 
 #if defined(__cplusplus)
 extern "C" {

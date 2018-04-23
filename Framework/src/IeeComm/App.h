@@ -15,12 +15,11 @@
 #include "sgx_uae_service.h"
 #include "Enclave_u.h"
 
+#include "definitions.h"
+#include "untrusted_util.h"
 #include "ocall.h"
 #include "sgx_handler.h"
 #include "thread_pool.h"
-
-// util
-#include "net_util.h"
 
 #if defined(__cplusplus)
 extern "C" {

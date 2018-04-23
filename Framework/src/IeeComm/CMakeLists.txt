@@ -17,5 +17,5 @@ link_directories(${SGX_LIBRARY_PATH} ${EXTERN_DIR}/lib)
 
 add_executable(IeeComm ${IEE_COMM_DIR}/App.cpp ${IEE_COMM_DIR}/Enclave_u.c ${IEE_COMM_DIR}/ocall/ocall.cpp ${IEE_COMM_DIR}/sgx_handler/sgx_handler.cpp ${IEE_COMM_DIR}/threading/thread_pool.cpp)
 
-target_include_directories(IeeComm PRIVATE ${FRAMEWORK_INCLUDE_DIR} ${EXTERN_INCLUDE_DIR} ${IEE_COMM_DIR} ${IEE_COMM_DIR}/ocall ${IEE_COMM_DIR}/sgx_handler ${IEE_COMM_DIR}/threading ${LIBUTIL_INCLUDE_DIR} ${IEE_COMM_DIR}/../${IEE_DIR} ${SGX_SDK}/include)
+target_include_directories(IeeComm PRIVATE ${FRAMEWORK_INCLUDE_DIR} ${EXTERN_INCLUDE_DIR} ${IEE_COMM_DIR} ${IEE_COMM_DIR}/ocall ${IEE_COMM_DIR}/sgx_handler ${IEE_COMM_DIR}/threading ${IEE_COMM_DIR}/../${IEE_DIR} ${SGX_SDK}/include)
 target_link_libraries(IeeComm Util sgx_urts pthread sgx_uae_service ${EXTERN_LIB_NAME})

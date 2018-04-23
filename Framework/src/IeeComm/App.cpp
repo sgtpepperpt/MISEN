@@ -1,5 +1,9 @@
 #include "App.h"
 
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include "untrusted_util.h"
+
 // to pass data to client thread
 typedef struct client_data {
     sgx_enclave_id_t eid;
@@ -21,10 +25,10 @@ void* process_client(void* args) {
 
     while (1) {
         size_t in_len;
-        socket_receive(socket, &in_len, sizeof(size_t));
+        untrusted_util::socket_receive(socket, &in_len, sizeof(size_t));
 
         void *in_buffer = malloc(in_len);
-        socket_receive(socket, in_buffer, in_len);
+        untrusted_util::socket_receive(socket, in_buffer, in_len);
 
         void* out;
         size_t out_len;
@@ -40,8 +44,8 @@ void* process_client(void* args) {
         }
 
         // send to client
-        socket_send(socket, &out_len, sizeof(size_t));
-        socket_send(socket, out, out_len);
+        untrusted_util::socket_send(socket, &out_len, sizeof(size_t));
+        untrusted_util::socket_send(socket, out, out_len);
 
         free(out);
     }
@@ -52,7 +56,7 @@ void* process_client(void* args) {
 
 int SGX_CDECL main(int argc, const char **argv) {
     // port to start the server on
-    const int server_port = 7910;
+    const int server_port = IEE_PORT;
 
     // nr of threads in enclave
     const unsigned nr_threads = 4;
@@ -80,7 +84,7 @@ int SGX_CDECL main(int argc, const char **argv) {
     thread_pool* pool = init_thread_pool(eid, nr_threads);
 
     // initialise listener socket
-    server_socket = init_server(server_port);
+    server_socket = untrusted_util::init_server(server_port);
 
     struct sockaddr_in client_addr;
     socklen_t client_addr_len = 0;

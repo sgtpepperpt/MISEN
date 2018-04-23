@@ -1,5 +1,9 @@
 #include "ocall.h"
+
+#include "definitions.h"
 #include "extern_lib.h"
+#include "untrusted_util.h"
+#include "types.h"
 
 /****************************************************** FILE I/O ******************************************************/
 int ocall_open(const char* filename, int mode) {
@@ -42,19 +46,19 @@ untrusted_time ocall_curr_time() {
 /****************************************************** END MISC ******************************************************/
 
 int ocall_open_uee_connection() {
-    const char* host = "localhost"; // TODO both coming from definitions file
-    const int port = 7911;
+    const char* host = UEE_HOSTNAME;
+    const int port = UEE_PORT;
 
-    return socket_connect(host, port);
+    return untrusted_util::socket_connect(host, port);
 }
 
 void ocall_uee_process(const int socket, void** out, size_t* out_len, const void* in, const size_t in_len) {
-    socket_send(socket, &in_len, sizeof(size_t));
-    socket_send(socket, in, in_len);
+    untrusted_util::socket_send(socket, &in_len, sizeof(size_t));
+    untrusted_util::socket_send(socket, in, in_len);
 
-    socket_receive(socket, out_len, sizeof(size_t));
+    untrusted_util::socket_receive(socket, out_len, sizeof(size_t));
     *out = malloc(*out_len);
-    socket_receive(socket, *out, *out_len);
+    untrusted_util::socket_receive(socket, *out, *out_len);
 }
 
 void ocall_close_uee_connection(const int socket) {

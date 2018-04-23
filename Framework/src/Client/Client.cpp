@@ -1,5 +1,9 @@
 #include "Client.h"
 
+#include "untrusted_util.h"
+#include <getopt.h>
+#include <sys/time.h>
+
 using namespace cv;
 using namespace cv::xfeatures2d;
 using namespace std;
@@ -38,15 +42,15 @@ vector<string> get_filenames(int n) {
 }
 
 void iee_send(const int socket, const uint8_t* in, const size_t in_len) {
-    socket_send(socket, &in_len, sizeof(size_t));
-    socket_send(socket, in, in_len);
+    untrusted_util::socket_send(socket, &in_len, sizeof(size_t));
+    untrusted_util::socket_send(socket, in, in_len);
 }
 
 
 void iee_recv(const int socket, uint8_t** out, size_t* out_len) {
-    socket_receive(socket, out_len, sizeof(size_t));
+    untrusted_util::socket_receive(socket, out_len, sizeof(size_t));
     *out = (uint8_t*)malloc(*out_len);
-    socket_receive(socket, *out, *out_len);
+    untrusted_util::socket_receive(socket, *out, *out_len);
 }
 
 void iee_comm(const int socket, const void* in, const size_t in_len) {
@@ -248,8 +252,8 @@ int main(int argc, char** argv) {
     memset(ctr, 0x00, AES_BLOCK_SIZE);
 
     // fixed params
-    const char* server_name = "localhost";
-    const int server_port = 7910;
+    const char* server_name = IEE_HOSTNAME;
+    const int server_port = IEE_PORT;
     const size_t desc_len = 64;
     const double surf_threshold = 400;
 
@@ -293,7 +297,7 @@ int main(int argc, char** argv) {
     gettimeofday(&start, NULL);
 
     // establish connection to iee_comm server
-    const int socket = socket_connect(server_name, server_port);
+    const int socket = untrusted_util::socket_connect(server_name, server_port);
 
     // image descriptor parameters
     Ptr<SURF> surf = SURF::create(surf_threshold);
@@ -366,7 +370,7 @@ int main(int argc, char** argv) {
 
     struct timeval end;
     gettimeofday(&end, NULL);
-    printf("Total elapsed time: %ldms\n", util_time_elapsed(start, end));
+    printf("Total elapsed time: %ldms\n", untrusted_util::time_elapsed(start, end));
 
     return 0;
 }
