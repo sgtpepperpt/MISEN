@@ -34,6 +34,7 @@ void ok_response(uint8_t** out, size_t* out_len) {
 const size_t l_size = 32;
 const size_t d_size = 48;
 
+//concurrent_unordered_map
 unordered_map<void*, void*, VoidHash<l_size>, VoidEqual<l_size>> I;
 
 static void repository_clear() {
@@ -43,12 +44,6 @@ static void repository_clear() {
     }
 
     I.clear();
-}
-
-void debug_printbuf(uint8_t* buf, size_t len) {
-    for (size_t l = 0; l < len; ++l)
-        printf("%02x ", buf[l]);
-    printf("\n");
 }
 
 void* process_client(void* args) {
