@@ -34,11 +34,10 @@ void ok_response(uint8_t** out, size_t* out_len) {
 const size_t l_size = 32;
 const size_t d_size = 48;
 
-//concurrent_unordered_map
-unordered_map<void*, void*, VoidHash<l_size>, VoidEqual<l_size>> I;
+tbb::concurrent_unordered_map<void*, void*, VoidHash<l_size>, VoidEqual<l_size>> I;
 
 static void repository_clear() {
-    for (unordered_map<void*, void*, VoidHash<l_size>, VoidEqual<l_size>>::iterator it = I.begin(); it != I.end() ; ++it) {
+    for (tbb::concurrent_unordered_map<void*, void*, VoidHash<l_size>, VoidEqual<l_size>>::iterator it = I.begin(); it != I.end() ; ++it) {
         free(it->first);
         free(it->second);
     }

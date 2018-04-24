@@ -109,3 +109,10 @@ int untrusted_util::socket_connect(const char* server_name, const int server_por
 
     return sock;
 }
+
+// TODO make an untrusted_util.cpp, refactor lib c files
+void untrusted_util::debug_printbuf(uint8_t* buf, size_t len) {
+    for (size_t l = 0; l < len; ++l)
+        printf("%02x ", buf[l]);
+    printf("\n");
+}

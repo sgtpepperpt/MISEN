@@ -90,7 +90,7 @@ double online_kmeans(float* descriptors, const size_t nr_descs, kmeans_data* dat
 
             if(j == 0) {
                 args[j].start = 0;
-                args[j].end = j * k_per_thread + k_per_thread;
+                args[j].end = k_per_thread;
             } else {
                 args[j].start = j * k_per_thread + 1;
 

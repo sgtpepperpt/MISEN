@@ -36,7 +36,7 @@ int tcrypto::hmac_sha256(void* out, const void* in, const size_t in_len, const v
         if(tcrypto::sha256(hmac_key, (unsigned char*)key, key_len))
             return 1;
     } else {
-        memcpy(hmac_key, key, key_len);
+        memcpy(hmac_key, key, key_len); // includes the padding with zeros
     }
 
     unsigned char* first_hash_input = (unsigned char*)malloc(SHA256_BLOCK_SIZE + in_len);

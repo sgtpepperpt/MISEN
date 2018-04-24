@@ -58,8 +58,8 @@ int SGX_CDECL main(int argc, const char **argv) {
     // port to start the server on
     const int server_port = IEE_PORT;
 
-    // nr of threads in enclave
-    const unsigned nr_threads = 4;
+    // nr of threads in thread pool
+    const unsigned nr_threads = 3;
 
     // register signal handler
     signal(SIGINT, close_all);

@@ -12,12 +12,6 @@ using namespace std;
 uint8_t key[AES_BLOCK_SIZE];
 uint8_t ctr[AES_BLOCK_SIZE];
 
-void debug_printbuf(uint8_t* buf, size_t len) {
-    for (size_t l = 0; l < len; ++l)
-        printf("%02x ", buf[l]);
-    printf("\n");
-}
-
 vector<string> get_filenames(int n) {
     string holidayDir = "/home/guilherme/Datasets/inria";
     vector<string> filenames;
