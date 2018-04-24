@@ -7,23 +7,7 @@
 #include "trusted_util.h"
 #include "util.h"
 
-#define PARALLEL_KMEANS 1
-
-typedef struct dist_res {
-    double min_dist;
-    size_t min_dist_centre;
-    double compactness;
-} dist_res;
-
-typedef struct dist_args {
-    size_t desc_len;
-    float* centres;
-    float* descriptors;
-    size_t start;
-    size_t end;
-
-    dist_res* res;
-} dist_args;
+#include "../parallel.h"//TODO why the ".."?
 
 void online_kmeans_init(float* descriptors, const size_t nr_descs, kmeans_data* data) {
     assertion(nr_descs >= data->k);

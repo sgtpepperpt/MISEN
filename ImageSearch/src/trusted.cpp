@@ -14,6 +14,7 @@
 #include "extern_lib.h" // defines the functions we implement here
 
 // training and kmeans
+#include "parallel.h"
 #include "scoring.h"
 #include "training.h"
 #include "util.h"
@@ -110,21 +111,13 @@ void repository_clear() {
 
     // clean resource pool
     const unsigned nr_threads = trusted_util::thread_get_count();
-    for (int i = 0; i < nr_threads; ++i) {
+    for (unsigned i = 0; i < nr_threads; ++i) {
         free(resource_pool[i].add_req_buffer);
         outside_util::close_uee_connection(resource_pool[i].server_socket);
     }
 
     free(resource_pool);
 }
-
-#define PARALLEL_IMG_PROCESSING 1
-typedef struct process_args {
-    size_t start;
-    size_t end;
-    float* descriptors;
-    unsigned* frequencies;
-} process_args;
 
 #if PARALLEL_IMG_PROCESSING
 void* parallel_process(void* args) {
@@ -217,17 +210,7 @@ static unsigned* process_new_image(const uint8_t* in, const size_t in_len) {
     return frequencies;
 }
 
-#define PARALLEL_ADD_IMG 1
-
 #if PARALLEL_ADD_IMG
-typedef struct img_add_args {
-    unsigned tid;
-    unsigned long id;
-    unsigned* frequencies;
-    size_t centre_pos_start;
-    size_t centre_pos_end;
-} img_add_args;
-
 void* add_img_parallel(void* args) {
     img_add_args* arg = (img_add_args*)args;
 

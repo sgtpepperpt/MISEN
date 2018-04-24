@@ -15,7 +15,7 @@ set(CMAKE_CXX_STANDARD 11)
 
 # define target library
 set(KMEANS_SRCS ${EXTERN_DIR}/src/seq-kmeans/util.cpp ${EXTERN_DIR}/src/seq-kmeans/kmeans.cpp ${EXTERN_DIR}/src/seq-kmeans/bagofwords.cpp)
-set(SOURCES ${EXTERN_DIR}/src/trusted.cpp ${EXTERN_DIR}/src/untrusted.cpp ${EXTERN_DIR}/src/training.cpp ${EXTERN_DIR}/src/scoring.cpp ${EXTERN_DIR}/src/util.cpp ${KMEANS_SRCS})
+set(SOURCES ${EXTERN_DIR}/src/trusted.cpp ${EXTERN_DIR}/src/untrusted.cpp ${EXTERN_DIR}/src/parallel.cpp ${EXTERN_DIR}/src/training.cpp ${EXTERN_DIR}/src/scoring.cpp ${EXTERN_DIR}/src/util.cpp ${KMEANS_SRCS})
 
 add_library(${EXTERN_LIB_NAME} ${SOURCES})
 target_include_directories(${EXTERN_LIB_NAME} PRIVATE ${EXTERN_DIR} ${EXTERN_INCLUDE_DIR} ${FRAMEWORK_INCLUDE_DIR} ${SGX_INCLUDE_PATHS})#TODO extern include dir still needed?
