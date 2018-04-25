@@ -24,11 +24,16 @@ typedef struct dist_args {
 
 #define PARALLEL_IMG_PROCESSING 1
 #if PARALLEL_IMG_PROCESSING
+#include <src/seq-kmeans/bagofwords.h>
 typedef struct process_args {
     size_t start;
     size_t end;
     float* descriptors;
     unsigned* frequencies;
+
+    size_t nr_centres;
+    size_t desc_len;
+    BagOfWordsTrainer* k;// TODO do not pass this, need get_centre()
 } process_args;
 #endif
 

@@ -32,7 +32,8 @@ void* calc_distances(void* args) {
     res->compactness = 0;
 
     for(size_t j = arg->start; j < arg->end; j++) {
-        float dist = normL2Sqr(arg->centres + j * arg->desc_len, arg->descriptors + j * arg->desc_len, arg->desc_len);
+        float dist = calc_distance(arg->centres + j * arg->desc_len, arg->descriptors + j * arg->desc_len,
+                                   arg->desc_len);
         res->compactness += dist;
 
         if(dist < res->min_dist) {

@@ -13,202 +13,20 @@
 #include "trusted_crypto.h"
 #include "extern_lib.h" // defines the functions we implement here
 
-// training and kmeans
+// internal
+#include "imgsrc_definitions.h"
 #include "parallel.h"
 #include "scoring.h"
+#include "repository.h"
 #include "training.h"
+#include "img_processing.h"
 #include "util.h"
 #include "seq-kmeans/util.h"
-
-#define LABEL_LEN (SHA256_OUTPUT_SIZE)
-#define UNENC_VALUE_LEN (LABEL_LEN + sizeof(unsigned long) + sizeof(unsigned)) // (32 + 8 + 4 = 44)
-#define ENC_VALUE_LEN (UNENC_VALUE_LEN + 4) // AES padding (44 + 4 = 48)
-
-#define ADD_MAX_BATCH_LEN 2000
-#define SEARCH_MAX_BATCH_LEN 1000
-
-#define RESPONSE_DOCS 100
-
-// derived values
-const size_t pair_len = LABEL_LEN + ENC_VALUE_LEN;
-
-typedef struct thread_resource {
-    int server_socket;
-    size_t max_add_req_len;
-    uint8_t* add_req_buffer;
-} thread_resource;
 
 using namespace std;
 using namespace outside_util;
 
-BagOfWordsTrainer* k;
-int server_socket;
-
-// keys for server encryption
-void* kf;
-void* ke;
-
-// store kw for each centre
-uint8_t** centre_keys;
-
-// overall counters
-unsigned* counters;
-unsigned total_docs;
-
-thread_resource* resource_pool;
-
-void repository_init(unsigned nr_clusters, size_t desc_len) {
-    k = new BagOfWordsTrainer(nr_clusters, desc_len);
-
-    // generate keys
-    kf = malloc(SHA256_BLOCK_SIZE);
-    ke = malloc(AES_KEY_SIZE);
-    tcrypto::random(kf, SHA256_BLOCK_SIZE);
-    tcrypto::random(ke, AES_KEY_SIZE);
-
-    // init key map
-    centre_keys = (uint8_t**)malloc(sizeof(uint8_t*) * nr_clusters);
-    for (unsigned i = 0; i < nr_clusters; ++i) {
-        uint8_t* key = (uint8_t*)malloc(SHA256_OUTPUT_SIZE);
-        tcrypto::hmac_sha256(key, &i, sizeof(unsigned), kf, SHA256_BLOCK_SIZE);
-
-        centre_keys[i] = key;
-    }
-
-    // init counters
-    counters = (unsigned*)malloc(nr_clusters * sizeof(unsigned));
-    memset(counters, 0x00, nr_clusters * sizeof(unsigned));
-    total_docs = 0;
-
-    // establish connection to uee
-    server_socket = outside_util::open_uee_connection();
-
-    // init resource pool for threads
-    const unsigned nr_threads = trusted_util::thread_get_count();
-    resource_pool = (thread_resource*)malloc(sizeof(thread_resource)*nr_threads);
-    for (unsigned i = 0; i < nr_threads; ++i) {
-        resource_pool[i].max_add_req_len = sizeof(unsigned char) + sizeof(size_t) + ADD_MAX_BATCH_LEN * pair_len;
-        resource_pool[i].add_req_buffer = (uint8_t*)malloc(resource_pool[i].max_add_req_len);
-        resource_pool[i].server_socket = outside_util::open_uee_connection(); // open thread's connection to server
-    }
-}
-
-void repository_clear() {
-    free(kf);
-    free(ke);
-
-    for (size_t i = 0; i < k->nr_centres(); i++)
-        free(centre_keys[i]);
-    free(centre_keys);
-
-    free(counters);
-
-    // cleanup bag-of-words class
-    k->cleanup();
-    delete k;
-
-    outside_util::close_uee_connection(server_socket);
-
-    // clean resource pool
-    const unsigned nr_threads = trusted_util::thread_get_count();
-    for (unsigned i = 0; i < nr_threads; ++i) {
-        free(resource_pool[i].add_req_buffer);
-        outside_util::close_uee_connection(resource_pool[i].server_socket);
-    }
-
-    free(resource_pool);
-}
-
-#if PARALLEL_IMG_PROCESSING
-void* parallel_process(void* args) {
-    process_args* arg = (process_args*)args;
-
-    for (size_t i = arg->start; i < arg->end; ++i) {
-        double min_dist = DBL_MAX;
-        int pos = -1;
-
-        for (size_t j = 0; j < k->nr_centres(); ++j) {
-            double dist_to_centre = normL2Sqr(k->get_centre(j), arg->descriptors + i * k->desc_len(), k->desc_len());
-
-            if(dist_to_centre < min_dist) {
-                min_dist = dist_to_centre;
-                pos = j;
-            }
-        }
-
-        arg->frequencies[pos]++;
-    }
-
-    return NULL;
-}
-#endif
-
-static unsigned* process_new_image(const uint8_t* in, const size_t in_len) {
-    untrusted_time start = outside_util::curr_time();
-
-    size_t nr_desc;
-    memcpy(&nr_desc, in, sizeof(size_t));
-
-    float* descriptors = (float*)(in + sizeof(size_t));
-    outside_util::printf("proc: nr_descs %d\n", nr_desc);
-
-    unsigned* frequencies = (unsigned*)malloc(k->nr_centres() * sizeof(unsigned));
-    memset(frequencies, 0x00, k->nr_centres() * sizeof(unsigned));
-
-#if PARALLEL_IMG_PROCESSING
-    // initialisation
-    unsigned nr_threads = trusted_util::thread_get_count();
-    size_t desc_per_thread = nr_desc / nr_threads;
-
-    process_args* args = (process_args*)malloc(nr_threads * sizeof(process_args));
-
-    for (unsigned j = 0; j < nr_threads; ++j) {
-        // each thread receives the generic pointers and the thread ranges
-        args[j].descriptors = descriptors;
-        args[j].frequencies = frequencies;
-
-        if(j == 0) {
-            args[j].start = 0;
-            args[j].end = j * desc_per_thread + desc_per_thread;
-        } else {
-            args[j].start = j * desc_per_thread + 1;
-
-            if (j + 1 == nr_threads)
-                args[j].end = nr_desc;
-            else
-                args[j].end = j * desc_per_thread + desc_per_thread;
-        }
-
-        //outside_util::printf("start %lu end %lu\n", args[j].start, args[j].end);
-        trusted_util::thread_add_work(parallel_process, args + j);
-    }
-
-    trusted_util::thread_do_work();
-    free(args);
-#else
-    // for each descriptor, calculate its closest centre
-    for (size_t i = 0; i < nr_desc; ++i) {
-        double min_dist = DBL_MAX;
-        int pos = -1;
-
-        for (size_t j = 0; j < k->nr_centres(); ++j) {
-            double dist_to_centre = normL2Sqr(k->get_centre(j), descriptors + i * k->desc_len(), k->desc_len());
-
-            if(dist_to_centre < min_dist) {
-                min_dist = dist_to_centre;
-                pos = j;
-            }
-        }
-
-        frequencies[pos]++;
-    }
-#endif
-
-    untrusted_time end = outside_util::curr_time();
-    outside_util::printf("elapsed %ld\n", trusted_util::time_elapsed_ms(start, end));
-
-    return frequencies;
-}
+repository* r;
 
 #if PARALLEL_ADD_IMG
 void* add_img_parallel(void* args) {
@@ -219,7 +37,7 @@ void* add_img_parallel(void* args) {
     memset(ctr, 0x00, AES_BLOCK_SIZE);
 
     // prepare request to uee
-    resource_pool[arg->tid].add_req_buffer[0] = OP_UEE_ADD;
+    r->resource_pool[arg->tid].add_req_buffer[0] = OP_UEE_ADD;
 
     size_t to_send = arg->centre_pos_end - arg->centre_pos_start + 1;
     size_t centre_pos = arg->centre_pos_start;
@@ -227,7 +45,7 @@ void* add_img_parallel(void* args) {
         size_t batch_len = min(ADD_MAX_BATCH_LEN, to_send);
 
         // add number of pairs to buffer
-        uint8_t* tmp = resource_pool[arg->tid].add_req_buffer + sizeof(unsigned char);
+        uint8_t* tmp = r->resource_pool[arg->tid].add_req_buffer + sizeof(unsigned char);
         memcpy(tmp, &batch_len, sizeof(size_t));
         tmp += sizeof(size_t);
 
@@ -236,16 +54,16 @@ void* add_img_parallel(void* args) {
             memset(ctr, 0x00, AES_BLOCK_SIZE);
 
             // calculate label based on current counter for the centre
-            unsigned counter = counters[centre_pos];
+            unsigned counter = r->counters[centre_pos];
             //outside_util::printf("(%lu/%lu/%lu) counter %u\n", arg->centre_pos_start, centre_pos, arg->centre_pos_end, counter);
             //outside_util::printf("%p %u\n", centre_keys[centre_pos], SHA256_OUTPUT_SIZE);
-            tcrypto::hmac_sha256(tmp, &counter, sizeof(unsigned), centre_keys[centre_pos], SHA256_OUTPUT_SIZE);
+            tcrypto::hmac_sha256(tmp, &counter, sizeof(unsigned), r->centre_keys[centre_pos], SHA256_OUTPUT_SIZE);
             uint8_t* label = tmp; // keep a reference to the label
             tmp += LABEL_LEN;
 
             // increase the centre's counter, if present
             if (arg->frequencies[centre_pos])//TODO remove this if, counter is increased even if 0
-                ++counters[centre_pos];
+                ++r->counters[centre_pos];
 
             // calculate value
             // label + img_id + frequency
@@ -255,7 +73,7 @@ void* add_img_parallel(void* args) {
             memcpy(value + LABEL_LEN + sizeof(unsigned long), &arg->frequencies[centre_pos], sizeof(unsigned));
 
             // encrypt value
-            tcrypto::encrypt(tmp, value, UNENC_VALUE_LEN, ke, ctr);
+            tcrypto::encrypt(tmp, value, UNENC_VALUE_LEN, r->ke, ctr);
             tmp += ENC_VALUE_LEN;
 
             to_send--;
@@ -265,7 +83,7 @@ void* add_img_parallel(void* args) {
         // send batch to server
         size_t res_len;
         void* res;
-        outside_util::uee_process(resource_pool[arg->tid].server_socket, &res, &res_len, resource_pool[arg->tid].add_req_buffer, sizeof(unsigned char) + sizeof(size_t) + batch_len * pair_len);
+        outside_util::uee_process(r->resource_pool[arg->tid].server_socket, &res, &res_len, r->resource_pool[arg->tid].add_req_buffer, sizeof(unsigned char) + sizeof(size_t) + batch_len * pair_len);
         outside_util::outside_free(res); // discard ok response
     }
 
@@ -283,16 +101,16 @@ static void add_image(uint8_t** out, size_t* out_len, const uint8_t* in, const s
     memcpy(&id, in, sizeof(unsigned long));
     outside_util::printf("add, id %lu\n", id);
 
-    unsigned* frequencies = process_new_image(in + sizeof(unsigned long), in_len - sizeof(unsigned long));
+    unsigned* frequencies = process_new_image(r->k, in + sizeof(unsigned long), in_len - sizeof(unsigned long));
 
     outside_util::printf("frequencies: ");
-    for (size_t i = 0; i < k->nr_centres(); i++)
+    for (size_t i = 0; i < r->k->nr_centres(); i++)
         outside_util::printf("%u ", frequencies[i]);
     outside_util::printf("\n");
 
 #if PARALLEL_ADD_IMG
     const unsigned nr_threads = trusted_util::thread_get_count();
-    size_t k_per_thread = k->nr_centres() / nr_threads;
+    size_t k_per_thread = r->k->nr_centres() / nr_threads;
 
     img_add_args* args = (img_add_args*)malloc(nr_threads * sizeof(img_add_args));
     for (unsigned j = 0; j < nr_threads; ++j) {
@@ -308,7 +126,7 @@ static void add_image(uint8_t** out, size_t* out_len, const uint8_t* in, const s
             args[j].centre_pos_start = j * k_per_thread + 1;
 
             if (j + 1 == nr_threads)
-                args[j].centre_pos_end = k->nr_centres() - 1;// TODO -1 because still not [a,b[
+                args[j].centre_pos_end = r->k->nr_centres() - 1;// TODO -1 because still not [a,b[
             else
                 args[j].centre_pos_end = j * k_per_thread + k_per_thread;
         }
@@ -380,27 +198,27 @@ static void add_image(uint8_t** out, size_t* out_len, const uint8_t* in, const s
     free(req_buffer);
 #endif
 
-    total_docs++;
+    r->total_docs++;
     free(frequencies);
 
 }
 
 void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_t in_len) {
     using namespace outside_util;
-    unsigned* frequencies = process_new_image(in, in_len);
-    for (size_t i = 0; i < k->nr_centres(); ++i) {
+    unsigned* frequencies = process_new_image(r->k, in, in_len);
+    for (size_t i = 0; i < r->k->nr_centres(); ++i) {
         printf("%u ", frequencies[i]);
     }
     printf("\n");
 
-    double* idf = calc_idf(total_docs, counters, k->nr_centres());
-    for (size_t i = 0; i < k->nr_centres(); ++i) {
+    double* idf = calc_idf(r->total_docs, r->counters, r->k->nr_centres());
+    for (size_t i = 0; i < r->k->nr_centres(); ++i) {
         printf("%lf ", idf[i]);
     }
     printf("\n");
 
     //weight_idf(idf, frequencies);
-    for (size_t i = 0; i < k->nr_centres(); ++i) {
+    for (size_t i = 0; i < r->k->nr_centres(); ++i) {
         printf("%lf ", idf[i]);
     }
     printf("\n");
@@ -408,9 +226,9 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
 
     // calc size of request; ie sum of counters (for all centres of searched image)
     size_t nr_labels = 0;
-    for (size_t i = 0; i < k->nr_centres(); ++i) {
+    for (size_t i = 0; i < r->k->nr_centres(); ++i) {
         if(frequencies[i])
-            nr_labels += counters[i];
+            nr_labels += r->counters[i];
     }
 
     // will hold result
@@ -439,12 +257,12 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
         // add all batch labels to buffer
         for (size_t i = 0; i < batch_len; ++i) {
             // calc label
-            tcrypto::hmac_sha256(tmp, &counter_pos, sizeof(unsigned), centre_keys[centre_pos], LABEL_LEN);
+            tcrypto::hmac_sha256(tmp, &counter_pos, sizeof(unsigned), r->centre_keys[centre_pos], LABEL_LEN);
             tmp += LABEL_LEN;
 
             // update pointers
             ++counter_pos;
-            if(counter_pos == counters[centre_pos]) {
+            if(counter_pos == r->counters[centre_pos]) {
                 // search for the next centre where the searched image's frequency is non-zero
                 while (!frequencies[++centre_pos])
                     ;
@@ -457,7 +275,7 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
         // perform request to uee
         size_t res_len;
         uint8_t* res;
-        uee_process(server_socket, (void **)&res, &res_len, req_buffer, sizeof(unsigned char) + sizeof(size_t) + batch_len * LABEL_LEN);
+        uee_process(r->server_socket, (void **)&res, &res_len, req_buffer, sizeof(unsigned char) + sizeof(size_t) + batch_len * LABEL_LEN);
         uint8_t* res_tmp = res;
 
         // process all answers
@@ -467,7 +285,7 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
             unsigned char ctr[AES_BLOCK_SIZE];
             memset(ctr, 0x00, AES_BLOCK_SIZE);
 
-            tcrypto::decrypt(res_unenc, res_tmp, ENC_VALUE_LEN, ke, ctr);
+            tcrypto::decrypt(res_unenc, res_tmp, ENC_VALUE_LEN, r->ke, ctr);
             res_tmp += ENC_VALUE_LEN;
 
             int verify = memcmp(res_unenc, (req_buffer + sizeof(unsigned char) + sizeof(size_t)) + i * LABEL_LEN, LABEL_LEN);
@@ -559,7 +377,7 @@ void extern_lib::process_message(uint8_t **out, size_t *out_len, const uint8_t *
 
             outside_util::printf("desc_len %lu %u\n", desc_len, nr_clusters);
 
-            repository_init(nr_clusters, desc_len);
+            r = repository_init(nr_clusters, desc_len);
             // TODO server init
             ok_response(out, out_len);
             break;
@@ -573,13 +391,13 @@ void extern_lib::process_message(uint8_t **out, size_t *out_len, const uint8_t *
             memcpy(&id, input, sizeof(unsigned long));
             memcpy(&nr_desc, input + sizeof(unsigned long), sizeof(size_t));
 
-            train_add_image(k, id, nr_desc, input, input_len);
+            train_add_image(r->k, id, nr_desc, input, input_len);
             ok_response(out, out_len);
             break;
         }
         case OP_IEE_TRAIN: {
             outside_util::printf("Train kmeans!\n");
-            train_kmeans(k);
+            train_kmeans(r->k);
             ok_response(out, out_len);
             break;
         }
@@ -596,7 +414,8 @@ void extern_lib::process_message(uint8_t **out, size_t *out_len, const uint8_t *
         }
         case OP_IEE_CLEAR: {
             outside_util::printf("Clear repository!\n");
-            repository_clear();
+            repository_clear(r);
+            r = NULL;
             ok_response(out, out_len);
             break;
         }

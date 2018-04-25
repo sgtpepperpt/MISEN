@@ -5,7 +5,7 @@
 #include <list>
 #include <vector>
 
-#include "../../../Framework/include/outside_util.h"
+#include "outside_util.h"
 #include "kmeans.h"
 
 #define MAX_DESCRIPTORS_MEM 80000
