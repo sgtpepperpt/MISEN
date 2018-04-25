@@ -37,7 +37,7 @@ repository* repository_init(unsigned nr_clusters, size_t desc_len) {
     const unsigned nr_threads = trusted_util::thread_get_count();
     r->resource_pool = (thread_resource*)malloc(sizeof(thread_resource)*nr_threads);
     for (unsigned i = 0; i < nr_threads; ++i) {
-        r->resource_pool[i].max_add_req_len = sizeof(unsigned char) + sizeof(size_t) + ADD_MAX_BATCH_LEN * pair_len;
+        r->resource_pool[i].max_add_req_len = sizeof(unsigned char) + sizeof(size_t) + ADD_MAX_BATCH_LEN * PAIR_LEN;
         r->resource_pool[i].add_req_buffer = (uint8_t*)malloc(r->resource_pool[i].max_add_req_len);
         r->resource_pool[i].server_socket = outside_util::open_uee_connection(); // open thread's connection to server
     }

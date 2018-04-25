@@ -5,6 +5,6 @@
 #include <stdint.h>
 #include "seq-kmeans/bagofwords.h"
 
-unsigned* process_new_image(BagOfWordsTrainer* k, const size_t nr_desc, float* descriptors);
+const unsigned* process_new_image(BagOfWordsTrainer* k, const size_t nr_desc, float* descriptors);
 
 #endif

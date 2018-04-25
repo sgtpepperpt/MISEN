@@ -90,7 +90,7 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
     unsigned char ctr[AES_BLOCK_SIZE];
     memset(ctr, 0x00, AES_BLOCK_SIZE);
 
-    unsigned* frequencies = process_new_image(r->k, nr_desc, descriptors);
+    const unsigned* frequencies = process_new_image(r->k, nr_desc, descriptors);
 
     outside_util::printf("frequencies: ");
     for (size_t i = 0; i < r->k->nr_centres(); i++)
@@ -132,9 +132,7 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
     free(args);
 #else
     // prepare request to uee
-    const size_t pair_len = LABEL_LEN + ENC_VALUE_LEN;
-
-    size_t max_req_len = sizeof(unsigned char) + sizeof(size_t) + ADD_MAX_BATCH_LEN * pair_len;
+    size_t max_req_len = sizeof(unsigned char) + sizeof(size_t) + ADD_MAX_BATCH_LEN * PAIR_LEN;
     uint8_t* req_buffer = (uint8_t*)malloc(max_req_len);
     req_buffer[0] = OP_UEE_ADD;
 
@@ -180,7 +178,7 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
         // send batch to server
         size_t res_len;
         void* res;
-        outside_util::uee_process(r->server_socket, &res, &res_len, req_buffer, sizeof(unsigned char) + sizeof(size_t) + batch_len * pair_len);
+        outside_util::uee_process(r->server_socket, &res, &res_len, req_buffer, sizeof(unsigned char) + sizeof(size_t) + batch_len * PAIR_LEN);
         outside_util::outside_free(res); // discard ok response
     }
 
@@ -188,14 +186,13 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
 #endif
 
     r->total_docs++;
-    free(frequencies);
-
+    free((void*)frequencies);
 }
 
 void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* descriptors) {
     using namespace outside_util;
 
-    unsigned* frequencies = process_new_image(r->k, nr_desc, descriptors);
+    const unsigned* frequencies = process_new_image(r->k, nr_desc, descriptors);
     for (size_t i = 0; i < r->k->nr_centres(); ++i) {
         printf("%u ", frequencies[i]);
     }
@@ -299,7 +296,7 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
     }
 
     free(idf);
-    free(frequencies);
+    free((void*)frequencies);
 
     // TODO randomise, do not ignore zero counters, fix batch search for 2000
 

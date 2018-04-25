@@ -13,6 +13,6 @@
 #define RESPONSE_DOCS 100
 
 // derived values
-const size_t pair_len = LABEL_LEN + ENC_VALUE_LEN;
+#define PAIR_LEN (LABEL_LEN + ENC_VALUE_LEN)
 
 #endif
