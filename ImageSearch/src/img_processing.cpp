@@ -34,14 +34,8 @@ static void* parallel_process(void* args) {
 }
 #endif
 
-unsigned* process_new_image(BagOfWordsTrainer* k, const uint8_t* in, const size_t in_len) {
+unsigned* process_new_image(BagOfWordsTrainer* k, const size_t nr_desc, float* descriptors) {
     untrusted_time start = outside_util::curr_time();
-
-    size_t nr_desc;
-    memcpy(&nr_desc, in, sizeof(size_t));
-
-    float* descriptors = (float*)(in + sizeof(size_t));
-    outside_util::printf("proc: nr_descs %d\n", nr_desc);
 
     unsigned* frequencies = (unsigned*)malloc(k->nr_centres() * sizeof(unsigned));
     memset(frequencies, 0x00, k->nr_centres() * sizeof(unsigned));

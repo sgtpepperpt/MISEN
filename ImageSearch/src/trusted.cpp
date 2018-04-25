@@ -2,13 +2,10 @@
 #include <string.h>
 #include <math.h>
 #include <stdint.h>
-#include <float.h>
 #include <map>
 
 // includes from framework
-#include "types.h"
 #include "definitions.h"
-#include "trusted_util.h"
 #include "outside_util.h"
 #include "trusted_crypto.h"
 #include "extern_lib.h" // defines the functions we implement here
@@ -18,15 +15,12 @@
 #include "parallel.h"
 #include "scoring.h"
 #include "repository.h"
-#include "training.h"
 #include "img_processing.h"
-#include "util.h"
-#include "seq-kmeans/util.h"
 
 using namespace std;
 using namespace outside_util;
 
-repository* r;
+repository* r = NULL;
 
 #if PARALLEL_ADD_IMG
 void* add_img_parallel(void* args) {
@@ -91,17 +85,12 @@ void* add_img_parallel(void* args) {
 }
 #endif
 
-static void add_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_t in_len) {
+static void add_image(const unsigned long id, const size_t nr_desc, float* descriptors) {
     // used for aes TODO better
     unsigned char ctr[AES_BLOCK_SIZE];
     memset(ctr, 0x00, AES_BLOCK_SIZE);
 
-    // get image id from buffer
-    unsigned long id;
-    memcpy(&id, in, sizeof(unsigned long));
-    outside_util::printf("add, id %lu\n", id);
-
-    unsigned* frequencies = process_new_image(r->k, in + sizeof(unsigned long), in_len - sizeof(unsigned long));
+    unsigned* frequencies = process_new_image(r->k, nr_desc, descriptors);
 
     outside_util::printf("frequencies: ");
     for (size_t i = 0; i < r->k->nr_centres(); i++)
@@ -203,9 +192,10 @@ static void add_image(uint8_t** out, size_t* out_len, const uint8_t* in, const s
 
 }
 
-void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_t in_len) {
+void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* descriptors) {
     using namespace outside_util;
-    unsigned* frequencies = process_new_image(r->k, in, in_len);
+
+    unsigned* frequencies = process_new_image(r->k, nr_desc, descriptors);
     for (size_t i = 0; i < r->k->nr_centres(); ++i) {
         printf("%u ", frequencies[i]);
     }
@@ -222,7 +212,6 @@ void search_image(uint8_t** out, size_t* out_len, const uint8_t* in, const size_
         printf("%lf ", idf[i]);
     }
     printf("\n");
-
 
     // calc size of request; ie sum of counters (for all centres of searched image)
     size_t nr_labels = 0;
@@ -403,13 +392,30 @@ void extern_lib::process_message(uint8_t **out, size_t *out_len, const uint8_t *
         }
         case OP_IEE_ADD: {
             outside_util::printf("Add after train images!\n");
-            add_image(out, out_len, input, input_len);
+
+            // get image (id, nr_desc, descriptors) from buffer
+            unsigned long id;
+            memcpy(&id, input, sizeof(unsigned long));
+            outside_util::printf("add, id %lu\n", id);
+
+            size_t nr_desc;
+            memcpy(&nr_desc, input + sizeof(unsigned long), sizeof(size_t));
+
+            float* descriptors = (float*)(input + sizeof(unsigned long) + sizeof(size_t));
+
+            add_image(id, nr_desc, descriptors);
             ok_response(out, out_len);
             break;
         }
         case OP_IEE_SEARCH: {
             outside_util::printf("Search!\n");
-            search_image(out, out_len, input, input_len);
+
+            size_t nr_desc;
+            memcpy(&nr_desc, input, sizeof(size_t));
+
+            float* descriptors = (float*)(input + sizeof(size_t));
+
+            search_image(out, out_len, nr_desc, descriptors);
             break;
         }
         case OP_IEE_CLEAR: {

@@ -60,14 +60,9 @@ void BagOfWordsTrainer::cleanup() {
     descriptors.clear();
 }
 
-img_descriptor* BagOfWordsTrainer::cluster() {
-    if(descriptors.empty()) {
-        img_descriptor* res = (img_descriptor*)malloc(sizeof(img_descriptor)); //TODO remove later if k is known
-        res->count = kmeans->k;
-        res->buffer = kmeans->centres;
-
-        return res;
-    }
+void BagOfWordsTrainer::cluster() {
+    if(descriptors.empty())
+        return;
 
     float *all_descriptors = (float*)malloc(total_descriptors * kmeans->desc_len * sizeof(float));
     //printf("total %lu desc %lu - %lu %p\n", total_descriptors, kmeans->desc_len, total_descriptors * kmeans->desc_len * sizeof(float), all_descriptors);
@@ -84,13 +79,10 @@ img_descriptor* BagOfWordsTrainer::cluster() {
 
     free(all_descriptors);
 
-    img_descriptor* res = (img_descriptor*)malloc(sizeof(img_descriptor)); //TODO remove later if k is known
-    res->count = kmeans->k;
-    res->buffer = (float*)malloc(kmeans->k * kmeans->desc_len * sizeof(float));
-    memcpy(res->buffer, kmeans->centres, kmeans->k * kmeans->desc_len * sizeof(float));
+    // this might be used to return the centres after clustering
+    //float* res = (float*)malloc(kmeans->k * kmeans->desc_len * sizeof(float));
+    //memcpy(res, kmeans->centres, kmeans->k * kmeans->desc_len * sizeof(float));
 
     // remove used descriptors
     cleanup();
-
-    return res;
 }

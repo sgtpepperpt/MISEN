@@ -28,7 +28,7 @@ public:
     size_t desc_len();
     float* get_centre(int k);
 
-    img_descriptor* cluster();
+    void cluster();
     //vector<unsigned> closest(float* descriptors, size_t nr_descriptors);
 
     int* frequencies;

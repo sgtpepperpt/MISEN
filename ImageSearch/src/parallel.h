@@ -37,7 +37,7 @@ typedef struct process_args {
 } process_args;
 #endif
 
-#define PARALLEL_ADD_IMG 1
+#define PARALLEL_ADD_IMG 0
 #if PARALLEL_ADD_IMG
 typedef struct img_add_args {
     unsigned tid;

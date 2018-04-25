@@ -23,14 +23,12 @@ void train_add_image(BagOfWordsTrainer* k, unsigned long id, size_t nr_desc, con
 
     if(k->is_full()) {
         outside_util::printf("Full, train images! %d\n", ccount++);
-        img_descriptor* centres = k->cluster();
+        k->cluster();
         //debug_print_points(centres->buffer, centres->count, k->desc_len());
-        free(centres);
     }
 }
 
 void train_kmeans(BagOfWordsTrainer* k) {
-    img_descriptor* centres = k->cluster();
+    k->cluster();
     //debug_print_points(centres->buffer, centres->count, k->desc_len());
-    free(centres);
 }
