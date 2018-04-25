@@ -85,8 +85,8 @@ unsigned* process_new_image(BagOfWordsTrainer* k, const uint8_t* in, const size_
         double min_dist = DBL_MAX;
         int pos = -1;
 
-        for (size_t j = 0; j < nr_centres; ++j) {
-            double dist_to_centre = normL2Sqr(k->get_centre(j), descriptors + i * k->desc_len(), k->desc_len());
+        for (size_t j = 0; j < k->nr_centres(); ++j) {
+            double dist_to_centre = calc_distance(k->get_centre(j), descriptors + i * k->desc_len(), k->desc_len());
 
             if(dist_to_centre < min_dist) {
                 min_dist = dist_to_centre;

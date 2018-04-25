@@ -1,5 +1,7 @@
 #include "bagofwords.h"
 
+#include <string.h>
+
 using namespace std;
 
 BagOfWordsTrainer::BagOfWordsTrainer(size_t cluster_count, size_t desc_len) {

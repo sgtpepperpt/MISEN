@@ -1,5 +1,5 @@
-#ifndef SGX_IMAGE_SEARCH_THREAD_POOL_H
-#define SGX_IMAGE_SEARCH_THREAD_POOL_H
+#ifndef __THREAD_POOL_H
+#define __THREAD_POOL_H
 
 #include <stdlib.h>
 #include <stdio.h>

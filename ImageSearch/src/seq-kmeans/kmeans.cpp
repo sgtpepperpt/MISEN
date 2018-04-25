@@ -105,7 +105,7 @@ double online_kmeans(float* descriptors, const size_t nr_descs, kmeans_data* dat
 #else
         // for all centres
         for(unsigned j = 0; j < data->k; j++) {
-            float dist = normL2Sqr(data->centres + j * data->desc_len, descriptors + j * data->desc_len, data->desc_len);
+            float dist = calc_distance(data->centres + j * data->desc_len, descriptors + j * data->desc_len, data->desc_len);
             compactness += dist;
 
             if(dist < min_dist) {

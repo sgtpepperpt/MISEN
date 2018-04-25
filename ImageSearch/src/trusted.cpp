@@ -149,7 +149,7 @@ static void add_image(uint8_t** out, size_t* out_len, const uint8_t* in, const s
     uint8_t* req_buffer = (uint8_t*)malloc(max_req_len);
     req_buffer[0] = OP_UEE_ADD;
 
-    size_t to_send = k->nr_centres();
+    size_t to_send = r->k->nr_centres();
     size_t centre_pos = 0;
     while (to_send > 0) {
         size_t batch_len = min(ADD_MAX_BATCH_LEN, to_send);
@@ -164,14 +164,14 @@ static void add_image(uint8_t** out, size_t* out_len, const uint8_t* in, const s
             memset(ctr, 0x00, AES_BLOCK_SIZE);
 
             // calculate label based on current counter for the centre
-            int counter = counters[centre_pos];
-            tcrypto::hmac_sha256(tmp, &counter, sizeof(unsigned), centre_keys[centre_pos], LABEL_LEN);
+            int counter = r->counters[centre_pos];
+            tcrypto::hmac_sha256(tmp, &counter, sizeof(unsigned), r->centre_keys[centre_pos], LABEL_LEN);
             uint8_t* label = tmp; // keep a reference to the label
             tmp += LABEL_LEN;
 
             // increase the centre's counter, if present
             if(frequencies[centre_pos])//TODO remove this if, counter is increased even if 0
-                ++counters[centre_pos];
+                ++r->counters[centre_pos];
 
             // calculate value
             // label + img_id + frequency
@@ -181,7 +181,7 @@ static void add_image(uint8_t** out, size_t* out_len, const uint8_t* in, const s
             memcpy(value + LABEL_LEN + sizeof(unsigned long), &frequencies[centre_pos], sizeof(unsigned));
 
             // encrypt value
-            tcrypto::encrypt(tmp, value, UNENC_VALUE_LEN, ke, ctr);
+            tcrypto::encrypt(tmp, value, UNENC_VALUE_LEN, r->ke, ctr);
             tmp += ENC_VALUE_LEN;
 
             to_send--;
@@ -191,7 +191,7 @@ static void add_image(uint8_t** out, size_t* out_len, const uint8_t* in, const s
         // send batch to server
         size_t res_len;
         void* res;
-        outside_util::uee_process(server_socket, &res, &res_len, req_buffer, sizeof(unsigned char) + sizeof(size_t) + batch_len * pair_len);
+        outside_util::uee_process(r->server_socket, &res, &res_len, req_buffer, sizeof(unsigned char) + sizeof(size_t) + batch_len * pair_len);
         outside_util::outside_free(res); // discard ok response
     }
 

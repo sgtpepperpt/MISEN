@@ -1,5 +1,5 @@
-#ifndef SGX_IMAGE_SEARCH_TRAINING_H
-#define SGX_IMAGE_SEARCH_TRAINING_H
+#ifndef __TRAINING_H
+#define __TRAINING_H
 
 #include <stdlib.h>
 #include <stdint.h>
