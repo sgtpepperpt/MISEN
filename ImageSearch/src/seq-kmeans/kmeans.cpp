@@ -15,7 +15,7 @@ void online_kmeans_init(float* descriptors, const size_t nr_descs, kmeans_data* 
     memset(data->centres, 0x00, data->k * data->desc_len * sizeof(float));
     memset(data->counters, 0x00, data->k * sizeof(unsigned));
 
-    //random select centres
+    // random select centres
     for(unsigned i = 0; i < data->k; i++) {
         memcpy(data->centres + i * data->desc_len, descriptors + i * data->desc_len, data->desc_len * sizeof(float));
     }
@@ -24,7 +24,7 @@ void online_kmeans_init(float* descriptors, const size_t nr_descs, kmeans_data* 
 }
 
 #if PARALLEL_KMEANS
-void* calc_distances(void* args) {
+void* parallel_calc_distances(void* args) {
     dist_args* arg = (dist_args*)args;
     dist_res* res = (dist_res*)malloc(sizeof(dist_res));
     res->min_dist = DBL_MAX;
@@ -85,7 +85,7 @@ double online_kmeans(float* descriptors, const size_t nr_descs, kmeans_data* dat
             }
 
             //outside_util::printf("start %lu end %lu\n", args[j].start, args[j].end);
-            trusted_util::thread_add_work(calc_distances, args + j);
+            trusted_util::thread_add_work(parallel_calc_distances, args + j);
         }
 
         trusted_util::thread_do_work();
