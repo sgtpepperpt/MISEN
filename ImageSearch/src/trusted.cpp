@@ -8,6 +8,7 @@
 #include "definitions.h"
 #include "outside_util.h"
 #include "trusted_crypto.h"
+#include "trusted_util.h"
 #include "extern_lib.h" // defines the functions we implement here
 
 // internal
@@ -77,7 +78,7 @@ void* add_img_parallel(void* args) {
         // send batch to server
         size_t res_len;
         void* res;
-        outside_util::uee_process(r->resource_pool[arg->tid].server_socket, &res, &res_len, r->resource_pool[arg->tid].add_req_buffer, sizeof(unsigned char) + sizeof(size_t) + batch_len * pair_len);
+        outside_util::uee_process(r->resource_pool[arg->tid].server_socket, &res, &res_len, r->resource_pool[arg->tid].add_req_buffer, sizeof(unsigned char) + sizeof(size_t) + batch_len * PAIR_LEN);
         outside_util::outside_free(res); // discard ok response
     }
 
@@ -105,7 +106,7 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
     for (unsigned j = 0; j < nr_threads; ++j) {
         // each thread receives the generic pointers and the thread ranges
         args[j].id = id;
-        args[j].frequencies = frequencies;
+        args[j].frequencies = (unsigned*)frequencies;
         args[j].tid = j;
 
         if(j == 0) {

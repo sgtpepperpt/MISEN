@@ -1,6 +1,7 @@
 #include "repository.h"
 
 #include <string.h>
+#include "definitions.h"
 #include "imgsrc_definitions.h"
 #include "trusted_util.h"
 #include "trusted_crypto.h"
@@ -59,6 +60,12 @@ void repository_clear(repository* r) {
     r->k->cleanup();
     delete r->k;
 
+    // clear uee and close connection
+    const unsigned char clear_op = OP_UEE_CLEAR;
+    size_t res_len;
+    void* res;
+    outside_util::uee_process(r->server_socket, &res, &res_len, &clear_op, 1);
+    outside_util::outside_free(res);
     outside_util::close_uee_connection(r->server_socket);
 
     // clean resource pool

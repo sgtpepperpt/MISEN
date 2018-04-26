@@ -18,5 +18,6 @@
 #define OP_UEE_INIT 'i'
 #define OP_UEE_ADD 'a'
 #define OP_UEE_SEARCH 's'
+#define OP_UEE_CLEAR 'c'
 
 #endif

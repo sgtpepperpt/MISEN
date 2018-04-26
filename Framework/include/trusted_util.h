@@ -5,7 +5,7 @@
 
 namespace trusted_util {
     // threading
-    unsigned thread_get_count();
+    const unsigned thread_get_count();
     int thread_add_work(void* (*task)(void*), void* args);
     void thread_do_work();
 

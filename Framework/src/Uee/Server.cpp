@@ -1,4 +1,4 @@
-#include "SseServer.h"
+#include "Server.h"
 
 #include <sys/time.h>
 #include <time.h>
@@ -61,8 +61,7 @@ void* process_client(void* args) {
         uint8_t* out = NULL;
         size_t out_len = 0;
 
-        unsigned char op = in_buffer[0];
-
+        const unsigned char op = in_buffer[0];
         switch (op) {
             case OP_UEE_INIT: {
                 // clean previous elements, if any
@@ -133,6 +132,11 @@ void* process_client(void* args) {
                 break;
             }
 
+            case OP_UEE_CLEAR: {
+                printf("Clear\n");
+                repository_clear();
+                break;
+            }
             default:
                 printf("SseServer unkonwn command: %02x\n", op);
         }

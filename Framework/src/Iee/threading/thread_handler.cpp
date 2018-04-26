@@ -33,7 +33,7 @@ thread_data* thread_handler_add() {
     return threads + entered_threads++;
 }
 
-unsigned trusted_util::thread_get_count(){
+const unsigned trusted_util::thread_get_count(){
     return entered_threads + 1; // account for the main thread
 }
 
