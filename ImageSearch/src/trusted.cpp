@@ -17,6 +17,7 @@
 #include "scoring.h"
 #include "repository.h"
 #include "img_processing.h"
+#include "util.h"
 
 using namespace std;
 using namespace outside_util;

@@ -1,5 +1,9 @@
 #include "training.h"
 
+#include <string.h>
+#include "trusted_util.h"
+#include "util.h"
+
 // DEBUG nr of kmeans done
 int ccount = 0;
 
@@ -7,6 +11,15 @@ void train_add_image(BagOfWordsTrainer* k, unsigned long id, size_t nr_desc, con
     // TODO also pass descriptors pointer from caller
 
     outside_util::printf("add: id %lu nr_descs %d\n", id, nr_desc);
+
+    if(k->is_full_after(nr_desc)) {
+        outside_util::printf("Full, train images! %d\n", ccount++);
+        untrusted_time start = outside_util::curr_time();
+        k->cluster();
+        untrusted_time end = outside_util::curr_time();
+        outside_util::printf("kmeans elapsed: %ld\n", trusted_util::time_elapsed_ms(start, end));
+        //debug_print_points(centres->buffer, centres->count, k->desc_len());
+    }
 
     // store id and desc counter in map TODO store in server until kmeans done? so that client does not need to resend?
     /*std::string i_str(id);
@@ -20,12 +33,6 @@ void train_add_image(BagOfWordsTrainer* k, unsigned long id, size_t nr_desc, con
     memcpy(descriptor->buffer, in + sizeof(unsigned long) + sizeof(size_t), nr_desc * k->desc_len() * sizeof(float));
 
     k->add_descriptors(descriptor);
-
-    if(k->is_full()) {
-        outside_util::printf("Full, train images! %d\n", ccount++);
-        k->cluster();
-        //debug_print_points(centres->buffer, centres->count, k->desc_len());
-    }
 }
 
 void train_kmeans(BagOfWordsTrainer* k) {

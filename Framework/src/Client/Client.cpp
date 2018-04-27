@@ -254,10 +254,11 @@ int main(int argc, char** argv) {
     // may be specified by user
     size_t nr_clusters = 1000;
     int src_img = 0;
+    int train_only = 0;
 
     // parse terminal arguments
     int c;
-    while ((c = getopt(argc, argv, "k:i:")) != -1) {
+    while ((c = getopt(argc, argv, "k:i:th")) != -1) {
         switch (c) {
             case 'k':
                 nr_clusters = stoul(optarg);
@@ -265,6 +266,12 @@ int main(int argc, char** argv) {
             case 'i':
                 src_img = atoi(optarg);
                 break;
+            case 't':
+                train_only = 1;
+                break;
+            case 'h':
+                printf("Usage: ./Client nr-imgs\n");
+                exit(0);
             case '?':
                 if (optopt == 'c')
                     fprintf(stderr, "-%c requires an argument.\n", optopt);
@@ -321,6 +328,13 @@ int main(int argc, char** argv) {
     iee_comm(socket, in, in_len);
     free(in);
 
+    struct timeval end;
+    gettimeofday(&end, NULL);
+    printf("-- Train elapsed time: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+
+    if(train_only)
+        return 0;
+
     // add images to repository
     for (unsigned i = 0; i < files.size(); i++) {
         printf("Add img (%u/%lu)\n\n", i, files.size());
@@ -362,7 +376,6 @@ int main(int argc, char** argv) {
     iee_comm(socket, in, in_len);
     free(in);
 
-    struct timeval end;
     gettimeofday(&end, NULL);
     printf("Total elapsed time: %ldms\n", untrusted_util::time_elapsed_ms(start, end));
 

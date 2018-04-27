@@ -31,10 +31,9 @@ void BagOfWordsTrainer::add_descriptors(img_descriptor* _descriptors) {
     descriptors.push_back(_descriptors);
 }
 
-int BagOfWordsTrainer::is_full() {
+int BagOfWordsTrainer::is_full_after(size_t to_add) {
     outside_util::printf("total_descriptors %lu\n", total_descriptors);
-    //return descriptors.size() >= 10;
-    return total_descriptors >= MAX_DESCRIPTORS_MEM;
+    return total_descriptors + to_add >= MAX_DESCRIPTORS_MEM;
 }
 
 size_t BagOfWordsTrainer::nr_centres() {
