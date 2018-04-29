@@ -424,6 +424,10 @@ void extern_lib::process_message(uint8_t **out, size_t *out_len, const uint8_t *
             ok_response(out, out_len);
             break;
         }
+        case OP_IEE_LOAD: {
+            train_kmeans_load(r->k);
+            break;
+        }
         default: {
             outside_util::printf("Unrecognised op: %02x\n", ((unsigned char *) in)[0]);
             break;

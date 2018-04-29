@@ -29,7 +29,7 @@ ssize_t outside_util::read(int file, void *buf, size_t len) {
     return retval;
 }
 
-ssize_t outside_util::write(int file, void *buf, size_t len) {
+ssize_t outside_util::write(const int file, const void *buf, const size_t len) {
     ssize_t retval;
     sgx_status_t sgx_ret = ocall_write(&retval, file, buf, len);
     if(sgx_ret != SGX_SUCCESS) {
@@ -44,6 +44,8 @@ void outside_util::close(int file) {
     ocall_close(file);
 }
 /**************************************************** END FILE I/O ****************************************************/
+
+
 
 /******************************************************** MISC ********************************************************/
 void outside_util::printf(const char *fmt, ...) {

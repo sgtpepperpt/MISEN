@@ -1,5 +1,12 @@
 #include "ocall.h"
 
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/time.h>
+#include <time.h>
+
 #include "definitions.h"
 #include "extern_lib.h"
 #include "untrusted_util.h"
@@ -7,7 +14,6 @@
 
 /****************************************************** FILE I/O ******************************************************/
 int ocall_open(const char* filename, int mode) {
-    printf("ocall open in app\n");
     return open(filename, mode);
 }
 
@@ -15,7 +21,7 @@ ssize_t ocall_read(int file, void *buf, size_t len) {
     return read(file, buf, len);
 }
 
-ssize_t ocall_write(int file, void *buf, size_t len) {
+ssize_t ocall_write(const int file, const void *buf, const size_t len) {
     return write(file, buf, len);
 }
 
@@ -78,7 +84,7 @@ void ocall_untrusted_free(void** pointer) {
 
 /****************************************************** GENERIC ******************************************************/
 int ocall_process(void** out, size_t* out_len, const void* in, const size_t in_len) {
-    extern_lib_ut::process_message(out, out_len, in, in_len);
+    extern_lib_ut::process_message(out, out_len, in, in_len); // must be implemented by extern lib
     return 0;
 }
 /**************************************************** END GENERIC ****************************************************/

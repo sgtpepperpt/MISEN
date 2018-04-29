@@ -14,6 +14,7 @@
 #define OP_IEE_ADD 'n'
 #define OP_IEE_SEARCH 's'
 #define OP_IEE_CLEAR 'c'
+#define OP_IEE_LOAD 'l'
 
 #define OP_UEE_INIT 'i'
 #define OP_UEE_ADD 'a'

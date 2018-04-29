@@ -1,5 +1,6 @@
 enclave {
     from "sgx_tstdc.edl" import *; // threading
+    from "sgx_tprotected_fs.edl" import *; // file i/o for debug
     include "types.h"
 
     trusted {
@@ -16,7 +17,7 @@ enclave {
         // i/o
         int ocall_open([in, string]const char* filename, int mode);
         ssize_t ocall_read(int file, [out, size=len]void *buf, size_t len);
-        ssize_t ocall_write(int file, [in, size=len]void *buf, size_t len);
+        ssize_t ocall_write(int file, [in, size=len]const void *buf, size_t len);
         void ocall_close(int file);
 
         // misc

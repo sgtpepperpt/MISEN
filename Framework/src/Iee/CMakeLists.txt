@@ -36,7 +36,7 @@ target_include_directories(${ENCLAVE_NAME} PRIVATE ${FRAMEWORK_INCLUDE_DIR} ${EX
 # Otherwise, you may get some undesirable errors.
 target_link_libraries(${ENCLAVE_NAME} -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles
     -Wl,--whole-archive sgx_trts -Wl,--no-whole-archive
-    -Wl,--start-group sgx_tstdc sgx_tcxx sgx_tcrypto sgx_tservice ${EXTERN_LIB_NAME} -Wl,--end-group
+    -Wl,--start-group sgx_tstdc sgx_tcxx sgx_tcrypto sgx_tservice sgx_tprotected_fs ${EXTERN_LIB_NAME} -Wl,--end-group
     -Wl,-Bstatic -Wl,-Bsymbolic -Wl,--no-undefined
     -Wl,-pie,-eenclave_entry -Wl,--export-dynamic
     -Wl,--defsym,__ImageBase=0

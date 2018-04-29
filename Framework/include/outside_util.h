@@ -7,11 +7,19 @@
 #ifndef _INC_FCNTL
 #define _INC_FCNTL
 
-#define O_RDONLY    0x0000
-#define O_WRONLY    0x0001
-#define O_RDWR      0x0002
-#define O_APPEND    0x0008
-#define O_ASYNC     0x0200
+
+#define O_RDONLY       0x0000
+#define O_WRONLY       0x0001
+#define O_RDWR         0x0002
+#define O_APPEND       0x0008
+#define O_CREAT        0x0100
+#define O_TRUNC        0x0200
+#define O_EXCL         0x0400
+#define O_TEXT         0x4000
+#define O_BINARY       0x8000
+#define O_WTEXT        0x10000
+#define O_U16TEXT      0x20000
+#define O_U8TEXT       0x40000
 
 #endif
 
@@ -19,7 +27,7 @@ namespace outside_util {
     // file i/o
     int open(const char *filename, int mode);
     ssize_t read(int file, void *buf, size_t len);
-    ssize_t write(int file, void *buf, size_t len);
+    ssize_t write(const int file, const void *buf, const size_t len);
     void close(int file);
 
     // uee communication

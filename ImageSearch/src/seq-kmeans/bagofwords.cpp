@@ -59,6 +59,10 @@ void BagOfWordsTrainer::cleanup() {
     descriptors.clear();
 }
 
+const float* const BagOfWordsTrainer::get_all_centres() {
+    return kmeans->centres;
+}
+
 void BagOfWordsTrainer::cluster() {
     if(descriptors.empty())
         return;
@@ -84,4 +88,8 @@ void BagOfWordsTrainer::cluster() {
 
     // remove used descriptors
     cleanup();
+}
+
+void BagOfWordsTrainer::set_centres(void* centres) {// TODO used for debugging
+    kmeans->centres = (float*)centres;
 }

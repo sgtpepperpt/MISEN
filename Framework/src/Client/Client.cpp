@@ -191,6 +191,13 @@ void train(uint8_t** in, size_t* in_len) {
     *in[0] = OP_IEE_TRAIN;
 }
 
+void train_load_clusters(uint8_t** in, size_t* in_len) {
+    *in_len = sizeof(unsigned char);
+
+    *in = (uint8_t*)malloc(*in_len);
+    *in[0] = OP_IEE_LOAD;
+}
+
 void clear(uint8_t** in, size_t* in_len) {
     *in_len = sizeof(unsigned char);
 
@@ -255,10 +262,11 @@ int main(int argc, char** argv) {
     size_t nr_clusters = 1000;
     int src_img = 0;
     int train_only = 0;
+    int load_clusters = 0;
 
     // parse terminal arguments
     int c;
-    while ((c = getopt(argc, argv, "k:i:th")) != -1) {
+    while ((c = getopt(argc, argv, "k:i:thl")) != -1) {
         switch (c) {
             case 'k':
                 nr_clusters = stoul(optarg);
@@ -272,6 +280,9 @@ int main(int argc, char** argv) {
             case 'h':
                 printf("Usage: ./Client nr-imgs\n");
                 exit(0);
+            case 'l':
+                load_clusters = 1;
+                break;
             case '?':
                 if (optopt == 'c')
                     fprintf(stderr, "-%c requires an argument.\n", optopt);
@@ -305,6 +316,8 @@ int main(int argc, char** argv) {
     Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create("FlannBased");
     Ptr<BOWImgDescriptorExtractor> bowExtractor = new BOWImgDescriptorExtractor(surf, matcher);
 
+    const vector<string> files = get_filenames(nr_images);
+
     // init iee and server
     size_t in_len = 0;
     uint8_t* in = NULL;
@@ -313,20 +326,25 @@ int main(int argc, char** argv) {
     iee_comm(socket, in, in_len);
     free(in);
 
-    // adding
-    const vector<string> files = get_filenames(nr_images);
-    for (unsigned i = 0; i < files.size(); i++) {
-        printf("Train img (%u/%lu) %s\n", i, files.size(), files[i].c_str());
-        add_train_images(&in, &in_len, surf, files[i]);
+    if(!load_clusters) {
+        // adding
+        for (unsigned i = 0; i < files.size(); i++) {
+            printf("Train img (%u/%lu) %s\n", i, files.size(), files[i].c_str());
+            add_train_images(&in, &in_len, surf, files[i]);
+            iee_comm(socket, in, in_len);
+            free(in);
+            printf("\n");
+        }
+
+        // train
+        train(&in, &in_len);
         iee_comm(socket, in, in_len);
         free(in);
-        printf("\n");
+    } else {
+        train_load_clusters(&in, &in_len);
+        iee_comm(socket, in, in_len);
+        free(in);
     }
-
-    // train
-    train(&in, &in_len);
-    iee_comm(socket, in, in_len);
-    free(in);
 
     struct timeval end;
     gettimeofday(&end, NULL);

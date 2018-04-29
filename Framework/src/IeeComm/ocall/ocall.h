@@ -1,14 +1,8 @@
 #ifndef _OCALL_H__
 #define _OCALL_H__
 
-#include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/types.h>
 #include "Enclave_u.h"
-#include <sys/time.h>
-#include <time.h>
 
 #if defined(__cplusplus)
 extern "C" {
@@ -16,7 +10,7 @@ extern "C" {
 
 int ocall_open(const char* filename, int mode);
 ssize_t ocall_read(int file, void *buf, size_t len);
-ssize_t ocall_write(int file, void *buf, size_t len);
+ssize_t ocall_write(const int file, const void *buf, const size_t len);
 void ocall_close(int file);
 
 void ocall_print_string(const char *str);
