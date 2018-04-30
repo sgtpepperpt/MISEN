@@ -5,9 +5,10 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_FLAGS}")
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 11)
 
-# lib util
-set(LIBUTIL_DIR ${FRAMEWORK_DIR}/src/Util)
-add_subdirectory(${LIBUTIL_DIR})
+# lib untrusted
+set(LIB_UNTRUSTED untrusted_util)
+set(LIB_UNTRUSTED_DIR ${FRAMEWORK_DIR}/src/LibUntrusted)
+add_subdirectory(${LIB_UNTRUSTED_DIR})
 
 # uee module
 set(SERVER_DIR ${FRAMEWORK_DIR}/src/Uee)
@@ -21,7 +22,7 @@ add_subdirectory(${CLIENT_DIR})
 # define common sgx vars
 if (NOT DEFINED ENV{SGX_SDK})
     set(SGX_SDK /opt/intel/sgxsdk)
-else()
+else ()
     set(SGX_SDK $ENV{SGX_SDK})
 endif ()
 

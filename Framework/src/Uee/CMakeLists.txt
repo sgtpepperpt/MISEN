@@ -10,4 +10,4 @@ set(CMAKE_CXX_STANDARD 11)
 
 add_executable(Uee ${SERVER_DIR}/Server.cpp)
 target_include_directories(Uee PRIVATE ${FRAMEWORK_INCLUDE_DIR} ${SERVER_DIR})
-target_link_libraries(Uee Util tbb)
+target_link_libraries(Uee ${LIB_UNTRUSTED} tbb)

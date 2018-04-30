@@ -8,4 +8,4 @@ set(CMAKE_CXX_STANDARD 11)
 
 add_executable(Client ${CLIENT_DIR}/Client.cpp)
 target_include_directories(Client PRIVATE ${CLIENT_DIR} ${FRAMEWORK_INCLUDE_DIR} ${OpenCV_INCLUDE_DIRS} ${OPENSSL_INCLUDE_DIR})
-target_link_libraries(Client Util ${OpenCV_LIBS} ${OPENSSL_CRYPTO_LIBRARY})
+target_link_libraries(Client ${LIB_UNTRUSTED} ${OpenCV_LIBS} ${OPENSSL_CRYPTO_LIBRARY})
