@@ -41,5 +41,5 @@ add_definitions(-DSIGNED_ENCLAVE_NAME="${SIGNED_ENCLAVE_NAME}")
 add_definitions(-DENCLAVE_TOKEN_NAME="enclave.token")
 
 # compile iee_comm and iee modules
-add_subdirectory(${FRAMEWORK_DIR}/src/IeeComm)
-add_subdirectory(${FRAMEWORK_DIR}/src/Iee)
+add_subdirectory(${IEE_COMM_DIR})
+add_subdirectory(${IEE_DIR})

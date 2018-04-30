@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.5)
 project(sgx_image_search)
 
+set(SIMULATED_MODE 0)
+
 # base paths
 set(FRAMEWORK_DIR ${CMAKE_SOURCE_DIR}/Framework)
 set(EXTERN_DIR ${CMAKE_SOURCE_DIR}/ImageSearch)
