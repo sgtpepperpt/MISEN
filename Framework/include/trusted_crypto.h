@@ -1,5 +1,5 @@
-#ifndef _CRYPTO__H_
-#define _CRYPTO__H_
+#ifndef _T_CRYPTO__H_
+#define _T_CRYPTO__H_
 
 #include <stdlib.h>
 #include <stdint.h>

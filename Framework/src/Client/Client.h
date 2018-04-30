@@ -10,7 +10,7 @@
 #include <dirent.h>
 
 #include "definitions.h"
-#include "crypto.h"
+#include "untrusted_crypto.h"
 
 typedef struct img_descriptor {
     unsigned count;

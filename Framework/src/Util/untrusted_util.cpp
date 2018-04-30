@@ -10,6 +10,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <sys/time.h>
+#include <time.h>
 
 static int send_all(int socket, const void* buf, size_t len) {
     size_t total = 0;        // how many bytes we've sent
@@ -110,9 +112,16 @@ int untrusted_util::socket_connect(const char* server_name, const int server_por
     return sock;
 }
 
-// TODO make an untrusted_util.cpp, refactor lib c files
 void untrusted_util::debug_printbuf(uint8_t* buf, size_t len) {
     for (size_t l = 0; l < len; ++l)
         printf("%02x ", buf[l]);
     printf("\n");
+}
+
+long untrusted_util::time_elapsed_ms(struct timeval start, struct timeval end) {
+    long secs_used, micros_used;
+
+    secs_used = (end.tv_sec - start.tv_sec); //avoid overflow by subtracting first
+    micros_used = ((secs_used*1000000) + end.tv_usec) - (start.tv_usec);
+    return micros_used / 1000;
 }
