@@ -7,11 +7,11 @@ set(CMAKE_CXX_STANDARD 11)
 
 ######################################################### SGX #########################################################
 # define common sgx vars
-if (NOT DEFINED ENV{SGX_SDK})
+if(NOT DEFINED ENV{SGX_SDK})
     set(SGX_SDK /opt/intel/sgxsdk)
-else ()
+else()
     set(SGX_SDK $ENV{SGX_SDK})
-endif ()
+endif()
 
 set(SGX_LIBRARY_PATH ${SGX_SDK}/lib64)
 set(SGX_EDGER8R ${SGX_SDK}/bin/x64/sgx_edger8r)
@@ -46,6 +46,7 @@ set(sgx_cpp_flags "${sgx_c_flags} -nostdinc++")
 # directories for modules
 set(LIB_UNTRUSTED_DIR ${FRAMEWORK_DIR}/src/LibUntrusted)
 set(LIB_TRUSTED_DIR ${FRAMEWORK_DIR}/src/LibTrusted)
+set(LIB_TRUSTED_SIM_DIR ${FRAMEWORK_DIR}/src/LibTrustedSim)
 set(SERVER_DIR ${FRAMEWORK_DIR}/src/Uee)
 set(CLIENT_DIR ${FRAMEWORK_DIR}/src/Client)
 set(IEE_COMM_DIR ${FRAMEWORK_DIR}/src/IeeComm)
@@ -56,8 +57,13 @@ set(LIB_UNTRUSTED untrusted_util)
 add_subdirectory(${LIB_UNTRUSTED_DIR})
 
 # lib trusted
-set(LIB_TRUSTED trusted_util)
-add_subdirectory(${LIB_TRUSTED_DIR})
+if(SIMULATED_MODE)
+    set(LIB_TRUSTED trusted_util_sim)
+    add_subdirectory(${LIB_TRUSTED_SIM_DIR})
+else()
+    set(LIB_TRUSTED trusted_util)
+    add_subdirectory(${LIB_TRUSTED_DIR})
+endif()
 
 # uee module
 add_subdirectory(${SERVER_DIR})
