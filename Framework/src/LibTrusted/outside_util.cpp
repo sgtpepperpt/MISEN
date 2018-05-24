@@ -49,13 +49,13 @@ void outside_util::close(int file) {
 
 /******************************************************** MISC ********************************************************/
 void outside_util::printf(const char *fmt, ...) {
-    //ocall_print_string("Enclave printf\n");
+    //ocall_string_print("Enclave printf\n");
     char buf[BUFSIZ] = {'\0'};
     va_list ap;
     va_start(ap, fmt);
     vsnprintf(buf, BUFSIZ, fmt, ap);
     va_end(ap);
-    ocall_print_string(buf);
+    ocall_string_print(buf);
 }
 
 void outside_util::exit(int status) {

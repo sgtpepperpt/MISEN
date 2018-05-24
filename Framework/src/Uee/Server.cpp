@@ -122,7 +122,8 @@ void* process_client(void* args) {
                     tmp += l_size;
 
                     if(!I[label]) {
-                        printf("error: %lu/%lu", i, nr_labels);
+                        untrusted_util::debug_printbuf(label, l_size);
+                        printf("Map error: %lu/%lu", i, nr_labels);
                         exit(1);
                     }
 
@@ -131,7 +132,72 @@ void* process_client(void* args) {
 
                 break;
             }
+            case OP_UEE_READ_MAP: {
+                printf("Reading map from disk\n");
+                FILE* map_file = fopen("map_data", "r");
+                if(!map_file){
+                    printf("Error opening map file\n!");
+                    exit(1);
+                }
 
+                size_t nr_pairs;
+                fread(&nr_pairs, sizeof(size_t), 1, map_file);
+                printf("nr_pairs %lu\n", nr_pairs);
+
+                int count = 0, ccount = 0;
+                for(size_t i = 0; i < nr_pairs; ++i) {
+                    void* label = (uint8_t*)malloc(l_size);
+
+                    uint8_t tmp_a[l_size]; // TODO this needs to vanish, fread directly into malloc'd buffers was not working
+                    fread(tmp_a, l_size, 1, map_file);
+                    memcpy(label, tmp_a, l_size);
+
+                    untrusted_util::debug_printbuf((uint8_t*)label, l_size);
+
+                    void* d = (uint8_t*)malloc(d_size);
+                    uint8_t tmp_b[d_size];
+                    fread(tmp_b, d_size, 1, map_file);
+                    memcpy(d, tmp_b, d_size);
+
+                    if(((uint8_t*)label)[0] == 0x56 && ((uint8_t*)label)[1] == 0x97 && ((uint8_t*)label)[5] == 0xfa)
+                        count++;
+                    else ccount++;
+
+
+                    I[label] = d;
+                }
+                printf("wcount %d ccount %d\n", count, ccount);
+                fclose(map_file);
+                printf("done!\n");
+                break;
+            }
+            case OP_UEE_WRITE_MAP: {
+                printf("Writing map to disk\n");
+                FILE* map_file = fopen("map_data", "w");
+                if(!map_file){
+                    printf("Error opening map file\n!");
+                    exit(1);
+                }
+
+                const size_t nr_pairs = I.size();
+                fwrite(&nr_pairs, sizeof(size_t), 1, map_file);
+
+                int count = 0, ccount = 0;
+
+                for (tbb::concurrent_unordered_map<void*, void*, VoidHash<l_size>, VoidEqual<l_size>>::iterator it = I.begin(); it != I.end() ; ++it) {
+                    if(!((uint8_t*)it->first)[0] && !((uint8_t*)it->first)[1] && !((uint8_t*)it->first)[5])
+                        count++;
+                    else ccount++;
+
+                    fwrite(it->first, sizeof(l_size), 1, map_file);
+                    fwrite(it->second, sizeof(d_size), 1, map_file);
+                }
+
+                printf("wcount %d ccount %d\n", count, ccount);
+                fclose(map_file);
+                printf("done!\n");
+                break;
+            }
             case OP_UEE_CLEAR: {
                 printf("Clear\n");
                 repository_clear();

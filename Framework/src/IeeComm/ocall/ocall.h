@@ -13,7 +13,7 @@ ssize_t ocall_read(int file, void *buf, size_t len);
 ssize_t ocall_write(const int file, const void *buf, const size_t len);
 void ocall_close(int file);
 
-void ocall_print_string(const char *str);
+void ocall_string_print(const char *str);
 void ocall_exit(int code);
 untrusted_time ocall_curr_time();
 

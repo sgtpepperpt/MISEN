@@ -15,10 +15,14 @@
 #define OP_IEE_SEARCH 's'
 #define OP_IEE_CLEAR 'c'
 #define OP_IEE_LOAD 'l'
+#define OP_IEE_WRITE_MAP 'w'
+#define OP_IEE_READ_MAP 'r'
 
 #define OP_UEE_INIT 'i'
 #define OP_UEE_ADD 'a'
 #define OP_UEE_SEARCH 's'
+#define OP_UEE_WRITE_MAP 'w'
+#define OP_UEE_READ_MAP 'r'
 #define OP_UEE_CLEAR 'c'
 
 #endif

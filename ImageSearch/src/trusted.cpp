@@ -3,6 +3,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <map>
+#include "sgx_tprotected_fs.h"
 
 // includes from framework
 #include "definitions.h"
@@ -159,7 +160,7 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
             tmp += LABEL_LEN;
 
             // increase the centre's counter, if present
-            if(frequencies[centre_pos])//TODO remove this if, counter is increased even if 0
+            if (frequencies[centre_pos])//TODO remove this if, counter is increased even if 0
                 ++r->counters[centre_pos];
 
             // calculate value
@@ -180,7 +181,8 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
         // send batch to server
         size_t res_len;
         void* res;
-        outside_util::uee_process(r->server_socket, &res, &res_len, req_buffer, sizeof(unsigned char) + sizeof(size_t) + batch_len * PAIR_LEN);
+        outside_util::uee_process(r->server_socket, &res, &res_len, req_buffer,
+                                  sizeof(unsigned char) + sizeof(size_t) + batch_len * PAIR_LEN);
         outside_util::outside_free(res); // discard ok response
     }
 
@@ -207,15 +209,15 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
     printf("\n");
 
     //weight_idf(idf, frequencies);
-    for (size_t i = 0; i < r->k->nr_centres(); ++i) {
+    /*for (size_t i = 0; i < r->k->nr_centres(); ++i) {
         printf("%lf ", idf[i]);
     }
-    printf("\n");
+    printf("\n");*/
 
     // calc size of request; ie sum of counters (for all centres of searched image)
     size_t nr_labels = 0;
     for (size_t i = 0; i < r->k->nr_centres(); ++i) {
-        if(frequencies[i])
+        if (frequencies[i])
             nr_labels += r->counters[i];
     }
 
@@ -250,10 +252,9 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
 
             // update pointers
             ++counter_pos;
-            if(counter_pos == r->counters[centre_pos]) {
+            if (counter_pos == r->counters[centre_pos]) {
                 // search for the next centre where the searched image's frequency is non-zero
-                while (!frequencies[++centre_pos])
-                    ;
+                while (!frequencies[++centre_pos]);
                 counter_pos = 0;
             }
         }
@@ -263,7 +264,7 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
         // perform request to uee
         size_t res_len;
         uint8_t* res;
-        uee_process(r->server_socket, (void **)&res, &res_len, req_buffer, sizeof(unsigned char) + sizeof(size_t) + batch_len * LABEL_LEN);
+        uee_process(r->server_socket, (void**)&res, &res_len, req_buffer, sizeof(unsigned char) + sizeof(size_t) + batch_len * LABEL_LEN);
         uint8_t* res_tmp = res;
 
         // process all answers
@@ -277,7 +278,7 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
             res_tmp += ENC_VALUE_LEN;
 
             int verify = memcmp(res_unenc, (req_buffer + sizeof(unsigned char) + sizeof(size_t)) + i * LABEL_LEN, LABEL_LEN);
-            if(verify) {
+            if (verify) {
                 printf("Label verification doesn't match! Exit\n");
                 exit(-1);
             }
@@ -289,9 +290,9 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
             memcpy(&frequency, res_unenc + LABEL_LEN + sizeof(unsigned long), sizeof(unsigned));
 
             if (docs[id])
-                docs[id] += frequency? frequencies[i] * (1 + log10(frequency)) * idf[i] : 0;
+                docs[id] += frequency ? frequencies[i] * (1 + log10(frequency)) * idf[i] : 0;
             else
-                docs[id] = frequency? frequencies[i] * (1 + log10(frequency)) * idf[i] : 0;
+                docs[id] = frequency ? frequencies[i] * (1 + log10(frequency)) * idf[i] : 0;
         }
 
         outside_util::outside_free(res);
@@ -313,7 +314,7 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
     //sort_docs(docs, response_imgs, &res); // TODO
     res = (uint8_t*)malloc(docs.size() * single_res_len);
     int pos = 0;
-    for (map<unsigned long, double>::iterator l = docs.begin(); l != docs.end() ; ++l) {
+    for (map<unsigned long, double>::iterator l = docs.begin(); l != docs.end(); ++l) {
         memcpy(res + pos * single_res_len, &l->first, sizeof(unsigned long));
         memcpy(res + pos * single_res_len + sizeof(unsigned long), &l->second, sizeof(double));
         pos++;
@@ -343,7 +344,7 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
     free(res);
 }
 
-void extern_lib::process_message(uint8_t **out, size_t *out_len, const uint8_t *in, const size_t in_len) {
+void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* in, const size_t in_len) {
     // pass pointer without op char to processing functions
     uint8_t* input = ((uint8_t*)in) + sizeof(unsigned char);
     const size_t input_len = in_len - sizeof(unsigned char);
@@ -353,7 +354,7 @@ void extern_lib::process_message(uint8_t **out, size_t *out_len, const uint8_t *
     *out_len = 0;
     *out = NULL;
 
-    switch(((unsigned char*)in)[0]) {
+    switch (((unsigned char*)in)[0]) {
         case OP_IEE_INIT: {
             outside_util::printf("Init repository!\n");
 
@@ -428,8 +429,52 @@ void extern_lib::process_message(uint8_t **out, size_t *out_len, const uint8_t *
             train_kmeans_load(r->k);
             break;
         }
+        case OP_IEE_READ_MAP: {
+            size_t res_len;
+            uint8_t* res;
+            const unsigned char op = OP_UEE_READ_MAP;
+
+            uee_process(r->server_socket, (void**)&res, &res_len, &op, sizeof(unsigned char));
+            outside_util::outside_free(res);
+
+            // read iee-side data securely from disc
+            SGX_FILE* file = sgx_fopen_auto_key("iee_data", "rb");
+            if(!file) {
+                outside_util::printf("Could not read data file\n");
+                outside_util::exit(1);
+            }
+
+            sgx_fread(&(r->total_docs), sizeof(unsigned), 1, file);
+            sgx_fread(r->counters, sizeof(unsigned) * r->k->nr_centres(), 1, file);
+            sgx_fclose(file);
+
+            ok_response(out, out_len);
+            break;
+        }
+        case OP_IEE_WRITE_MAP: {
+            size_t res_len;
+            uint8_t* res;
+            const unsigned char op = OP_UEE_WRITE_MAP;
+
+            uee_process(r->server_socket, (void**)&res, &res_len, &op, sizeof(unsigned char));
+            outside_util::outside_free(res);
+
+            // write iee-side data securely to disc
+            SGX_FILE* file = sgx_fopen_auto_key("iee_data", "wb");
+            if(!file) {
+                outside_util::printf("Could not write data file\n");
+                outside_util::exit(1);
+            }
+
+            sgx_fwrite(&(r->total_docs), sizeof(unsigned), 1, file);
+            sgx_fwrite(r->counters, sizeof(unsigned) * r->k->nr_centres(), 1, file);
+            sgx_fclose(file);
+
+            ok_response(out, out_len);
+            break;
+        }
         default: {
-            outside_util::printf("Unrecognised op: %02x\n", ((unsigned char *) in)[0]);
+            outside_util::printf("Unrecognised op: %02x\n", ((unsigned char*)in)[0]);
             break;
         }
     }

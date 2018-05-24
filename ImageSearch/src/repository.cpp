@@ -14,8 +14,10 @@ repository* repository_init(unsigned nr_clusters, size_t desc_len) {
     // generate keys
     r->kf = (uint8_t*)malloc(SHA256_BLOCK_SIZE);
     r->ke = (uint8_t*)malloc(AES_KEY_SIZE);
-    tcrypto::random(r->kf, SHA256_BLOCK_SIZE);
-    tcrypto::random(r->ke, AES_KEY_SIZE);
+    //tcrypto::random(r->kf, SHA256_BLOCK_SIZE);
+    //tcrypto::random(r->ke, AES_KEY_SIZE);
+    memset(r->kf, 0x00, SHA256_BLOCK_SIZE);
+    memset(r->ke, 0x00, AES_KEY_SIZE);
 
     // init key map
     r->centre_keys = (uint8_t**)malloc(sizeof(uint8_t*) * nr_clusters);

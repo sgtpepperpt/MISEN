@@ -2,6 +2,7 @@
 
 #include "untrusted_util.h"
 #include <getopt.h>
+#include <fstream>
 #include <sys/time.h>
 
 using namespace cv;
@@ -12,6 +13,33 @@ using namespace std;
 uint8_t key[AES_BLOCK_SIZE];
 uint8_t ctr[AES_BLOCK_SIZE];
 
+
+#define STORE_RESULTS 1
+
+#define SRC_RES_LEN (sizeof(unsigned long) + sizeof(double))
+
+#if STORE_RESULTS
+
+void printHolidayResults(const char* path, std::map<unsigned long, std::vector<unsigned long>> results) {
+    std::ofstream ofs(path);
+    std::map<unsigned long, std::vector<unsigned long>>::iterator it;
+    for (it = results.begin(); it != results.end(); ++it) {
+        ofs << it->first << ".jpg";
+        for (unsigned long i = 0; i < it->second.size(); i++)
+            ofs << " " << i << " " << it->second.at(i) << ".jpg";
+        ofs << std::endl;
+    }
+
+    ofs.close();
+}
+
+#endif
+
+unsigned long filename_to_id(const char* filename) {
+    const char* id = strrchr(filename, '/') + sizeof(char); // +sizeof(char) excludes the slash
+    return strtoul(id, NULL, 0);
+}
+
 vector<string> get_filenames(int n) {
     string holidayDir = "/home/guilherme/Datasets/inria";
     vector<string> filenames;
@@ -20,7 +48,7 @@ vector<string> get_filenames(int n) {
     struct dirent* ent;
     int i = 0;
     if ((dir = opendir(holidayDir.c_str()))) {
-        while ((ent = readdir(dir)) != NULL && i < n) {
+        while ((ent = readdir(dir)) != NULL && (n < 0 || i < n)) {
             std::string fname = holidayDir + "/" + ent->d_name;
             if (fname.find(".jpg") == string::npos || !fname.length())
                 continue;
@@ -59,7 +87,7 @@ void iee_comm(const int socket, const void* in, const size_t in_len) {
     socket_send(socket, &in_len, sizeof(size_t));
     socket_send(socket, enc, in_len);
 
-    // receive response (and discard for now) TODO do not
+    // receive response (and discard for now) TODO do not discard
     size_t res_len;
     socket_receive(socket, &res_len, sizeof(size_t));
     printf("res: %lu bytes\n", res_len);
@@ -97,8 +125,7 @@ void init(uint8_t** in, size_t* in_len, unsigned nr_clusters, size_t row_len) {
 }
 
 void add_train_images(uint8_t** in, size_t* in_len, const Ptr<SURF> surf, std::string file_name) {
-    const char* id = strrchr(file_name.c_str(), '/') + sizeof(char); // +sizeof(char) excludes the slash
-    unsigned long num_id = strtoul(id, NULL, 0);
+    unsigned long id = filename_to_id(file_name.c_str());
 
     Mat image = imread(file_name);
     if (!image.data) {
@@ -129,7 +156,7 @@ void add_train_images(uint8_t** in, size_t* in_len, const Ptr<SURF> surf, std::s
     tmp[0] = OP_IEE_TRAIN_ADD;
     tmp += sizeof(unsigned char);
 
-    memcpy(tmp, &num_id, sizeof(unsigned long));
+    memcpy(tmp, &id, sizeof(unsigned long));
     tmp += sizeof(unsigned long);
 
     memcpy(tmp, &nr_desc, sizeof(size_t));
@@ -141,8 +168,7 @@ void add_train_images(uint8_t** in, size_t* in_len, const Ptr<SURF> surf, std::s
 }
 
 void add_images(uint8_t** in, size_t* in_len, const Ptr<SURF> surf, std::string file_name) {
-    const char* id = strrchr(file_name.c_str(), '/') + sizeof(char); // +sizeof(char) excludes the slash
-    unsigned long num_id = strtoul(id, NULL, 0);
+    unsigned long id = filename_to_id(file_name.c_str());
 
     Mat image = imread(file_name);
     if (!image.data) {
@@ -173,7 +199,7 @@ void add_images(uint8_t** in, size_t* in_len, const Ptr<SURF> surf, std::string 
     tmp[0] = OP_IEE_ADD;
     tmp += sizeof(unsigned char);
 
-    memcpy(tmp, &num_id, sizeof(unsigned long));
+    memcpy(tmp, &id, sizeof(unsigned long));
     tmp += sizeof(unsigned long);
 
     memcpy(tmp, &nr_desc, sizeof(size_t));
@@ -248,6 +274,64 @@ void search(uint8_t** in, size_t* in_len, const Ptr<SURF> surf, const std::strin
     free(descriptors_buffer);
 }
 
+void search_test(const int socket, const Ptr<SURF> surf) {
+    size_t in_len;
+    uint8_t* in;
+
+    map<unsigned long, vector<unsigned long>> precision_res;
+
+    // generate file list to search
+    vector<string> files;
+    for (int i = 100000; i <= 149900; i += 100) {
+        char img[128];
+        sprintf(img, "/home/guilherme/Datasets/inria/%d.jpg", i);
+        files.push_back(img);
+    }
+
+    for (size_t i = 0; i < files.size(); ++i) {
+        search(&in, &in_len, surf, files[i]);
+        iee_send(socket, in, in_len);
+        free(in);
+
+        // receive response
+        size_t res_len;
+        uint8_t* res;
+        iee_recv(socket, &res, &res_len);
+
+        // get number of response docs
+        unsigned nr;
+        memcpy(&nr, res, sizeof(unsigned));
+        printf("nr of imgs: %u\n", nr);
+
+#if STORE_RESULTS
+        // store the results in order
+        vector<unsigned long> precision_results;
+#endif
+
+        // decode id and score for each doc
+        for (unsigned j = 0; j < nr; ++j) {
+            unsigned long id;
+            memcpy(&id, res + sizeof(size_t) + j * SRC_RES_LEN, sizeof(unsigned long));
+
+            double score;
+            memcpy(&score, res + sizeof(size_t) + j * SRC_RES_LEN + sizeof(unsigned long), sizeof(double));
+
+            printf("%lu %f\n", id, score);
+#if STORE_RESULTS
+            precision_results.push_back(id);
+#endif
+        }
+
+        free(res);
+        precision_res[filename_to_id(files[i].c_str())] = precision_results;
+    }
+
+#if STORE_RESULTS
+    // write results to file
+    printHolidayResults("results.dat", precision_res);
+#endif
+}
+
 int main(int argc, char** argv) {
     memset(key, 0x00, AES_BLOCK_SIZE);
     memset(ctr, 0x00, AES_BLOCK_SIZE);
@@ -260,19 +344,20 @@ int main(int argc, char** argv) {
 
     // may be specified by user
     size_t nr_clusters = 1000;
-    int src_img = 0;
     int train_only = 0;
     int load_clusters = 0;
+    int do_search_test = 0;
+    int add_all = 0;
+
+    int load_uee = 0;
+    int write_uee = 0;
 
     // parse terminal arguments
     int c;
-    while ((c = getopt(argc, argv, "k:i:thl")) != -1) {
+    while ((c = getopt(argc, argv, "htlsarwk:")) != -1) {
         switch (c) {
             case 'k':
                 nr_clusters = stoul(optarg);
-                break;
-            case 'i':
-                src_img = atoi(optarg);
                 break;
             case 't':
                 train_only = 1;
@@ -282,6 +367,18 @@ int main(int argc, char** argv) {
                 exit(0);
             case 'l':
                 load_clusters = 1;
+                break;
+            case 's':
+                do_search_test = 1;
+                break;
+            case 'a':
+                add_all = 1;
+                break;
+            case 'r':
+                load_uee = 1;
+                break;
+            case 'w':
+                write_uee = 1;
                 break;
             case '?':
                 if (optopt == 'c')
@@ -296,12 +393,27 @@ int main(int argc, char** argv) {
         }
     }
 
-    if (!argv[optind]) {
+    if (argv[optind] && (add_all || load_uee)) {
+        printf("Nr of images can not be specified with add all or load uee!\n");
+        exit(1);
+    }
+
+    if (!argv[optind] && !load_uee) {
         printf("Nr of images not specified!\n");
         exit(1);
     }
 
-    const int nr_images = atoi(argv[optind]);
+    if (load_uee && add_all) {
+        printf("Add all images is not compatible with load uee option!\n");
+        exit(1);
+    }
+
+    if (load_uee && write_uee) {
+        printf("Load UEE is not compatible with write UEE option!\n");
+        exit(1);
+    }
+
+    const int nr_images = add_all || load_uee ? -1 : atoi(argv[optind]);
 
     printf("Running with %d images, %lu clusters\n", nr_images, nr_clusters);
 
@@ -314,7 +426,7 @@ int main(int argc, char** argv) {
     // image descriptor parameters
     Ptr<SURF> surf = SURF::create(surf_threshold);
     Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create("FlannBased");
-    Ptr<BOWImgDescriptorExtractor> bowExtractor = new BOWImgDescriptorExtractor(surf, matcher);
+    //BOWImgDescriptorExtractor* bowExtractor = new BOWImgDescriptorExtractor(surf, matcher);
 
     const vector<string> files = get_filenames(nr_images);
 
@@ -326,7 +438,7 @@ int main(int argc, char** argv) {
     iee_comm(socket, in, in_len);
     free(in);
 
-    if(!load_clusters) {
+    if (!load_clusters) {
         // adding
         for (unsigned i = 0; i < files.size(); i++) {
             printf("Train img (%u/%lu) %s\n", i, files.size(), files[i].c_str());
@@ -350,44 +462,59 @@ int main(int argc, char** argv) {
     gettimeofday(&end, NULL);
     printf("-- Train elapsed time: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
 
-    if(train_only)
+    if (train_only)
         return 0;
 
-    // add images to repository
-    for (unsigned i = 0; i < files.size(); i++) {
-        printf("Add img (%u/%lu)\n\n", i, files.size());
-        add_images(&in, &in_len, surf, files[i]);
-        iee_comm(socket, in, in_len);
-        free(in);
+    if (load_uee) {
+        // tell iee to load images from disc
+        unsigned char op = OP_IEE_READ_MAP;
+        iee_comm(socket, &op, 1);
+    } else {
+        // add images to repository
+        for (unsigned i = 0; i < files.size(); i++) {
+            printf("Add img (%u/%lu)\n\n", i, files.size());
+            add_images(&in, &in_len, surf, files[i]);
+            iee_comm(socket, in, in_len);
+            free(in);
+        }
+    }
+
+    if (write_uee) {
+        // send persist message to iee
+        unsigned char op = OP_IEE_WRITE_MAP;
+        iee_comm(socket, &op, 1);
     }
 
     // search
-    search(&in, &in_len, surf, get_filenames(10)[src_img]);
-    iee_send(socket, in, in_len);
-    free(in);
+    if (do_search_test) {
+        search_test(socket, surf);
+    } else {
+        //TODO perform a search from args?
+        search(&in, &in_len, surf, get_filenames(10)[0]);
+        iee_send(socket, in, in_len);
+        free(in);
 
-    // receive response and print
-    size_t res_len;
-    uint8_t* res;
-    iee_recv(socket, &res, &res_len);
+        // receive response and print
+        size_t res_len;
+        uint8_t* res;
+        iee_recv(socket, &res, &res_len);
 
-    const size_t single_res_size = sizeof(unsigned long) + sizeof(double);
+        unsigned nr;
+        memcpy(&nr, res, sizeof(unsigned));
+        printf("nr of imgs: %u\n", nr);
 
-    unsigned nr;
-    memcpy(&nr, res, sizeof(unsigned));
-    printf("nr of imgs: %u\n", nr);
+        for (unsigned j = 0; j < nr; ++j) {
+            unsigned long id;
+            memcpy(&id, res + sizeof(size_t) + j * SRC_RES_LEN, sizeof(unsigned long));
 
-    for (unsigned j = 0; j < nr; ++j) {
-        unsigned long id;
-        memcpy(&id, res + sizeof(size_t) + j * single_res_size, sizeof(unsigned long));
+            double score;
+            memcpy(&score, res + sizeof(size_t) + j * SRC_RES_LEN + sizeof(unsigned long), sizeof(double));
 
-        double score;
-        memcpy(&score, res + sizeof(size_t) + j * single_res_size + sizeof(unsigned long), sizeof(double));
+            printf("%lu %f\n", id, score);
 
-        printf("%lu %f\n", id, score);
+        }
     }
 
-    free(res);
 
     // clear
     clear(&in, &in_len);

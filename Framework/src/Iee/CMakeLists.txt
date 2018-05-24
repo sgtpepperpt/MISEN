@@ -1,3 +1,5 @@
+#TODO need to remove /usr/local/bin/sgxsdk/lib64/libsgx_urts.so & /usr/local/bin/sgxsdk/lib64/libsgx_uae_service.so
+
 set(ENCLAVE_KEY_FILE ${IEE_DIR}/sgx_config/Enclave_private.pem)
 set(ENCLAVE_CONFIG_FILE ${IEE_DIR}/sgx_config/Enclave.config.xml)
 set(ENCLAVE_LINKER_FILE ${IEE_DIR}/sgx_config/Enclave_debug.lds)
@@ -15,11 +17,7 @@ add_custom_target(edger8r_trusted ALL DEPENDS ${IEE_DIR}/Enclave_t.h ${IEE_DIR}/
 
 link_directories(${SGX_LIBRARY_PATH})
 
-# sources
-set(IEE_ENCLAVE ${IEE_DIR}/Enclave.cpp ${IEE_DIR}/Enclave_t.c)
-set(IEE_THREADING ${IEE_DIR}/thread_handler.cpp)
-
-add_executable(${ENCLAVE_NAME} ${IEE_ENCLAVE} ${IEE_THREADING})
+add_executable(${ENCLAVE_NAME} ${IEE_DIR}/Enclave_t.c ${IEE_DIR}/Enclave.cpp ${IEE_DIR}/thread_handler.cpp)
 add_dependencies(${ENCLAVE_NAME} edger8r_trusted)
 
 # includes and linking
@@ -45,6 +43,7 @@ target_link_libraries(${ENCLAVE_NAME} -Wl,--no-undefined -nostdlib -nodefaultlib
 add_custom_command(
     OUTPUT enclave
     COMMAND ${SGX_ENCLAVE_SIGNER} sign -key ${ENCLAVE_KEY_FILE} -enclave ${EXECUTABLE_OUTPUT_PATH}/${ENCLAVE_NAME} -out ${EXECUTABLE_OUTPUT_PATH}/${SIGNED_ENCLAVE_NAME} -config ${ENCLAVE_CONFIG_FILE}
+    DEPENDS ${ENCLAVE_NAME} ${EXTERN_LIB_NAME}
 )
 
 add_custom_target(signer ALL DEPENDS enclave)
