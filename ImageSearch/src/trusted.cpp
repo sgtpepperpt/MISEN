@@ -3,6 +3,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <map>
+
 #include "sgx_tprotected_fs.h"
 
 // includes from framework

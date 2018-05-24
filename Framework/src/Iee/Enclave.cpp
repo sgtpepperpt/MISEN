@@ -37,37 +37,28 @@ void ecall_thread_enter() {
 }
 
 void ecall_process(void** out, size_t* out_len, const void* in, const size_t in_len) {
-    /*// TODO do not use these hardcoded values
-    uint8_t key[AES_BLOCK_SIZE];
-    memset(key, 0x00, AES_BLOCK_SIZE);
+    // TODO do not use these hardcoded values
+    uint8_t key[crypto_secretbox_KEYBYTES];
+    memset(key, 0x00, crypto_secretbox_KEYBYTES);
 
-    uint8_t ctr[AES_BLOCK_SIZE];
-    memset(ctr, 0x00, AES_BLOCK_SIZE);
+    uint8_t nonce[crypto_secretbox_NONCEBYTES];
+    memset(nonce, 0x00, crypto_secretbox_NONCEBYTES);
 
     // decrypt input
-    uint8_t* in_unenc = (uint8_t*)malloc(in_len);
-    c_decrypt(in_unenc, (uint8_t *)in, in_len, key, ctr);
+    uint8_t* in_unenc = (uint8_t*)malloc(in_len - SODIUM_EXPBYTES);
+    tcrypto::sodium_decrypt(in_unenc, (uint8_t*)in, in_len, nonce, key);
 
     // prepare unencrypted output
+    size_t out_unenc_len = 0;
     uint8_t* out_unenc = NULL;
-    process_message(&out_unenc, out_len, in_unenc, in_len);
+    extern_lib::process_message(&out_unenc, &out_unenc_len, (const uint8_t *) in_unenc, in_len - SODIUM_EXPBYTES);
 
     // encrypt output
-    memset(ctr, 0x00, AES_BLOCK_SIZE);
-    *out = outside_malloc(*out_len);
-    c_encrypt(*out, out_unenc, *out_len, key, ctr);
+    *out_len = out_unenc_len + SODIUM_EXPBYTES;
+    *out = outside_util::outside_malloc(*out_len);
+    tcrypto::sodium_encrypt((uint8_t*)*out, out_unenc, out_unenc_len, nonce, key);
 
     // cleanup
     free(in_unenc);
-    free(out_unenc);*/
-
-    extern_lib::process_message((uint8_t **) out, out_len, (const uint8_t *) in, in_len);
-
-    // step needed to copy from unencrypted inside to encrypted outside
-    uint8_t* res = (uint8_t*) outside_util::outside_malloc(*out_len);
-    memcpy(res, *out, *out_len);
-
-    free(*out);
-
-    *out = res;
+    free(out_unenc);
 }

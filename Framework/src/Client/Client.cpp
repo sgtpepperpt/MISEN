@@ -4,6 +4,7 @@
 #include <getopt.h>
 #include <fstream>
 #include <sys/time.h>
+#include <sodium.h>
 
 using namespace cv;
 using namespace cv::xfeatures2d;
@@ -64,55 +65,54 @@ vector<string> get_filenames(int n) {
 }
 
 void iee_send(const int socket, const uint8_t* in, const size_t in_len) {
-    untrusted_util::socket_send(socket, &in_len, sizeof(size_t));
-    untrusted_util::socket_send(socket, in, in_len);
+    // TODO do not use these hardcoded values
+    uint8_t key[crypto_secretbox_KEYBYTES];
+    memset(key, 0x00, crypto_secretbox_KEYBYTES);
+
+    uint8_t nonce[crypto_secretbox_NONCEBYTES];
+    memset(nonce, 0x00, crypto_secretbox_NONCEBYTES);
+
+    // encrypt before sending
+    size_t enc_len = in_len + SODIUM_EXPBYTES;
+    uint8_t* enc = (uint8_t*)malloc(enc_len);
+    utcrypto::sodium_encrypt(enc, (uint8_t *)in, in_len, nonce, key);
+
+    untrusted_util::socket_send(socket, &enc_len, sizeof(size_t));
+    untrusted_util::socket_send(socket, enc, enc_len);
+
+    free(enc);
 }
 
-
 void iee_recv(const int socket, uint8_t** out, size_t* out_len) {
-    untrusted_util::socket_receive(socket, out_len, sizeof(size_t));
+    // TODO do not use these hardcoded values
+    uint8_t key[crypto_secretbox_KEYBYTES];
+    memset(key, 0x00, crypto_secretbox_KEYBYTES);
+
+    uint8_t nonce[crypto_secretbox_NONCEBYTES];
+    memset(nonce, 0x00, crypto_secretbox_NONCEBYTES);
+
+    size_t res_len;
+    unsigned char* res;
+    untrusted_util::socket_receive(socket, &res_len, sizeof(size_t));
+    res = (uint8_t*)malloc(res_len);
+    untrusted_util::socket_receive(socket, res, res_len);
+
+    *out_len = res_len - SODIUM_EXPBYTES;
     *out = (uint8_t*)malloc(*out_len);
-    untrusted_util::socket_receive(socket, *out, *out_len);
+    utcrypto::sodium_decrypt(*out, res, res_len, nonce, key);
+
+    free(res);
 }
 
 void iee_comm(const int socket, const void* in, const size_t in_len) {
-    // encrypt before sending
-    /*uint8_t* enc = (uint8_t*)malloc(in_len);
-    memset(ctr, 0x00, AES_BLOCK_SIZE); // TODO do not repeat ctr
-    c_encrypt(enc, (uint8_t *)in, in_len, key, ctr);
-
-    debug_printbuf((uint8_t *)in, in_len);
-
-    printf("query: %lu bytes; ", in_len);
-    socket_send(socket, &in_len, sizeof(size_t));
-    socket_send(socket, enc, in_len);
-
-    // receive response (and discard for now) TODO do not discard
-    size_t res_len;
-    socket_receive(socket, &res_len, sizeof(size_t));
-    printf("res: %lu bytes\n", res_len);
-
-    unsigned char res[res_len];
-    socket_receive(socket, res, res_len);
-
-    uint8_t* dec = (uint8_t*)malloc(res_len);
-    memset(ctr, 0x00, AES_BLOCK_SIZE); // TODO do not repeat ctr
-    c_decrypt(dec, res, res_len, key, ctr);
-
-//    debug_printbuf(dec, res_len);
-
-    free(enc);
-    free(dec);*/
-
     iee_send(socket, (uint8_t*)in, in_len);
 
     size_t res_len;
-    uint8_t* res;
+    unsigned char* res;
     iee_recv(socket, &res, &res_len);
 
     printf("res: %lu bytes\n", res_len);
-
-    //debug_printbuf(res, res_len);
+    free(res);
 }
 
 void init(uint8_t** in, size_t* in_len, unsigned nr_clusters, size_t row_len) {

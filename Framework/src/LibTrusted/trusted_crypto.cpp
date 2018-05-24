@@ -77,3 +77,29 @@ int tcrypto::decrypt(void* out, const unsigned char *in, const size_t in_len, co
     return ret != SGX_SUCCESS;
 }
 
+int tcrypto::sodium_encrypt(
+        unsigned char *ciphertext, // message_len + C_EXPBYTES
+        const unsigned char *message, // message_len
+        unsigned long long message_len,
+        const unsigned char *nonce, // C_NONCESIZE
+        const unsigned char *key // C_KEYSIZE
+)
+{
+    return crypto_secretbox_easy(ciphertext+crypto_secretbox_NONCEBYTES,
+                                 message, message_len,
+                                 nonce, key);
+}
+
+// -1 failure, 0 ok
+int tcrypto::sodium_decrypt(
+        unsigned char *decrypted, // ciphertext_len - C_EXPBYTES
+        const unsigned char *ciphertext, // ciphertext_len
+        unsigned long long ciphertext_len,
+        const unsigned char *nonce, // C_NONCESIZE
+        const unsigned char *key // C_KEYSIZE
+)
+{
+    return crypto_secretbox_open_easy(decrypted, ciphertext+crypto_secretbox_NONCEBYTES,
+                                      ciphertext_len-crypto_secretbox_NONCEBYTES,
+                                      nonce, key);
+}
