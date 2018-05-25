@@ -8,7 +8,7 @@
 #include "outside_util.h"
 #include "kmeans.h"
 
-#define MAX_DESCRIPTORS_MEM 190000
+#define MAX_DESCRIPTORS_MEM 150000
 
 typedef struct img_descriptor {
     unsigned count;

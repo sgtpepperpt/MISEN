@@ -398,7 +398,7 @@ int main(int argc, char** argv) {
         exit(1);
     }
 
-    if (!argv[optind] && !load_uee) {
+    if (!argv[optind] && !load_uee && !add_all) {
         printf("Nr of images not specified!\n");
         exit(1);
     }
