@@ -465,6 +465,7 @@ int main(int argc, char** argv) {
     if (train_only)
         return 0;
 
+    gettimeofday(&start, NULL);
     if (load_uee) {
         // tell iee to load images from disc
         unsigned char op = OP_IEE_READ_MAP;
@@ -479,6 +480,9 @@ int main(int argc, char** argv) {
         }
     }
 
+    gettimeofday(&end, NULL);
+    printf("-- Add img elapsed time: %ldms %lu imgs--\n", untrusted_util::time_elapsed_ms(start, end), files.size());
+
     if (write_uee) {
         // send persist message to iee
         unsigned char op = OP_IEE_WRITE_MAP;
@@ -490,6 +494,8 @@ int main(int argc, char** argv) {
         search_test(socket, surf);
     } else {
         //TODO perform a search from args?
+        gettimeofday(&start, NULL);
+
         search(&in, &in_len, surf, get_filenames(10)[0]);
         iee_send(socket, in, in_len);
         free(in);
@@ -513,6 +519,9 @@ int main(int argc, char** argv) {
             printf("%lu %f\n", id, score);
 
         }
+
+        gettimeofday(&end, NULL);
+        printf("-- Search elapsed time: %ldms--\n", untrusted_util::time_elapsed_ms(start, end));
     }
 
 

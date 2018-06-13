@@ -105,7 +105,7 @@ void* process_client(void* args) {
                 break;
             }
             case OP_UEE_SEARCH: {
-                printf("Search\n");
+                //printf("Search\n");
 
                 uint8_t* tmp = in_buffer + sizeof(unsigned char);
 
@@ -152,7 +152,7 @@ void* process_client(void* args) {
                     fread(tmp_a, l_size, 1, map_file);
                     memcpy(label, tmp_a, l_size);
 
-                    untrusted_util::debug_printbuf((uint8_t*)label, l_size);
+                    //untrusted_util::debug_printbuf((uint8_t*)label, l_size);
 
                     void* d = (uint8_t*)malloc(d_size);
                     uint8_t tmp_b[d_size];
@@ -166,7 +166,7 @@ void* process_client(void* args) {
 
                     I[label] = d;
                 }
-                printf("wcount %d ccount %d\n", count, ccount);
+                printf("bad count %d; good count %d\n", count, ccount);
                 fclose(map_file);
                 printf("done!\n");
                 break;
@@ -193,7 +193,7 @@ void* process_client(void* args) {
                     fwrite(it->second, sizeof(d_size), 1, map_file);
                 }
 
-                printf("wcount %d ccount %d\n", count, ccount);
+                printf("bad count %d; good count %d\n", count, ccount);
                 fclose(map_file);
                 printf("done!\n");
                 break;

@@ -3,8 +3,8 @@ find_package(TBB REQUIRED)
 
 #set(DEBUG_FLAGS "-g -O0")
 
-set(CMAKE_C_FLAGS "-pthread ${DEBUG_FLAGS} -fPIC -Wall")
-set(CMAKE_CXX_FLAGS "-pthread ${DEBUG_FLAGS} -fPIC -Wall")
+set(CMAKE_C_FLAGS "-pthread -O3 -fPIC -Wall")
+set(CMAKE_CXX_FLAGS "-pthread -O3 -fPIC -Wall")
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 11)
 

@@ -236,7 +236,8 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
 
     unsigned batch_counter = 0;
     while (to_send > 0) {
-        printf("(%02u) centre %lu; counter %lu \n", batch_counter++, centre_pos, counter_pos);
+        //printf("(%02u) centre %lu; counter %lu \n", batch_counter, centre_pos, counter_pos);
+        batch_counter++;
 
         size_t batch_len = min(SEARCH_MAX_BATCH_LEN, to_send);
 
