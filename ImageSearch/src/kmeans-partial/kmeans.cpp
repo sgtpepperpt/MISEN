@@ -1,5 +1,8 @@
 #include "kmeans.h"
 
+#include "trusted_crypto.h"
+
+
 using namespace std;
 
 /*
@@ -18,7 +21,7 @@ static void generateCentersPP(float* ndata, const size_t nr_rows, float* _out_ce
 
     int* centres = &_centres[0];
     int val;
-    c_random((unsigned char *) &val, sizeof(int));
+    tcrypto::random((unsigned char *) &val, sizeof(int));
     centres[0] = (unsigned)val % nr_rows;
 
     for (unsigned i = 0; i < nr_rows; i++) {
@@ -32,7 +35,7 @@ static void generateCentersPP(float* ndata, const size_t nr_rows, float* _out_ce
 
         for (unsigned j = 0; j < NR_TRIALS; j++) {
             double val;
-            sgx_read_rand((unsigned char *) &val, sizeof(double));
+            tcrypto::random((unsigned char *) &val, sizeof(double));
             double p = (double)val*sum0;
             unsigned ci = 0;
             for (; ci < nr_rows - 1; ci++) {
@@ -70,7 +73,7 @@ static void generateCentersPP(float* ndata, const size_t nr_rows, float* _out_ce
     free(_dist);
 }
 
-double kmeans(float* ndata, const size_t nr_rows, const size_t row_len, const unsigned nr_centres, int* nlabels, unsigned attempts, float* _centres) {
+double kmeans(vector<tuple<std::string,int,int>> mapping, const size_t nr_rows, const size_t row_len, const unsigned nr_centres, int* nlabels, unsigned attempts, float* _centres) {
     assertion(nr_centres > 0);
     assertion(nr_rows >= nr_centres);
 
@@ -219,7 +222,7 @@ double kmeans(float* ndata, const size_t nr_rows, const size_t row_len, const un
                 //memcpy(best_labels.data + i, nlabels + i, sizeof(int));
                 kkk += *(nlabels + i);
             }
-            sgx_printf("sum nlabels %d\n", kkk);
+            outside_util::printf("sum nlabels %d\n", kkk);
         }
     }
 
@@ -227,6 +230,6 @@ double kmeans(float* ndata, const size_t nr_rows, const size_t row_len, const un
     free(c);
     free(oc);
     free(dists);
-    sgx_printf("compactness %f\n", best_compactness);
+    outside_util::printf("compactness %f\n", best_compactness);
     return best_compactness;
 }

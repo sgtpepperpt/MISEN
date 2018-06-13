@@ -4,9 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <float.h>
+#include <vector>
 
 #include "util.h"
-#include "IeeCrypt.h"
+#include "trusted_crypto.h"
 
 using namespace std;
 
@@ -83,7 +84,7 @@ private:
     unsigned nr_centres;
 };
 
-double kmeans(float *ndata, const size_t nr_rows, const size_t row_len, const unsigned nr_centres, int *nlabels,
+double kmeans(vector<tuple<std::string,int,int>> mapping, const size_t nr_rows, const size_t row_len, const unsigned nr_centres, int *nlabels,
               unsigned attempts, float *_centres);
 
 #endif

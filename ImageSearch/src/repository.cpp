@@ -59,7 +59,7 @@ void repository_clear(repository* r) {
     free(r->counters);
 
     // cleanup bag-of-words class
-    r->k->cleanup();
+    //r->k->cleanup();
     delete r->k;
 
     // clear uee and close connection
