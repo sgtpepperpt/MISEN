@@ -76,15 +76,16 @@ void* ocall_untrusted_malloc(size_t length) {
     return malloc(length);
 }
 
-void ocall_untrusted_free(void** pointer) {
-    free(*pointer);
-    *pointer = NULL;
+void ocall_untrusted_free(size_t pointer) {
+    free((void*)pointer);
+    //*pointer = NULL;
 }
 /*************************************************** END ALLOCATORS ***************************************************/
 
 /****************************************************** GENERIC ******************************************************/
 int ocall_process(void** out, size_t* out_len, const void* in, const size_t in_len) {
-    extern_lib_ut::process_message(out, out_len, in, in_len); // must be implemented by extern lib
+    //extern_lib_ut::process_message(out, out_len, in, in_len); // must be implemented by extern lib
+    //TODO uncomment and solve linking
     return 0;
 }
 /**************************************************** END GENERIC ****************************************************/

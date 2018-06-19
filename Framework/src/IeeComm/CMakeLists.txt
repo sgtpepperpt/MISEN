@@ -19,4 +19,4 @@ add_executable(IeeComm ${IEE_COMM_DIR}/App.cpp ${IEE_COMM_DIR}/Enclave_u.c ${IEE
 add_dependencies(IeeComm edger8r_untrusted)
 
 target_include_directories(IeeComm PRIVATE ${FRAMEWORK_INCLUDE_DIR} ${EXTERN_INCLUDE_DIR} ${IEE_COMM_DIR} ${IEE_COMM_DIR}/ocall ${IEE_COMM_DIR}/sgx_handler ${IEE_COMM_DIR}/threading ${IEE_COMM_DIR}/../${IEE_DIR} ${SGX_SDK}/include)
-target_link_libraries(IeeComm ${LIB_UNTRUSTED} sgx_urts pthread sgx_uae_service sgx_uprotected_fs ${EXTERN_LIB_NAME})
+target_link_libraries(IeeComm ${LIB_UNTRUSTED} sgx_urts pthread sgx_uae_service sgx_uprotected_fs)

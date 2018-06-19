@@ -102,8 +102,8 @@ void* outside_util::outside_malloc(size_t length){
     return return_pointer;
 }
 
-void outside_util::outside_free(void *pointer){
-    sgx_status_t sgx_ret = ocall_untrusted_free(&pointer);
+void outside_util::outside_free(void* pointer){
+    sgx_status_t sgx_ret = ocall_untrusted_free((size_t)pointer);
     if(sgx_ret != SGX_SUCCESS) {
         outside_util::printf("OCALL ERROR ON RETURN: %ld\n", sgx_ret);
         ocall_exit(-1);
