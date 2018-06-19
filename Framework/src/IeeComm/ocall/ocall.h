@@ -18,6 +18,7 @@ void ocall_exit(int code);
 untrusted_time ocall_curr_time();
 
 int ocall_open_uee_connection();
+void ocall_uee_process(const int socket, void** out, size_t* out_len, const void* in, const size_t in_len);
 void ocall_close_uee_connection(const int socket);
 
 void* ocall_untrusted_malloc(size_t length);
