@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <unistd.h>
+#include <string.h>
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/time.h>
@@ -64,27 +65,88 @@ void ocall_uee_process(const int socket, void** out, size_t* out_len, const void
 
     untrusted_util::socket_receive(socket, out_len, sizeof(size_t));
     *out = malloc(*out_len);
+    //printf("out uee malloc %p\n", *out);
     untrusted_util::socket_receive(socket, *out, *out_len);
+}
+
+void ocall_uee_send(const int socket, const void* in, const size_t in_len) {
+    //untrusted_util::socket_send(socket, &in_len, sizeof(size_t));
+    untrusted_util::socket_send(socket, in, in_len);
 }
 
 void ocall_close_uee_connection(const int socket) {
     close(socket);
 }
 
-/***************************************************** ALLOCATORS *****************************************************/
-void* ocall_untrusted_malloc(size_t length) {
-    return malloc(length);
+float** all = NULL;
+int count = 0;
+
+int* ranges;
+
+void ocall_set(size_t num_elems, float* buffer) {
+    if(!all){
+        printf("all initialisation\n");
+        all =  new float*[5000000];
+        ranges = new int[100];
+    }
+
+    float* desc = (float*)malloc(num_elems * 64 * sizeof(float));
+    memcpy(desc, buffer, num_elems * 64 * sizeof(float));
+
+    all[count++] = desc;
+    /*
+    //printf("initialised\n");
+    float* desc = (float*)malloc(num_elems * 64 * sizeof(float));
+    memcpy(desc, buffer, num_elems * 64 * sizeof(float));
+
+    all[count] = desc;
+    ranges[count++] = count;
+
+    printf("count %d\n", count);*/
+}
+int aaccess = 0;
+float* ocall_get(const int pos) {
+    if(aaccess++ % 10000000 == 0)
+        printf("access %d\n", aaccess);
+
+    return all[pos];
+/*
+    int sum = 0;
+    int p = 0;
+    while(pos < ranges[p]) {
+        p++;
+        sum += ranges[p];
+    }
+
+    int x = pos - sum;
+
+    printf("count %d\n", count);
+    return all[p] + 64 * sizeof(float) * x;*/
 }
 
-void ocall_untrusted_free(void** pointer) {
-    free(*pointer);
-    *pointer = NULL;
+/***************************************************** ALLOCATORS *****************************************************/
+void* ocall_untrusted_malloc(size_t length) {
+    void* p = malloc(length);
+    //printf("malloc %p\n", p);
+    return p;
+}
+
+void ocall_untrusted_free(uint8_t* pointer) {
+    free(pointer);
+    //*pointer = NULL;
+}
+
+void ocall_untrusted_free2(size_t pointer) {
+    //printf("will free %p\n", (void*)pointer);
+    free((void*)pointer);
+    //*pointer = NULL;
 }
 /*************************************************** END ALLOCATORS ***************************************************/
 
 /****************************************************** GENERIC ******************************************************/
 int ocall_process(void** out, size_t* out_len, const void* in, const size_t in_len) {
-    extern_lib_ut::process_message(out, out_len, in, in_len); // must be implemented by extern lib
+    //extern_lib_ut::process_message(out, out_len, in, in_len); // must be implemented by extern lib
+    //TODO uncomment and solve linking
     return 0;
 }
 /**************************************************** END GENERIC ****************************************************/

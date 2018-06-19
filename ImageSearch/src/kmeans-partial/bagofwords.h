@@ -17,9 +17,12 @@ public:
     size_t get_desc_len();
     size_t nr_centres();
 
+    void store(float* p);
+    float* get_centre(int k);
 private:
     size_t desc_len;
     size_t cluster_count;
+    float* centroids;
 };
 
 #endif

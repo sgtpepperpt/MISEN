@@ -19,4 +19,5 @@ set(UTIL_SRCS ${EXTERN_DIR}/src/parallel.cpp ${EXTERN_DIR}/src/scoring.cpp ${EXT
 set(SOURCES ${EXTERN_DIR}/src/trusted.cpp ${EXTERN_DIR}/src/untrusted.cpp ${EXTERN_DIR}/src/training.cpp ${EXTERN_DIR}/src/repository.cpp ${UTIL_SRCS} ${KMEANS_SRCS})
 
 add_library(${EXTERN_LIB_NAME} ${SOURCES})
-target_include_directories(${EXTERN_LIB_NAME} PRIVATE ${EXTERN_DIR} ${EXTERN_INCLUDE_DIR} ${FRAMEWORK_INCLUDE_DIR} ${SGX_INCLUDE_PATHS})#TODO extern include dir still needed?
+target_include_directories(${EXTERN_LIB_NAME} PRIVATE ${SGX_INCLUDE_PATHS} ${EXTERN_DIR} ${EXTERN_INCLUDE_DIR} ${FRAMEWORK_INCLUDE_DIR})#TODO extern include dir still needed?
+target_link_libraries(${EXTERN_LIB_NAME} trusted_util)

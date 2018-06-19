@@ -25,11 +25,16 @@ enclave {
 
         int ocall_open_uee_connection();
         void ocall_uee_process(int socket, [out]void** out, [out]size_t* out_len, [in, size = in_len]const void* in, size_t in_len);
+        void ocall_uee_send(int socket, [in, size = in_len]const void* in, size_t in_len);
         void ocall_close_uee_connection(int socket);
+
+        void ocall_set(size_t num_elems, [user_check]float* buffer);
+        float* ocall_get(int pos);
 
         // outside allocation
         void* ocall_untrusted_malloc(size_t length);
-        void ocall_untrusted_free([out] void** pointer); // needs double pointer, if one it complains size is unknown
+        void ocall_untrusted_free([out] uint8_t* pointer); // needs double pointer, if one it complains size is unknown
+        void ocall_untrusted_free2(size_t pointer);
 
         // outside comm
         int ocall_process([out]void** out, [out]size_t* out_len, [in, size = in_len]const void* in, size_t in_len);

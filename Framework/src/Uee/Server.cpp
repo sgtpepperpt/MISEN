@@ -5,6 +5,8 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
+#include <vector>
+
 #include "definitions.h"
 #include "untrusted_util.h"
 
@@ -36,6 +38,8 @@ const size_t d_size = 48;
 
 tbb::concurrent_unordered_map<void*, void*, VoidHash<l_size>, VoidEqual<l_size>> I;
 
+vector<float*> all_desc;
+
 static void repository_clear() {
     for (tbb::concurrent_unordered_map<void*, void*, VoidHash<l_size>, VoidEqual<l_size>>::iterator it = I.begin(); it != I.end() ; ++it) {
         free(it->first);
@@ -45,6 +49,8 @@ static void repository_clear() {
     I.clear();
 }
 
+int cou = 0;
+
 void* process_client(void* args) {
     const int socket = ((client_data *) args)->socket;
     free(args);
@@ -52,6 +58,7 @@ void* process_client(void* args) {
     long total_add_time = 0;
 
     while (1) {
+        //printf("--------------------------------\n");
         size_t in_len;
         untrusted_util::socket_receive(socket, &in_len, sizeof(size_t));
 
@@ -72,6 +79,47 @@ void* process_client(void* args) {
                 //memcpy(&d_size, in_buffer + sizeof(uint8_t) + sizeof(size_t), sizeof(size_t));
                 //TODO clean previous map data
                 ok_response(&out, &out_len);
+                break;
+            }
+            case '5': {
+                //printf("## to get bufs ##\n");
+                uint8_t* tmp = in_buffer + sizeof(unsigned char);
+
+                //untrusted_util::debug_printbuf(in_buffer + 1 , sizeof(unsigned));
+
+                unsigned count;
+                memcpy(&count, in_buffer + 1, sizeof(unsigned));
+                //tmp += sizeof(size_t);
+
+                //printf("get %u expect %lu %u %lu\n", count, count * 64 * sizeof(float), count, sizeof(float));
+
+                float* desc = (float*)malloc(count * 64 * sizeof(float));
+                memcpy(desc, in_buffer + 1 + sizeof(unsigned), count * 64 * sizeof(float));
+
+                for (unsigned i = 0; i < count; ++i) {
+                    all_desc.push_back(desc + i * 64);
+                }
+
+                //printf("done %u\n", count);
+
+                //ok_response(&out, &out_len);
+                break;
+            }
+            case '4': {
+                if(cou++ % 500000 == 0)
+                    printf("request %d\n", cou);
+
+                //printf("request \n");
+                uint8_t* tmp = in_buffer + sizeof(unsigned char);
+                unsigned pos;
+                memcpy(&pos, tmp, sizeof(unsigned));
+
+                //printf("request pos %u\n", pos);
+
+                out_len = 64 * sizeof(float);
+                out = (uint8_t*)malloc(out_len);
+                memcpy(out, all_desc[pos], 64 * sizeof(float));
+
                 break;
             }
             case OP_UEE_ADD: {

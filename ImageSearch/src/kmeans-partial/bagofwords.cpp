@@ -18,3 +18,11 @@ size_t BagOfWordsTrainer::get_desc_len() {
 size_t BagOfWordsTrainer::nr_centres() {
     return cluster_count;
 }
+
+void BagOfWordsTrainer::store(float* p) {
+    centroids = p;
+}
+
+float* BagOfWordsTrainer::get_centre(int k) {
+    return centroids + k * desc_len;
+}

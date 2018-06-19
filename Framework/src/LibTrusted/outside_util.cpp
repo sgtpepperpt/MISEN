@@ -58,6 +58,12 @@ void outside_util::printf(const char *fmt, ...) {
     ocall_string_print(buf);
 }
 
+void outside_util::debug_printbuf(uint8_t* buf, size_t len) {
+    for (size_t l = 0; l < len; ++l)
+        printf("%02x ", buf[l]);
+    printf("\n");
+}
+
 void outside_util::exit(int status) {
     ocall_exit(status);
 }
@@ -82,12 +88,39 @@ void outside_util::uee_process(const int socket, void **out, size_t *out_len, co
     }
 }
 
+void outside_util::uee_send(const int socket, const void *in, const size_t in_len) {
+    sgx_status_t sgx_ret = ocall_uee_send(socket, in, in_len);
+    if(sgx_ret != SGX_SUCCESS) {
+        outside_util::printf("OCALL ERROR ON RETURN: %ld\n", sgx_ret);
+        ocall_exit(-1);
+    }
+}
+
 void outside_util::close_uee_connection(const int socket) {
     sgx_status_t sgx_ret = ocall_close_uee_connection(socket);
     if(sgx_ret != SGX_SUCCESS) {
         outside_util::printf("OCALL ERROR ON RETURN: %ld\n", sgx_ret);
         ocall_exit(-1);
     }
+}
+
+void outside_util::set(size_t num_elems, float* buffer) {
+    sgx_status_t sgx_ret = ocall_set(num_elems, buffer);
+    if(sgx_ret != SGX_SUCCESS) {
+        outside_util::printf("OCALL ERROR ON RETURN: %ld\n", sgx_ret);
+        ocall_exit(-1);
+    }
+}
+
+float* outside_util::get(const int pos) {
+    float* ret;
+    sgx_status_t sgx_ret = ocall_get(&ret, pos);
+    if(sgx_ret != SGX_SUCCESS) {
+        outside_util::printf("OCALL ERROR ON RETURN: %ld\n", sgx_ret);
+        ocall_exit(-1);
+    }
+
+    return ret;
 }
 
 /***************************************************** ALLOCATORS *****************************************************/
@@ -102,8 +135,12 @@ void* outside_util::outside_malloc(size_t length){
     return return_pointer;
 }
 
-void outside_util::outside_free(void *pointer){
-    sgx_status_t sgx_ret = ocall_untrusted_free(&pointer);
+void outside_util::outside_free(void* pointer){
+    //outside_util::printf("try free of out %p\n", pointer);
+
+    //outside_util::printf("inside %d\n", sgx_is_within_enclave(pointer, 1));
+
+    sgx_status_t sgx_ret = ocall_untrusted_free2((size_t)pointer);
     if(sgx_ret != SGX_SUCCESS) {
         outside_util::printf("OCALL ERROR ON RETURN: %ld\n", sgx_ret);
         ocall_exit(-1);

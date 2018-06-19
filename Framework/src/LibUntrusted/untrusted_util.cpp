@@ -12,6 +12,8 @@
 #include <netdb.h>
 #include <sys/time.h>
 #include <time.h>
+#include <sys/ioctl.h>
+#include <errno.h>
 
 static int send_all(int socket, const void* buf, size_t len) {
     size_t total = 0;        // how many bytes we've sent
@@ -31,11 +33,16 @@ static int send_all(int socket, const void* buf, size_t len) {
 static ssize_t receive_all(int socket, void* buff, size_t len) {
     ssize_t r = 0;
     while ((unsigned long)r < len) {
+
+        int size;
+        ioctl(socket, FIONREAD, &size);
+        //printf("av %d need %lu\n", size, len);
+
         //printf("calling len %lu; r %ld\n", len, r);
-        ssize_t n = read(socket, (unsigned char*)buff + r, len-r);
+        ssize_t n = recv(socket, (unsigned char*)buff + r, len-r, NULL);
         //printf("got %lu\n-------------------------\n", n);
         if (n < 0) {
-            printf("ERROR reading from socket\n");
+            printf("ERROR reading from socket %ld %d\n", n, errno);
             exit(1);
         }
         r+=n;

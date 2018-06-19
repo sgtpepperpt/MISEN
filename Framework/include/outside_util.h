@@ -2,11 +2,11 @@
 #define __OUTSIDE_UTIL_H_
 
 #include <stdlib.h>
+#include <stdint.h>
 #include "types.h"
 
 #ifndef _INC_FCNTL
 #define _INC_FCNTL
-
 
 #define O_RDONLY       0x0000
 #define O_WRONLY       0x0001
@@ -32,8 +32,12 @@ namespace outside_util {
 
     // uee communication
     int open_uee_connection();
-    void uee_process(const int socket, void **out, size_t *out_len, const void *in, const size_t in_len);
+    void uee_send(const int socket, const void *in, const size_t in_len);
+    void uee_process(const int socket, void **out, size_t* out_len, const void *in, const size_t in_len);
     void close_uee_connection(const int socket);
+
+    void set(size_t num_elems, float* buffer);
+    float* get(const int pos);
 
     // outside allocation
     void* outside_malloc(size_t length);
@@ -41,6 +45,7 @@ namespace outside_util {
 
     // misc
     void printf(const char *fmt, ...);
+    void debug_printbuf(uint8_t* buf, size_t len);
     void exit(int status);
     untrusted_time curr_time();
 
