@@ -1,10 +1,15 @@
 cmake_minimum_required(VERSION 3.5)
 project(sgx_image_search)
 
-set(SIMULATED_MODE 0)
+set(SIMULATED_MODE 1)
+if(SIMULATED_MODE)
+    set(FRAMEWORK_NAME SimFramework)
+else()
+    set(FRAMEWORK_NAME Framework)
+endif()
 
 # base paths
-set(FRAMEWORK_DIR ${CMAKE_SOURCE_DIR}/Framework)
+set(FRAMEWORK_DIR ${CMAKE_SOURCE_DIR}/${FRAMEWORK_NAME})
 set(EXTERN_DIR ${CMAKE_SOURCE_DIR}/ImageSearch)
 set(EXTERN_LIB_NAME ImageSearch)
 

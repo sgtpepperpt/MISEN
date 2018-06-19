@@ -57,13 +57,8 @@ set(LIB_UNTRUSTED untrusted_util)
 add_subdirectory(${LIB_UNTRUSTED_DIR})
 
 # lib trusted
-#if(SIMULATED_MODE)
-#    set(LIB_TRUSTED trusted_util_sim)
-#    add_subdirectory(${LIB_TRUSTED_SIM_DIR})
-#else()
-    set(LIB_TRUSTED trusted_util)
-    add_subdirectory(${LIB_TRUSTED_DIR})
-#endif()
+set(LIB_TRUSTED trusted_util)
+add_subdirectory(${LIB_TRUSTED_DIR})
 
 # uee module
 add_subdirectory(${SERVER_DIR})
