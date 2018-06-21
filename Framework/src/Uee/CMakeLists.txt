@@ -8,6 +8,6 @@ set(CMAKE_CXX_FLAGS "-pthread -O3 -fPIC -Wall")
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 11)
 
-add_executable(Uee ${SERVER_DIR}/Server.cpp)
+add_executable(Uee ${SERVER_DIR}/StorageServer.cpp)
 target_include_directories(Uee PRIVATE ${FRAMEWORK_INCLUDE_DIR} ${SERVER_DIR})
 target_link_libraries(Uee ${LIB_UNTRUSTED} tbb)
