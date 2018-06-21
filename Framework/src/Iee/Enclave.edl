@@ -1,6 +1,7 @@
 enclave {
     from "sgx_tstdc.edl" import *; // threading
     from "sgx_tprotected_fs.edl" import *; // file i/o for debug
+    from "mbedtls_SGX.edl" import *; // mbedtls_sgx
     include "types.h"
 
     trusted {
