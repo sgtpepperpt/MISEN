@@ -1,9 +1,6 @@
 #include "training.h"
 
 #include <string.h>
-#if !SIMULATED_MODE
-#include "sgx_tprotected_fs.h"
-#endif
 
 #include "trusted_util.h"
 #include "util.h"
@@ -43,26 +40,20 @@ void train_kmeans(BagOfWordsTrainer* k) {
     k->cluster();
     //debug_print_points(centres->buffer, centres->count, k->desc_len());
 
-#if !SIMULATED_MODE
-//TODO wrap in framework
     // debug: save to file
-    SGX_FILE* file = sgx_fopen_auto_key("centres", "w");
+    void* file = trusted_util::open_secure("centres", "w");
     //outside_util::printf("file des %p\n", file);
-    sgx_fwrite(k->get_all_centres(), k->nr_centres(), sizeof(float) * k->desc_len(), file);
-    sgx_fclose(file);
-#endif
+    trusted_util::write_secure(k->get_all_centres(), k->nr_centres(), sizeof(float) * k->desc_len(), file);
+    trusted_util::close_secure(file);
 }
 
 void train_kmeans_load(BagOfWordsTrainer* k) {
-#if !SIMULATED_MODE
-    //TODO wrap in framework
     // for debugging purposes for now
     // assumes current repository config was the same when the file was created (same desc_len and k)
-    SGX_FILE* file = sgx_fopen_auto_key("centres", "r");
+    void* file = trusted_util::open_secure("centres", "r");
     void* centres = malloc(k->nr_centres() * sizeof(float) * k->desc_len());
-    sgx_fread(centres, k->nr_centres(), sizeof(float) * k->desc_len(), file);
-    sgx_fclose(file);
+    trusted_util::read_secure(centres, k->nr_centres(), sizeof(float) * k->desc_len(), file);
+    trusted_util::close_secure(file);
 
     k->set_centres(centres);
-#endif
 }

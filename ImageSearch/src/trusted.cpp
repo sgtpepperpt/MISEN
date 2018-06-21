@@ -4,10 +4,6 @@
 #include <stdint.h>
 #include <map>
 
-#if !SIMULATED_MODE
-#include "sgx_tprotected_fs.h"
-#endif
-
 // includes from framework
 #include "definitions.h"
 #include "outside_util.h"
@@ -476,19 +472,16 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             outside_util::uee_process(r->server_socket, (void**)&res, &res_len, &op, sizeof(unsigned char));
             outside_util::outside_free(res);
 
-#if !SIMULATED_MODE
-            // TODO wrap in framework
             // read iee-side data securely from disc
-            SGX_FILE* file = sgx_fopen_auto_key("iee_data", "rb");
+            void* file = trusted_util::open_secure("iee_data", "rb");
             if(!file) {
                 outside_util::printf("Could not read data file\n");
                 outside_util::exit(1);
             }
 
-            sgx_fread(&(r->total_docs), sizeof(unsigned), 1, file);
-            sgx_fread(r->counters, sizeof(unsigned) * r->k->nr_centres(), 1, file);
-            sgx_fclose(file);
-#endif
+            trusted_util::read_secure(&(r->total_docs), sizeof(unsigned), 1, file);
+            trusted_util::read_secure(r->counters, sizeof(unsigned) * r->k->nr_centres(), 1, file);
+            trusted_util::close_secure(file);
 
             ok_response(out, out_len);
             break;
@@ -501,19 +494,16 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             outside_util::uee_process(r->server_socket, (void**)&res, &res_len, &op, sizeof(unsigned char));
             outside_util::outside_free(res);
 
-#if !SIMULATED_MODE
-            // TODO wrap in framework
             // write iee-side data securely to disc
-            SGX_FILE* file = sgx_fopen_auto_key("iee_data", "wb");
+            void* file = trusted_util::open_secure("iee_data", "wb");
             if(!file) {
                 outside_util::printf("Could not write data file\n");
                 outside_util::exit(1);
             }
 
-            sgx_fwrite(&(r->total_docs), sizeof(unsigned), 1, file);
-            sgx_fwrite(r->counters, sizeof(unsigned) * r->k->nr_centres(), 1, file);
-            sgx_fclose(file);
-#endif
+            trusted_util::write_secure(&(r->total_docs), sizeof(unsigned), 1, file);
+            trusted_util::write_secure(r->counters, sizeof(unsigned) * r->k->nr_centres(), 1, file);
+            trusted_util::close_secure(file);
 
             ok_response(out, out_len);
             break;
