@@ -4,7 +4,9 @@
 #include <stdint.h>
 #include <map>
 
+#if !SIMULATED_MODE
 #include "sgx_tprotected_fs.h"
+#endif
 
 // includes from framework
 #include "definitions.h"
@@ -22,7 +24,6 @@
 #include "util.h"
 
 using namespace std;
-using namespace outside_util;
 
 repository* r = NULL;
 
@@ -96,10 +97,10 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
 
     const unsigned* frequencies = process_new_image(r->k, nr_desc, descriptors);
 
-    outside_util::printf("frequencies: ");
+    /*outside_util::printf("frequencies: ");
     for (size_t i = 0; i < r->k->nr_centres(); i++)
         outside_util::printf("%u ", frequencies[i]);
-    outside_util::printf("\n");
+    outside_util::printf("\n");*/
 
 #if PARALLEL_ADD_IMG
     const unsigned nr_threads = trusted_util::thread_get_count();
@@ -160,6 +161,13 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
             uint8_t* label = tmp; // keep a reference to the label
             tmp += LABEL_LEN;
 
+            /*if(label[0] == 0xAE && label[1] == 0xD8) {
+                outside_util::printf("original\n");
+                for (size_t l = 0; l < LABEL_LEN; ++l)
+                    outside_util::printf("%02x ", (tmp-LABEL_LEN)[l]);
+                outside_util::printf("\n");
+            }*/
+
             // increase the centre's counter, if present
             if (frequencies[centre_pos])//TODO remove this if, counter is increased even if 0
                 ++r->counters[centre_pos];
@@ -172,12 +180,20 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
             memcpy(value + LABEL_LEN + sizeof(unsigned long), &frequencies[centre_pos], sizeof(unsigned));
 
             // encrypt value
+            uint8_t nonce[crypto_secretbox_NONCEBYTES];
+            memset(nonce, 0x00, crypto_secretbox_NONCEBYTES);
             tcrypto::encrypt(tmp, value, UNENC_VALUE_LEN, r->ke, ctr);
             tmp += ENC_VALUE_LEN;
 
             to_send--;
             centre_pos++;
         }
+
+        /*for (int j = 0; j < sizeof(unsigned char) + sizeof(size_t) + batch_len * PAIR_LEN; ++j) {
+            if(j < sizeof(unsigned char) + sizeof(size_t) + batch_len * PAIR_LEN - 2 && req_buffer[j] == 0xAE && req_buffer[j+1] == 0xD8 && req_buffer[j+2] == 0xD2) {
+                outside_util::printf("this has it %d\n", j - sizeof(unsigned char) - sizeof(size_t));
+            }
+        }*/
 
         // send batch to server
         size_t res_len;
@@ -192,28 +208,29 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
 
     r->total_docs++;
     free((void*)frequencies);
+    outside_util::printf("--------------------\n");
 }
 
 void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* descriptors) {
     using namespace outside_util;
 
     const unsigned* frequencies = process_new_image(r->k, nr_desc, descriptors);
-    for (size_t i = 0; i < r->k->nr_centres(); ++i) {
-        printf("%u ", frequencies[i]);
+    /*for (size_t i = 0; i < r->k->nr_centres(); ++i) {
+        outside_util::printf("%u ", frequencies[i]);
     }
-    printf("\n");
+    outside_util::printf("\n");*/
 
     double* idf = calc_idf(r->total_docs, r->counters, r->k->nr_centres());
-    for (size_t i = 0; i < r->k->nr_centres(); ++i) {
-        printf("%lf ", idf[i]);
+    /*for (size_t i = 0; i < r->k->nr_centres(); ++i) {
+        outside_util::printf("%lf ", idf[i]);
     }
-    printf("\n");
+    outside_util::printf("\n");*/
 
     //weight_idf(idf, frequencies);
     /*for (size_t i = 0; i < r->k->nr_centres(); ++i) {
-        printf("%lf ", idf[i]);
+        outside_util::printf("%lf ", idf[i]);
     }
-    printf("\n");*/
+    outside_util::printf("\n");*/
 
     // calc size of request; ie sum of counters (for all centres of searched image)
     size_t nr_labels = 0;
@@ -236,7 +253,7 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
 
     unsigned batch_counter = 0;
     while (to_send > 0) {
-        //printf("(%02u) centre %lu; counter %lu \n", batch_counter, centre_pos, counter_pos);
+        //outside_util::printf("(%02u) centre %lu; counter %lu \n", batch_counter, centre_pos, counter_pos);
         batch_counter++;
 
         size_t batch_len = min(SEARCH_MAX_BATCH_LEN, to_send);
@@ -251,6 +268,13 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
             // calc label
             tcrypto::hmac_sha256(tmp, &counter_pos, sizeof(unsigned), r->centre_keys[centre_pos], LABEL_LEN);
             tmp += LABEL_LEN;
+
+            /*if(i == 7) {
+                outside_util::printf("request\n");
+                for (size_t l = 0; l < LABEL_LEN; ++l)
+                    outside_util::printf("%02x ", (tmp-LABEL_LEN)[l]);
+                outside_util::printf("\n");
+            }*/
 
             // update pointers
             ++counter_pos;
@@ -277,12 +301,25 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
             memset(ctr, 0x00, AES_BLOCK_SIZE);
 
             tcrypto::decrypt(res_unenc, res_tmp, ENC_VALUE_LEN, r->ke, ctr);
+
+            /*for (size_t l = 0; l < ENC_VALUE_LEN; ++l)
+                outside_util::printf("%02x ", res_tmp[l]);
+            outside_util::printf("\n");*/
+
             res_tmp += ENC_VALUE_LEN;
 
             int verify = memcmp(res_unenc, (req_buffer + sizeof(unsigned char) + sizeof(size_t)) + i * LABEL_LEN, LABEL_LEN);
+            /*for (size_t l = 0; l < LABEL_LEN; ++l)
+                outside_util::printf("%02x ", res_unenc[l]);
+            outside_util::printf("\n");
+
+            for (size_t l = 0; l < LABEL_LEN; ++l)
+                outside_util::printf("%02x ", ((req_buffer + sizeof(unsigned char) + sizeof(size_t)) + i * LABEL_LEN)[l]);
+            outside_util::printf("\n");*/
+
             if (verify) {
-                printf("Label verification doesn't match! Exit\n");
-                exit(-1);
+                outside_util::printf("Label verification doesn't match! Exit\n");
+                outside_util::exit(-1);
             }
 
             unsigned long id;
@@ -436,9 +473,11 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             uint8_t* res;
             const unsigned char op = OP_UEE_READ_MAP;
 
-            uee_process(r->server_socket, (void**)&res, &res_len, &op, sizeof(unsigned char));
+            outside_util::uee_process(r->server_socket, (void**)&res, &res_len, &op, sizeof(unsigned char));
             outside_util::outside_free(res);
 
+#if !SIMULATED_MODE
+            // TODO wrap in framework
             // read iee-side data securely from disc
             SGX_FILE* file = sgx_fopen_auto_key("iee_data", "rb");
             if(!file) {
@@ -449,6 +488,7 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             sgx_fread(&(r->total_docs), sizeof(unsigned), 1, file);
             sgx_fread(r->counters, sizeof(unsigned) * r->k->nr_centres(), 1, file);
             sgx_fclose(file);
+#endif
 
             ok_response(out, out_len);
             break;
@@ -458,9 +498,11 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             uint8_t* res;
             const unsigned char op = OP_UEE_WRITE_MAP;
 
-            uee_process(r->server_socket, (void**)&res, &res_len, &op, sizeof(unsigned char));
+            outside_util::uee_process(r->server_socket, (void**)&res, &res_len, &op, sizeof(unsigned char));
             outside_util::outside_free(res);
 
+#if !SIMULATED_MODE
+            // TODO wrap in framework
             // write iee-side data securely to disc
             SGX_FILE* file = sgx_fopen_auto_key("iee_data", "wb");
             if(!file) {
@@ -471,6 +513,7 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             sgx_fwrite(&(r->total_docs), sizeof(unsigned), 1, file);
             sgx_fwrite(r->counters, sizeof(unsigned) * r->k->nr_centres(), 1, file);
             sgx_fclose(file);
+#endif
 
             ok_response(out, out_len);
             break;

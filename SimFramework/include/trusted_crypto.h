@@ -13,11 +13,9 @@
 
 #define SODIUM_EXPBYTES (crypto_secretbox_NONCEBYTES+crypto_secretbox_MACBYTES)
 
-// size of symmetric key
-#define SYMM_KEY_SIZE (AES_KEY_SIZE)
-
-// returns the encrypted size padded to the block size of the cipher
-#define SYMM_ENC_SIZE(unenc_size) ((unenc_size) + (!((unenc_size) % AES_BLOCK_SIZE) ? 0 : (AES_BLOCK_SIZE - ((unenc_size) % AES_BLOCK_SIZE))))
+// to be "public"
+#define SYMM_KEY_SIZE (crypto_secretbox_KEYBYTES)
+#define SYMM_ENC_SIZE(unenc_size) ((unenc_size)+SODIUM_EXPBYTES)
 
 namespace tcrypto {
     void random(void* out, size_t len);

@@ -1,17 +1,13 @@
 #include "trusted_crypto.h"
 
 #include <string.h>
-#include <sgx_trts.h>
-#include <sgx_tcrypto.h>
 
 void tcrypto::random(void* out, size_t len) {
-    sgx_read_rand((unsigned char *) out, len);
+    randombytes_buf(out, len);
 }
 
 unsigned tcrypto::random_uint() {
-    unsigned val;
-    sgx_read_rand((unsigned char *) &val, sizeof(unsigned));
-    return val;
+    return randombytes_random();
 }
 
 unsigned tcrypto::random_uint_range(unsigned min, unsigned max) {
@@ -22,8 +18,7 @@ unsigned tcrypto::random_uint_range(unsigned min, unsigned max) {
 }
 
 int tcrypto::sha256(unsigned char *out, const unsigned char *in, size_t len) {
-    sgx_status_t ret = sgx_sha256_msg(in, len, (unsigned char (*)[SHA256_OUTPUT_SIZE])out);
-    return ret != SGX_SUCCESS;
+    return crypto_hash_sha256(out, in, len);
 }
 
 int tcrypto::hmac_sha256(void* out, const void* in, const size_t in_len, const void* key, const size_t key_len) {
@@ -66,18 +61,6 @@ int tcrypto::hmac_sha256(void* out, const void* in, const size_t in_len, const v
 }
 
 int tcrypto::encrypt(void* out, const unsigned char *in, const size_t in_len, const void* key, unsigned char* ctr) {
-    sgx_status_t ret = sgx_aes_ctr_encrypt((unsigned char (*)[AES_KEY_SIZE])key, in, in_len, ctr, 1, (unsigned char*)out);
-    return ret != SGX_SUCCESS;
-}
-
-int tcrypto::decrypt(void* out, const unsigned char *in, const size_t in_len, const void* key, unsigned char* ctr) {
-    sgx_status_t ret = sgx_aes_ctr_decrypt((unsigned char (*)[AES_KEY_SIZE])key, in, in_len, ctr, 1, (unsigned char*)out);
-    return ret != SGX_SUCCESS;
-}
-
-
-/*
-int tcrypto::encrypt(void* out, const unsigned char *in, const size_t in_len, const void* key, unsigned char* ctr) {
     uint8_t nonce[crypto_secretbox_NONCEBYTES];
     memset(nonce, 0x00, crypto_secretbox_NONCEBYTES);
 
@@ -90,7 +73,6 @@ int tcrypto::decrypt(void* out, const unsigned char *in, const size_t in_len, co
 
     return sodium_decrypt((uint8_t*)out, in, in_len, nonce, (uint8_t*)key);
 }
-*/
 
 int tcrypto::sodium_encrypt(
         unsigned char *ciphertext, // message_len + C_EXPBYTES

@@ -1,7 +1,9 @@
 #include "training.h"
 
 #include <string.h>
+#if !SIMULATED_MODE
 #include "sgx_tprotected_fs.h"
+#endif
 
 #include "trusted_util.h"
 #include "util.h"
@@ -41,14 +43,19 @@ void train_kmeans(BagOfWordsTrainer* k) {
     k->cluster();
     //debug_print_points(centres->buffer, centres->count, k->desc_len());
 
+#if !SIMULATED_MODE
+//TODO wrap in framework
     // debug: save to file
     SGX_FILE* file = sgx_fopen_auto_key("centres", "w");
     //outside_util::printf("file des %p\n", file);
     sgx_fwrite(k->get_all_centres(), k->nr_centres(), sizeof(float) * k->desc_len(), file);
     sgx_fclose(file);
+#endif
 }
 
 void train_kmeans_load(BagOfWordsTrainer* k) {
+#if !SIMULATED_MODE
+    //TODO wrap in framework
     // for debugging purposes for now
     // assumes current repository config was the same when the file was created (same desc_len and k)
     SGX_FILE* file = sgx_fopen_auto_key("centres", "r");
@@ -57,4 +64,5 @@ void train_kmeans_load(BagOfWordsTrainer* k) {
     sgx_fclose(file);
 
     k->set_centres(centres);
+#endif
 }
