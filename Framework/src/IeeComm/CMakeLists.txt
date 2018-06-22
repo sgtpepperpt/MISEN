@@ -15,7 +15,13 @@ link_directories(${SGX_LIBRARY_PATH} ${MBEDTLS_DIR}/lib)
 #find_library(URTS sgx_urts PATHS /usr/lib NO_CMAKE_FIND_ROOT_PATH)
 #find_library(UAE_SERVICE sgx_uae_service PATHS /usr/lib NO_CMAKE_FIND_ROOT_PATH)
 
-add_executable(IeeComm ${IEE_COMM_DIR}/App.cpp ${IEE_COMM_DIR}/Enclave_u.c ${IEE_COMM_DIR}/ocall/ocall.cpp ${IEE_COMM_DIR}/sgx_handler/sgx_handler.cpp ${IEE_COMM_DIR}/threading/thread_pool.cpp)
+add_executable(IeeComm
+        ${IEE_COMM_DIR}/App.cpp ${IEE_COMM_DIR}/Enclave_u.c
+        ${IEE_COMM_DIR}/ocall/ocall.cpp
+        ${IEE_COMM_DIR}/sgx_handler/sgx_handler.cpp
+        ${IEE_COMM_DIR}/threading/thread_pool.cpp
+        ${IEE_COMM_DIR}/mbedtls/m_server.cpp ${IEE_COMM_DIR}/mbedtls/mbedtls_error.c ${IEE_COMM_DIR}/mbedtls/mbedtls_net.c ${IEE_COMM_DIR}/mbedtls/Utils.cpp)
+
 add_dependencies(IeeComm edger8r_untrusted)
 
 target_include_directories(IeeComm PRIVATE ${FRAMEWORK_INCLUDE_DIR} ${EXTERN_INCLUDE_DIR} ${IEE_COMM_DIR} ${IEE_COMM_DIR}/ocall ${IEE_COMM_DIR}/sgx_handler ${IEE_COMM_DIR}/threading ${IEE_COMM_DIR}/../${IEE_DIR} ${SGX_SDK}/include ${MBEDTLS_DIR}/include)
