@@ -1,5 +1,7 @@
-#include <stdio.h>
+#include "trusted_mbedtls.h"
+#include "mserverDEBUG.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
@@ -27,15 +29,15 @@ typedef struct {
 #define MAX_NUM_THREADS 5
 
 static pthread_info_t threads[MAX_NUM_THREADS];
-sgx_enclave_id_t eid;
+sgx_enclave_id_t _eid;
 
 #include "mbedtls_net.c"
 
 // thread function
 void* ecall_handle_ssl_connection(void* data) {
-    long int thread_id = pthread_self();
+    long thread_id = (long)pthread_self();
     thread_info_t* thread_info = (thread_info_t*)data;
-    ssl_conn_handle(eid, thread_id, thread_info);
+    ssl_conn_handle(_eid, thread_id, thread_info);
 
     printf("thread exiting for thread %ld\n", thread_id);
     mbedtls_net_free(&thread_info->client_fd);
@@ -71,19 +73,16 @@ static int thread_create(mbedtls_net_context* client_fd) {
 
     return (0);
 }
-/*
-int main(void) {
-    int ret;
 
-    if (0 != initialize_enclave(&eid)) {
-        printf("failed to init enclave\n");
-        exit(-1);
-    }
+#include "sgx_handler/sgx_handler.h"
+int dostuff(sgx_enclave_id_t eid) {
+    _eid = eid;
+    int ret;
 
     mbedtls_net_context listen_fd, client_fd;
 
     // initialize the object
-    ssl_conn_init(eid);
+    ssl_conn_init(_eid);
 
     // initialize threads
     memset(threads, 0, sizeof(threads));
@@ -135,7 +134,5 @@ int main(void) {
         ret = 0;
     }
 
-    sgx_destroy_enclave(eid);
     return (ret);
 }
-*/

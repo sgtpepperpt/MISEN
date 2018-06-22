@@ -1,8 +1,16 @@
 #include "App.h"
 
+#include "untrusted_util.h"
+#include "trusted_mbedtls.h"
+
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include "untrusted_util.h"
+
+#include "mbedtls/ssl.h"
+#include "mbedtls/net.h"
+#include "mbedtls/error.h"
+
+#include "mserverDEBUG.h" // TODO remove
 
 // to pass data to client thread
 typedef struct client_data {
@@ -79,6 +87,8 @@ int SGX_CDECL main(int argc, const char **argv) {
         print_error_message(status);
         exit(-1);
     }
+
+    dostuff(eid); // TODO pass that stuff to here
 
     // initialise thread pool
     thread_pool* pool = init_thread_pool(eid, nr_threads);
