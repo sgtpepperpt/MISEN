@@ -348,8 +348,7 @@ int main(void) {
 /*
  * global options
  */
-struct options
-{
+struct options {
     const char *server_addr;    /* address on which the ssl service runs    */
     const char *server_port;    /* port on which the ssl service runs       */
     int debug_level;            /* level of debugging                       */

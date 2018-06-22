@@ -11,7 +11,6 @@
 #include "mbedtls/net.h"
 #include "mbedtls/error.h"
 #include "Enclave_u.h"
-#include "Utils.h"
 
 #include <sgx_urts.h>
 #include <thread>

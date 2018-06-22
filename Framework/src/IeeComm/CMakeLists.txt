@@ -20,7 +20,7 @@ add_executable(IeeComm
         ${IEE_COMM_DIR}/ocall/ocall.cpp
         ${IEE_COMM_DIR}/sgx_handler/sgx_handler.cpp
         ${IEE_COMM_DIR}/threading/thread_pool.cpp
-        ${IEE_COMM_DIR}/mbedtls/m_server.cpp ${IEE_COMM_DIR}/mbedtls/mbedtls_error.c ${IEE_COMM_DIR}/mbedtls/mbedtls_net.c ${IEE_COMM_DIR}/mbedtls/Utils.cpp)
+        ${IEE_COMM_DIR}/mbedtls/m_server.cpp ${IEE_COMM_DIR}/mbedtls/mbedtls_error.c ${IEE_COMM_DIR}/mbedtls/mbedtls_net.c)
 
 add_dependencies(IeeComm edger8r_untrusted)
 

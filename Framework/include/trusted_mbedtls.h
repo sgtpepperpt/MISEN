@@ -2,8 +2,8 @@
 // Created by Guilherme Borges on 22/06/2018.
 //
 
-#ifndef SGX_IMAGE_SEARCH_TRUSTED_MBEDTLS_H
-#define SGX_IMAGE_SEARCH_TRUSTED_MBEDTLS_H
+#ifndef TRUSTED_MBEDTLS_H
+#define TRUSTED_MBEDTLS_H
 
 #include "mbedtls/ssl.h"
 #include "mbedtls/net.h"
