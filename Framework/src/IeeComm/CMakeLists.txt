@@ -16,11 +16,11 @@ link_directories(${SGX_LIBRARY_PATH} ${MBEDTLS_DIR}/lib)
 #find_library(UAE_SERVICE sgx_uae_service PATHS /usr/lib NO_CMAKE_FIND_ROOT_PATH)
 
 add_executable(IeeComm
-        ${IEE_COMM_DIR}/App.cpp ${IEE_COMM_DIR}/Enclave_u.c
+        ${IEE_COMM_DIR}/App.cpp ${IEE_COMM_DIR}/server.cpp ${IEE_COMM_DIR}/Enclave_u.c
         ${IEE_COMM_DIR}/ocall/ocall.cpp
         ${IEE_COMM_DIR}/sgx_handler/sgx_handler.cpp
         ${IEE_COMM_DIR}/threading/thread_pool.cpp
-        ${IEE_COMM_DIR}/mbedtls/m_server.cpp ${IEE_COMM_DIR}/mbedtls/mbedtls_error.c ${IEE_COMM_DIR}/mbedtls/mbedtls_net.c)
+        ${IEE_COMM_DIR}/mbedtls/mbedtls_error.c ${IEE_COMM_DIR}/mbedtls/mbedtls_net.c)
 
 add_dependencies(IeeComm edger8r_untrusted)
 

@@ -1,5 +1,5 @@
 #include "trusted_mbedtls.h"
-#include "mserverDEBUG.h"
+#include "server.h"
 
 #include <stdio.h>
 #include <stdlib.h>

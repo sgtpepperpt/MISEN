@@ -10,7 +10,7 @@
 #include "mbedtls/net.h"
 #include "mbedtls/error.h"
 
-#include "mserverDEBUG.h" // TODO remove
+#include "server.h" // TODO remove
 
 // to pass data to client thread
 typedef struct client_data {
