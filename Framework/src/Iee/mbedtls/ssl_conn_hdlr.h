@@ -2,17 +2,18 @@
 #define MBEDTLS_SGX_SSL_SERVER_THREAD_H
 
 #if !defined(MBEDTLS_CONFIG_FILE)
-#include "mbedtls/config.h"
+    #include "mbedtls/config.h"
 #else
-#include MBEDTLS_CONFIG_FILE
+    #include MBEDTLS_CONFIG_FILE
 #endif
 
 #if defined(MBEDTLS_PLATFORM_C)
+
 #include "mbedtls/platform.h"
+
 #else
 #include <stdio.h>
 #define mbedtls_fprintf    fprintf
-#define mbedtls_printf     printf
 #define mbedtls_snprintf   snprintf
 #endif
 
@@ -36,7 +37,9 @@
 using std::string;
 
 #if defined(MBEDTLS_SSL_CACHE_C)
+
 #include "mbedtls/ssl_cache.h"
+
 #endif
 
 #if defined(MBEDTLS_MEMORY_BUFFER_ALLOC_C)
@@ -49,42 +52,45 @@ using std::string;
     "<p>Successful connection using: %s</p>\r\n"
 
 class TLSConnectionHandler {
- private:
-  /*
-   * static members
-   */
-  const static string pers;
-  static sgx_thread_mutex_t mutex;
+private:
+    /*
+     * static members
+     */
+    const static string pers;
+    static sgx_thread_mutex_t mutex;
 
-  /*
-   * global server state
-   */
-  mbedtls_entropy_context entropy;
-  mbedtls_ctr_drbg_context ctr_drbg;
-  mbedtls_ssl_config conf;
-  mbedtls_x509_crt srvcert;
-  mbedtls_x509_crt cachain;
-  mbedtls_pk_context pkey;
+    /*
+     * global server state
+     */
+    mbedtls_entropy_context entropy;
+    mbedtls_ctr_drbg_context ctr_drbg;
+    mbedtls_ssl_config conf;
+    mbedtls_x509_crt srvcert;
+    mbedtls_x509_crt cachain;
+    mbedtls_pk_context pkey;
 
-  /*
-   * configuration
-   */
-  unsigned int debug_level;
+    /*
+     * configuration
+     */
+    unsigned int debug_level;
 
-  /*
-   * debug callback
-   */
-  static void mydebug(void *ctx, int level,
-               const char *file, int line,
-               const char *str);
+    /*
+     * debug callback
+     */
+    static void mydebug(void* ctx, int level,
+                        const char* file, int line,
+                        const char* str);
 
- public:
-  TLSConnectionHandler();
-  TLSConnectionHandler(unsigned int debug_level) : debug_level(debug_level) {
+public:
     TLSConnectionHandler();
-  }
-  ~TLSConnectionHandler();
-  void handle(long int, thread_info_t *);
+
+    TLSConnectionHandler(unsigned int debug_level) : debug_level(debug_level) {
+        TLSConnectionHandler();
+    }
+
+    ~TLSConnectionHandler();
+
+    void handle(long int, thread_info_t*);
 };
 
 #endif //MBEDTLS_SGX_SSL_SERVER_THREAD_H
