@@ -32,9 +32,7 @@ TLSConnectionHandler::TLSConnectionHandler() {
     mbedtls_ssl_config_init(&conf);
     mbedtls_ctr_drbg_init(&ctr_drbg);
 
-    /*
-     * We use only a single entropy source that is used in all the threads.
-     */
+    // we use only a single entropy source that is used in all the threads.
     mbedtls_entropy_init(&entropy);
 
     /*
@@ -50,42 +48,33 @@ TLSConnectionHandler::TLSConnectionHandler() {
     ret = mbedtls_x509_crt_parse(&srvcert, (const unsigned char*)mbedtls_test_srv_crt, mbedtls_test_srv_crt_len);
     if (ret != 0) {
         outside_util::printf(" failed\n  !  mbedtls_x509_crt_parse returned %d\n\n", ret);
-        throw std::runtime_error("");
+        outside_util::exit(1);
     }
 
     ret = mbedtls_x509_crt_parse(&cachain, (const unsigned char*)mbedtls_test_cas_pem, mbedtls_test_cas_pem_len);
     if (ret != 0) {
         outside_util::printf(" failed\n  !  mbedtls_x509_crt_parse returned %d\n\n", ret);
-        throw std::runtime_error("");
+        outside_util::exit(1);
     }
 
     mbedtls_pk_init(&pkey);
     ret = mbedtls_pk_parse_key(&pkey, (const unsigned char*)mbedtls_test_srv_key, mbedtls_test_srv_key_len, NULL, 0);
     if (ret != 0) {
         outside_util::printf(" failed\n  !  mbedtls_pk_parse_key returned %d\n\n", ret);
-        throw std::runtime_error("");
+        outside_util::exit(1);
     }
 
     outside_util::printf(" ok\n");
 
-    /*
-     * 1b. Seed the random number generator
-     * 1b. Seed the random number generator
-     */
-    outside_util::printf("  . Seeding the random number generator...");
-
+    // seed the random number generator
+    outside_util::printf("Seeding the random number generator\n");
     if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char*)pers.c_str(), pers.length())) != 0) {
         outside_util::printf(" failed: mbedtls_ctr_drbg_seed returned -0x%04x\n", -ret);
         throw std::runtime_error("");
     }
 
-    outside_util::printf(" ok\n");
-
-    /*
-     * 1c. Prepare SSL configuration
-     */
-    outside_util::printf("  . Setting up the SSL data....");
-
+    // prepare SSL configuration
+    outside_util::printf("Setting up the SSL data...\n");
     if ((ret = mbedtls_ssl_config_defaults(&conf, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT)) != 0) {
         outside_util::printf(" failed: mbedtls_ssl_config_defaults returned -0x%04x\n", -ret);
         throw std::runtime_error("");
@@ -93,9 +82,7 @@ TLSConnectionHandler::TLSConnectionHandler() {
 
     mbedtls_ssl_conf_rng(&conf, mbedtls_ctr_drbg_random, &ctr_drbg);
 
-    /*
-     * setup debug
-     */
+    // setup debug
     mbedtls_ssl_conf_dbg(&conf, mydebug, NULL);
     // if debug_level is not set (could be set via other constructors), set it to 0
     if (debug_level < 0) {
@@ -191,14 +178,12 @@ void TLSConnectionHandler::handle(long thread_id, thread_info_t* thread_info) {
     thread_info->config = &conf;
     thread_info->thread_complete = 0;
 
-    /* Make sure memory references are valid */
+    // make sure memory references are valid
     mbedtls_ssl_init(&ssl);
 
     outside_util::printf("  [ #%ld ]  Setting up SSL/TLS data\n", thread_id);
 
-    /*
-     * 4. Get the SSL context ready
-     */
+    // get the SSL context ready
     int ret;
     if ((ret = mbedtls_ssl_setup(&ssl, thread_info->config)) != 0) {
         outside_util::printf("  [ #%ld ]  failed: mbedtls_ssl_setup returned -0x%04x\n", thread_id, -ret);
@@ -208,11 +193,8 @@ void TLSConnectionHandler::handle(long thread_id, thread_info_t* thread_info) {
     outside_util::printf("client_fd is %d\n", client_fd->fd);
     mbedtls_ssl_set_bio(&ssl, client_fd, mbedtls_net_send_ocall, mbedtls_net_recv_ocall, NULL);
 
-    /*
-     * 5. Handshake
-     */
-    outside_util::printf("  [ #%ld ]  Performing the SSL/TLS handshake\n", thread_id);
-
+    // handshake
+    outside_util::printf("performing the SSL/TLS handshake\n");
     while ((ret = mbedtls_ssl_handshake(&ssl)) != 0) {
         if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
             outside_util::printf("  [ #%ld ]  failed: mbedtls_ssl_handshake returned -0x%04x\n", thread_id, -ret);
@@ -220,15 +202,8 @@ void TLSConnectionHandler::handle(long thread_id, thread_info_t* thread_info) {
         }
     }
 
-    outside_util::printf("  [ #%ld ]  ok\n", thread_id);
-
-    /*
-     * 6. Read the HTTP Request
-     */
-    outside_util::printf("  [ #%ld ]  < Read from client\n", thread_id);
-
+    // start processing client requests
     while (1) {
-        outside_util::printf("############-----###############\n");
         size_t in_len;
         int len = read_ssl(ssl, &in_len, sizeof(size_t));
         if (len == -1) {
@@ -238,7 +213,7 @@ void TLSConnectionHandler::handle(long thread_id, thread_info_t* thread_info) {
             break;
         }
 
-        outside_util::printf("received length %lu\n", in_len);
+        //outside_util::printf("received length %lu\n", in_len);
 
         void* in_buffer = malloc(in_len);
 
@@ -246,7 +221,7 @@ void TLSConnectionHandler::handle(long thread_id, thread_info_t* thread_info) {
         while (has_read < in_len) {
             len = read_ssl(ssl, (uint8_t*)in_buffer + has_read, in_len - has_read);
 
-            outside_util::printf("read len %d\n", len);
+            //outside_util::printf("read len %d\n", len);
             if (len < 0) {
                 outside_util::printf("error\n");
                 outside_util::exit(1);
@@ -254,11 +229,10 @@ void TLSConnectionHandler::handle(long thread_id, thread_info_t* thread_info) {
 
             has_read += len;
         }
-        outside_util::printf("--done reading\n");
-        void* out;
-        size_t out_len;
 
         // execute extern lib processing
+        void* out;
+        size_t out_len;
         extern_lib::process_message((uint8_t**)&out, &out_len, (const uint8_t *)in_buffer, (const size_t)in_len);
         free(in_buffer);
 
@@ -284,8 +258,6 @@ void TLSConnectionHandler::handle(long thread_id, thread_info_t* thread_info) {
             goto thread_exit;
         }
     }
-
-    outside_util::printf(" ok\n");
 
     ret = 0;
 

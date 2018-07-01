@@ -73,7 +73,7 @@ vector<string> get_filenames(int n) {
 }
 
 void iee_send(mbedtls_ssl_context* ssl, const uint8_t* in, const size_t in_len) {
-    printf("will send %lu\n", in_len);
+    //printf("will send %lu\n", in_len);
     untrusted_util_tls::socket_send(ssl, &in_len, sizeof(size_t));
     untrusted_util_tls::socket_send(ssl, in, in_len);
 }
@@ -81,7 +81,7 @@ void iee_send(mbedtls_ssl_context* ssl, const uint8_t* in, const size_t in_len) 
 void iee_recv(mbedtls_ssl_context* ssl, uint8_t** out, size_t* out_len) {
     untrusted_util_tls::socket_receive(ssl, out_len, sizeof(size_t));
 
-    printf("will receive %lu\n", *out_len);
+    //printf("will receive %lu\n", *out_len);
 
     *out = (uint8_t*)malloc(*out_len);
     untrusted_util_tls::socket_receive(ssl, *out, *out_len);
