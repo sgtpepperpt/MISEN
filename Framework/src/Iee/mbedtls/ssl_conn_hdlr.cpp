@@ -1,10 +1,12 @@
 #include "ssl_conn_hdlr.h"
 
 #include "outside_util.h"
+#include "extern_lib.h"
 
 #include <exception>
 #include <mbedtls/net.h>
 #include <mbedtls/debug.h>
+#include "Enclave.h"
 
 TLSConnectionHandler::TLSConnectionHandler() {
     int ret;
@@ -68,12 +70,11 @@ TLSConnectionHandler::TLSConnectionHandler() {
 
     /*
      * 1b. Seed the random number generator
+     * 1b. Seed the random number generator
      */
     outside_util::printf("  . Seeding the random number generator...");
 
-    if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy,
-                                     (const unsigned char*)pers.c_str(),
-                                     pers.length())) != 0) {
+    if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char*)pers.c_str(), pers.length())) != 0) {
         outside_util::printf(" failed: mbedtls_ctr_drbg_seed returned -0x%04x\n", -ret);
         throw std::runtime_error("");
     }
@@ -136,10 +137,52 @@ TLSConnectionHandler::~TLSConnectionHandler() {
 
 }
 
+int read_ssl(mbedtls_ssl_context ssl, void* buf, size_t len) {
+    size_t read_len;
+    int ret = mbedtls_ssl_read(&ssl, (unsigned char*)buf, len);
+
+    if (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE)
+        return -1;
+
+    if (ret <= 0) {
+        switch (ret) {
+            case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
+                outside_util::printf("  [ # ]  connection was closed gracefully\n");
+                return -2;
+
+            case MBEDTLS_ERR_NET_CONN_RESET:
+                outside_util::printf("  [ # ]  connection was reset by peer\n");
+                return -2;
+
+            default:
+                outside_util::printf("  [ # ]  mbedtls_ssl_read returned -0x%04x\n", -ret);
+                return -2;
+        }
+    }
+
+    return ret;
+}
+
+int write_ssl(mbedtls_ssl_context ssl, const void* buf, size_t len) {
+    int ret;
+    while ((ret = mbedtls_ssl_write(&ssl, (unsigned char*)buf, len)) <= 0) {
+        if (ret == MBEDTLS_ERR_NET_CONN_RESET) {
+            outside_util::printf("  [ # ]  failed: peer closed the connection\n");
+            return -2;
+        }
+
+        if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
+            outside_util::printf("  [ # ]  failed: mbedtls_ssl_write returned -0x%04x\n", ret);
+            return -2;
+        }
+    }
+
+    return ret;
+}
+
 void TLSConnectionHandler::handle(long thread_id, thread_info_t* thread_info) {
-    int ret, len;
     mbedtls_net_context* client_fd = &thread_info->client_fd;
-    unsigned char buf[1024];
+    //unsigned char buf[1024];
     mbedtls_ssl_context ssl;
 
     // thread local data
@@ -156,6 +199,7 @@ void TLSConnectionHandler::handle(long thread_id, thread_info_t* thread_info) {
     /*
      * 4. Get the SSL context ready
      */
+    int ret;
     if ((ret = mbedtls_ssl_setup(&ssl, thread_info->config)) != 0) {
         outside_util::printf("  [ #%ld ]  failed: mbedtls_ssl_setup returned -0x%04x\n", thread_id, -ret);
         goto thread_exit;
@@ -171,8 +215,7 @@ void TLSConnectionHandler::handle(long thread_id, thread_info_t* thread_info) {
 
     while ((ret = mbedtls_ssl_handshake(&ssl)) != 0) {
         if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
-            outside_util::printf("  [ #%ld ]  failed: mbedtls_ssl_handshake returned -0x%04x\n",
-                                 thread_id, -ret);
+            outside_util::printf("  [ #%ld ]  failed: mbedtls_ssl_handshake returned -0x%04x\n", thread_id, -ret);
             goto thread_exit;
         }
     }
@@ -184,59 +227,56 @@ void TLSConnectionHandler::handle(long thread_id, thread_info_t* thread_info) {
      */
     outside_util::printf("  [ #%ld ]  < Read from client\n", thread_id);
 
-    do {
-        len = sizeof(buf) - 1;
-        memset(buf, 0, sizeof(buf));
-        ret = mbedtls_ssl_read(&ssl, buf, len);
-
-        if (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE)
+    while (1) {
+        outside_util::printf("############-----###############\n");
+        size_t in_len;
+        int len = read_ssl(ssl, &in_len, sizeof(size_t));
+        if (len == -1) {
             continue;
-
-        if (ret <= 0) {
-            switch (ret) {
-                case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
-                    outside_util::printf("  [ #%ld ]  connection was closed gracefully\n", thread_id);
-                    goto thread_exit;
-
-                case MBEDTLS_ERR_NET_CONN_RESET:
-                    outside_util::printf("  [ #%ld ]  connection was reset by peer\n", thread_id);
-                    goto thread_exit;
-
-                default:
-                    outside_util::printf("  [ #%ld ]  mbedtls_ssl_read returned -0x%04x\n", thread_id, -ret);
-                    goto thread_exit;
-            }
-        }
-
-        len = ret;
-        outside_util::printf("  [ #%ld ]  %d bytes read\n=====\n%s\n=====\n", thread_id, len, (char*)buf);
-
-        if (ret > 0)
+        } else if (len == -2) {
+            outside_util::printf("end of client thread\n");
             break;
-    } while (1);
-
-    /*
-     * 7. Write the 200 Response
-     */
-    outside_util::printf("  [ #%ld ]  > Write to client:\n", thread_id);
-
-    len = snprintf((char*)buf, sizeof buf, HTTP_RESPONSE, mbedtls_ssl_get_ciphersuite(&ssl));
-
-    while ((ret = mbedtls_ssl_write(&ssl, buf, len)) <= 0) {
-        if (ret == MBEDTLS_ERR_NET_CONN_RESET) {
-            outside_util::printf("  [ #%ld ]  failed: peer closed the connection\n", thread_id);
-            goto thread_exit;
         }
 
-        if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
-            outside_util::printf("  [ #%ld ]  failed: mbedtls_ssl_write returned -0x%04x\n", thread_id, ret);
-            goto thread_exit;
+        outside_util::printf("received length %lu\n", in_len);
+
+        void* in_buffer = malloc(in_len);
+
+        int has_read = 0;
+        while (has_read < in_len) {
+            len = read_ssl(ssl, (uint8_t*)in_buffer + has_read, in_len - has_read);
+
+            outside_util::printf("read len %d\n", len);
+            if (len < 0) {
+                outside_util::printf("error\n");
+                outside_util::exit(1);
+            }
+
+            has_read += len;
         }
+        outside_util::printf("--done reading\n");
+        void* out;
+        size_t out_len;
+
+        // execute ecall
+        ecall_process(&out, &out_len, in_buffer, (const size_t)in_len);
+        free(in_buffer);
+
+        // send to client
+        len = write_ssl(ssl, &out_len, sizeof(size_t));
+        if (len < 0) {
+            outside_util::printf("error\n");
+            outside_util::exit(1);
+        }
+
+        len = write_ssl(ssl, out, out_len);
+        if (len < 0) {
+            outside_util::printf("error\n");
+            outside_util::exit(1);
+        }
+
+        free(out);
     }
-
-    len = ret;
-    outside_util::printf("  [ #%ld ]  %d bytes written\n=====\n%s\n=====\n", thread_id, len, (char*)buf);
-    outside_util::printf("  [ #%ld ]  . Closing the connection...", thread_id);
 
     while ((ret = mbedtls_ssl_close_notify(&ssl)) < 0) {
         if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {

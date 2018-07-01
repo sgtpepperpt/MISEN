@@ -1,10 +1,19 @@
 #include "Client.h"
 
 #include "untrusted_util.h"
+#include "untrusted_util_tls.h"
+
 #include <getopt.h>
 #include <fstream>
 #include <sys/time.h>
 #include <sodium.h>
+
+#include "mbedtls/net.h"
+#include "mbedtls/ssl.h"
+#include "mbedtls/entropy.h"
+#include "mbedtls/ctr_drbg.h"
+#include "mbedtls/debug.h"
+#include "mbedtls/certs.h"
 
 using namespace cv;
 using namespace cv::xfeatures2d;
@@ -13,7 +22,6 @@ using namespace std;
 // TODO now hardcoded for dev
 uint8_t key[AES_BLOCK_SIZE];
 uint8_t ctr[AES_BLOCK_SIZE];
-
 
 #define STORE_RESULTS 1
 
@@ -64,52 +72,26 @@ vector<string> get_filenames(int n) {
     return filenames;
 }
 
-void iee_send(const int socket, const uint8_t* in, const size_t in_len) {
-    // TODO do not use these hardcoded values
-    uint8_t key[crypto_secretbox_KEYBYTES];
-    memset(key, 0x00, crypto_secretbox_KEYBYTES);
-
-    uint8_t nonce[crypto_secretbox_NONCEBYTES];
-    memset(nonce, 0x00, crypto_secretbox_NONCEBYTES);
-
-    // encrypt before sending
-    size_t enc_len = in_len + SODIUM_EXPBYTES;
-    uint8_t* enc = (uint8_t*)malloc(enc_len);
-    utcrypto::sodium_encrypt(enc, (uint8_t *)in, in_len, nonce, key);
-
-    untrusted_util::socket_send(socket, &enc_len, sizeof(size_t));
-    untrusted_util::socket_send(socket, enc, enc_len);
-
-    free(enc);
+void iee_send(mbedtls_ssl_context* ssl, const uint8_t* in, const size_t in_len) {
+    printf("will send %lu\n", in_len);
+    untrusted_util_tls::socket_send(ssl, &in_len, sizeof(size_t));
+    untrusted_util_tls::socket_send(ssl, in, in_len);
 }
 
-void iee_recv(const int socket, uint8_t** out, size_t* out_len) {
-    // TODO do not use these hardcoded values
-    uint8_t key[crypto_secretbox_KEYBYTES];
-    memset(key, 0x00, crypto_secretbox_KEYBYTES);
+void iee_recv(mbedtls_ssl_context* ssl, uint8_t** out, size_t* out_len) {
+    untrusted_util_tls::socket_receive(ssl, out_len, sizeof(size_t));
 
-    uint8_t nonce[crypto_secretbox_NONCEBYTES];
-    memset(nonce, 0x00, crypto_secretbox_NONCEBYTES);
+    printf("will receive %lu\n", *out_len);
 
-    size_t res_len;
-    unsigned char* res;
-    untrusted_util::socket_receive(socket, &res_len, sizeof(size_t));
-    res = (uint8_t*)malloc(res_len);
-    untrusted_util::socket_receive(socket, res, res_len);
-
-    *out_len = res_len - SODIUM_EXPBYTES;
     *out = (uint8_t*)malloc(*out_len);
-    utcrypto::sodium_decrypt(*out, res, res_len, nonce, key);
-
-    free(res);
+    untrusted_util_tls::socket_receive(ssl, *out, *out_len);
 }
 
-void iee_comm(const int socket, const void* in, const size_t in_len) {
-    iee_send(socket, (uint8_t*)in, in_len);
-
+void iee_comm(mbedtls_ssl_context* ssl, const void* in, const size_t in_len) {
+    iee_send(ssl, (uint8_t*)in, in_len);
     size_t res_len;
     unsigned char* res;
-    iee_recv(socket, &res, &res_len);
+    iee_recv(ssl, &res, &res_len);
 
     printf("res: %lu bytes\n", res_len);
     free(res);
@@ -274,7 +256,7 @@ void search(uint8_t** in, size_t* in_len, const Ptr<SURF> surf, const std::strin
     free(descriptors_buffer);
 }
 
-void search_test(const int socket, const Ptr<SURF> surf) {
+void search_test(mbedtls_ssl_context* ssl, const Ptr<SURF> surf) {
     size_t in_len;
     uint8_t* in;
 
@@ -290,13 +272,13 @@ void search_test(const int socket, const Ptr<SURF> surf) {
 
     for (size_t i = 0; i < files.size(); ++i) {
         search(&in, &in_len, surf, files[i]);
-        iee_send(socket, in, in_len);
+        iee_send(ssl, in, in_len);
         free(in);
 
         // receive response
         size_t res_len;
         uint8_t* res;
-        iee_recv(socket, &res, &res_len);
+        iee_recv(ssl, &res, &res_len);
 
         // get number of response docs
         unsigned nr;
@@ -330,6 +312,12 @@ void search_test(const int socket, const Ptr<SURF> surf) {
     // write results to file
     printHolidayResults("results.dat", precision_res);
 #endif
+}
+
+static void my_debug(void* ctx, int level, const char* file, int line, const char* str) {
+    ((void)level);
+    fprintf((FILE*)ctx, "%s:%04d: %s", file, line, str);
+    fflush((FILE*)ctx);
 }
 
 int main(int argc, char** argv) {
@@ -417,11 +405,126 @@ int main(int argc, char** argv) {
 
     printf("Running with %d images, %lu clusters\n", nr_images, nr_clusters);
 
+    // init mbedtls
+    // put port in char buf
+    char port[5];
+    sprintf(port, "%d", server_port);
+
+    int ret;
+    mbedtls_net_context server_fd;
+    uint32_t flags;
+    const char* pers = "ssl_client1";
+
+    mbedtls_entropy_context entropy;
+    mbedtls_ctr_drbg_context ctr_drbg;
+    mbedtls_ssl_context ssl;
+    mbedtls_ssl_config conf;
+    mbedtls_x509_crt cacert;
+
+    // initialise the RNG and the session data
+    mbedtls_net_init(&server_fd);
+    mbedtls_ssl_init(&ssl);
+    mbedtls_ssl_config_init(&conf);
+    mbedtls_x509_crt_init(&cacert);
+    mbedtls_ctr_drbg_init(&ctr_drbg);
+
+    printf("\n  . Seeding the random number generator...");
+    fflush(stdout);
+
+    mbedtls_entropy_init(&entropy);
+    if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char*)pers,
+                                     strlen(pers))) != 0) {
+        printf(" failed\n  ! mbedtls_ctr_drbg_seed returned %d\n", ret);
+        exit(1);
+    }
+
+    printf(" ok\n");
+
+    // initialise certificates
+    printf("  . Loading the CA root certificate ...");
+    fflush(stdout);
+
+    ret = mbedtls_x509_crt_parse(&cacert, (const unsigned char*)mbedtls_test_cas_pem, mbedtls_test_cas_pem_len);
+    if (ret < 0) {
+        printf(" failed\n  !  mbedtls_x509_crt_parse returned -0x%x\n\n", -ret);
+        exit(1);
+    }
+
+    printf(" ok (%d skipped)\n", ret);
+
+    // start connection
+    printf("  . Connecting to tcp/%s/%s...", server_name, port);
+    fflush(stdout);
+
+    if ((ret = mbedtls_net_connect(&server_fd, server_name, port, MBEDTLS_NET_PROTO_TCP)) != 0) {
+        printf(" failed\n  ! mbedtls_net_connect returned %d\n\n", ret);
+        exit(1);
+    }
+
+    printf(" ok\n");
+    printf("  . Setting up the SSL/TLS structure...");
+    fflush(stdout);
+
+    if ((ret = mbedtls_ssl_config_defaults(&conf, MBEDTLS_SSL_IS_CLIENT, MBEDTLS_SSL_TRANSPORT_STREAM,
+                                           MBEDTLS_SSL_PRESET_DEFAULT)) != 0) {
+        printf(" failed\n  ! mbedtls_ssl_config_defaults returned %d\n\n", ret);
+        exit(1);
+    }
+
+    printf(" ok\n");
+
+    /* OPTIONAL is not optimal for security,
+     * but makes interop easier in this simplified example */
+    mbedtls_ssl_conf_authmode(&conf, MBEDTLS_SSL_VERIFY_OPTIONAL);
+    mbedtls_ssl_conf_ca_chain(&conf, &cacert, NULL);
+    mbedtls_ssl_conf_rng(&conf, mbedtls_ctr_drbg_random, &ctr_drbg);
+    mbedtls_ssl_conf_dbg(&conf, my_debug, stdout);
+
+    if ((ret = mbedtls_ssl_setup(&ssl, &conf)) != 0) {
+        printf(" failed\n  ! mbedtls_ssl_setup returned %d\n\n", ret);
+        exit(1);
+    }
+
+    if ((ret = mbedtls_ssl_set_hostname(&ssl, server_name)) != 0) {
+        printf(" failed\n  ! mbedtls_ssl_set_hostname returned %d\n\n", ret);
+        exit(1);
+    }
+
+    mbedtls_ssl_set_bio(&ssl, &server_fd, mbedtls_net_send, mbedtls_net_recv, NULL);
+
+    printf("  . Performing the SSL/TLS handshake...");
+    fflush(stdout);
+
+    while ((ret = mbedtls_ssl_handshake(&ssl)) != 0) {
+        if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
+            printf(" failed\n  ! mbedtls_ssl_handshake returned -0x%x\n\n", -ret);
+            exit(1);
+        }
+    }
+
+    printf(" ok\n");
+
+    // verify the server certificate
+    printf("  . Verifying peer X.509 certificate...");
+
+    /* In real life, we probably want to bail out when ret != 0 */
+    if ((flags = mbedtls_ssl_get_verify_result(&ssl)) != 0) {
+        char vrfy_buf[512];
+
+        printf(" failed\n");
+
+        mbedtls_x509_crt_verify_info(vrfy_buf, sizeof(vrfy_buf), "  ! ", flags);
+
+        printf("%s\n", vrfy_buf);
+    } else
+        printf(" ok\n");
+
+
     struct timeval start;
     gettimeofday(&start, NULL);
 
     // establish connection to iee_comm server
-    const int socket = untrusted_util::socket_connect(server_name, server_port);
+    //const int socket = untrusted_util::socket_connect(server_name, server_port);
 
     // image descriptor parameters
     Ptr<SURF> surf = SURF::create(surf_threshold);
@@ -435,7 +538,7 @@ int main(int argc, char** argv) {
     uint8_t* in = NULL;
 
     init(&in, &in_len, nr_clusters, desc_len);
-    iee_comm(socket, in, in_len);
+    iee_comm(&ssl, in, in_len);
     free(in);
 
     if (!load_clusters) {
@@ -443,18 +546,18 @@ int main(int argc, char** argv) {
         for (unsigned i = 0; i < files.size(); i++) {
             printf("Train img (%u/%lu) %s\n", i, files.size(), files[i].c_str());
             add_train_images(&in, &in_len, surf, files[i]);
-            iee_comm(socket, in, in_len);
+            iee_comm(&ssl, in, in_len);
             free(in);
             printf("\n");
         }
 
         // train
         train(&in, &in_len);
-        iee_comm(socket, in, in_len);
+        iee_comm(&ssl, in, in_len);
         free(in);
     } else {
         train_load_clusters(&in, &in_len);
-        iee_comm(socket, in, in_len);
+        iee_comm(&ssl, in, in_len);
         free(in);
     }
 
@@ -469,13 +572,13 @@ int main(int argc, char** argv) {
     if (load_uee) {
         // tell iee to load images from disc
         unsigned char op = OP_IEE_READ_MAP;
-        iee_comm(socket, &op, 1);
+        iee_comm(&ssl, &op, 1);
     } else {
         // add images to repository
         for (unsigned i = 0; i < files.size(); i++) {
             printf("Add img (%u/%lu)\n\n", i, files.size());
             add_images(&in, &in_len, surf, files[i]);
-            iee_comm(socket, in, in_len);
+            iee_comm(&ssl, in, in_len);
             free(in);
         }
     }
@@ -486,24 +589,24 @@ int main(int argc, char** argv) {
     if (write_uee) {
         // send persist message to iee
         unsigned char op = OP_IEE_WRITE_MAP;
-        iee_comm(socket, &op, 1);
+        iee_comm(&ssl, &op, 1);
     }
 
     // search
     if (do_search_test) {
-        search_test(socket, surf);
+        search_test(&ssl, surf);
     } else {
         //TODO perform a search from args?
         gettimeofday(&start, NULL);
 
         search(&in, &in_len, surf, get_filenames(10)[0]);
-        iee_send(socket, in, in_len);
+        iee_send(&ssl, in, in_len);
         free(in);
 
         // receive response and print
         size_t res_len;
         uint8_t* res;
-        iee_recv(socket, &res, &res_len);
+        iee_recv(&ssl, &res, &res_len);
 
         unsigned nr;
         memcpy(&nr, res, sizeof(unsigned));
@@ -524,14 +627,23 @@ int main(int argc, char** argv) {
         printf("-- Search elapsed time: %ldms--\n", untrusted_util::time_elapsed_ms(start, end));
     }
 
-
     // clear
     clear(&in, &in_len);
-    iee_comm(socket, in, in_len);
+    iee_comm(&ssl, in, in_len);
     free(in);
 
     gettimeofday(&end, NULL);
     printf("Total elapsed time: %ldms\n", untrusted_util::time_elapsed_ms(start, end));
+
+    // close ssl connection
+    mbedtls_ssl_close_notify( &ssl );
+
+    // ssl cleanup
+    mbedtls_net_free(&server_fd);
+    mbedtls_ssl_free(&ssl);
+    mbedtls_ssl_config_free(&conf);
+    mbedtls_ctr_drbg_free(&ctr_drbg);
+    mbedtls_entropy_free(&entropy);
 
     return 0;
 }

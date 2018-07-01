@@ -45,8 +45,8 @@ set(sgx_cpp_flags "${sgx_c_flags} -nostdinc++")
 
 # directories for modules
 set(LIB_UNTRUSTED_DIR ${FRAMEWORK_DIR}/src/LibUntrusted)
+set(LIB_UNTRUSTED_TLS_DIR ${FRAMEWORK_DIR}/src/LibUntrustedTLS)
 set(LIB_TRUSTED_DIR ${FRAMEWORK_DIR}/src/LibTrusted)
-set(LIB_TRUSTED_SIM_DIR ${FRAMEWORK_DIR}/src/LibTrustedSim)
 set(SERVER_DIR ${FRAMEWORK_DIR}/src/Uee)
 set(CLIENT_DIR ${FRAMEWORK_DIR}/src/Client)
 set(IEE_COMM_DIR ${FRAMEWORK_DIR}/src/IeeComm)
@@ -55,6 +55,10 @@ set(IEE_DIR ${FRAMEWORK_DIR}/src/Iee)
 # lib untrusted
 set(LIB_UNTRUSTED untrusted_util)
 add_subdirectory(${LIB_UNTRUSTED_DIR})
+
+# lib untrusted tls
+set(LIB_UNTRUSTED_TLS untrusted_util_tls)
+add_subdirectory(${LIB_UNTRUSTED_TLS_DIR})
 
 # lib trusted
 set(LIB_TRUSTED trusted_util)

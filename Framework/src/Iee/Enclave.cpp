@@ -45,20 +45,20 @@ void ecall_process(void** out, size_t* out_len, const void* in, const size_t in_
     memset(nonce, 0x00, crypto_secretbox_NONCEBYTES);
 
     // decrypt input
-    uint8_t* in_unenc = (uint8_t*)malloc(in_len - SODIUM_EXPBYTES);
-    tcrypto::sodium_decrypt(in_unenc, (uint8_t*)in, in_len, nonce, key);
+    //uint8_t* in_unenc = (uint8_t*)malloc(in_len - SODIUM_EXPBYTES);
+    //tcrypto::sodium_decrypt(in_unenc, (uint8_t*)in, in_len, nonce, key);
 
     // prepare unencrypted output
-    size_t out_unenc_len = 0;
-    uint8_t* out_unenc = NULL;
-    extern_lib::process_message(&out_unenc, &out_unenc_len, (const uint8_t *) in_unenc, in_len - SODIUM_EXPBYTES);
+    //size_t out_unenc_len = 0;
+    //uint8_t* out_unenc = NULL;
+    extern_lib::process_message((uint8_t**)out, out_len, (const uint8_t *) in, in_len);
 
     // encrypt output
-    *out_len = out_unenc_len + SODIUM_EXPBYTES;
-    *out = outside_util::outside_malloc(*out_len);
-    tcrypto::sodium_encrypt((uint8_t*)*out, out_unenc, out_unenc_len, nonce, key);
+    //*out_len = out_unenc_len + SODIUM_EXPBYTES;
+    //*out = malloc(*out_len);
+    //tcrypto::sodium_encrypt((uint8_t*)*out, out_unenc, out_unenc_len, nonce, key);
 
     // cleanup
-    free(in_unenc);
-    free(out_unenc);
+    //free(in_unenc);
+    //free(out_unenc);
 }

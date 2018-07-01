@@ -13,7 +13,9 @@ else()
 endif()
 
 # base paths
-set(MBEDTLS_DIR /home/guilherme/libs/mbedtls-SGX/build/mbedtls_SGX-2.6.0)
+set(MBEDTLS_SGX_DIR /home/guilherme/libs/mbedtls-SGX/build/mbedtls_SGX-2.6.0)
+set(MBEDTLS_DIR /home/guilherme/libs/mbedtls)
+
 set(FRAMEWORK_DIR ${CMAKE_SOURCE_DIR}/${FRAMEWORK_NAME})
 set(EXTERN_DIR ${CMAKE_SOURCE_DIR}/ImageSearch)
 set(EXTERN_LIB_NAME ImageSearch)

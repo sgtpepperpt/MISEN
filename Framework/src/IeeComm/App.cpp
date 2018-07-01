@@ -108,11 +108,15 @@ int SGX_CDECL main(int argc, const char **argv) {
     // mbedtls
     ssl_conn_init(eid);
 
-    printf("  . Bind on https://localhost:4433/ ...");
+    printf("  . Bind on https://localhost:%d/ ...", server_port);
     fflush(stdout);
 
+    // put port in char buf
+    char port[5];
+    sprintf(port, "%d", server_port);
+
     int ret;
-    if ((ret = mbedtls_net_bind(&listen_fd, NULL, "4433", MBEDTLS_NET_PROTO_TCP)) != 0) {
+    if ((ret = mbedtls_net_bind(&listen_fd, NULL, port, MBEDTLS_NET_PROTO_TCP)) != 0) {
         printf(" failed\n  ! mbedtls_net_bind returned %d\n\n", ret);
         exit(-1);
     }
