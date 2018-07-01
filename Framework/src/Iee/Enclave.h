@@ -9,7 +9,7 @@ extern "C" {
 
 void ecall_init_enclave(unsigned nr_threads);
 void ecall_thread_enter();
-void ecall_process(void** out, size_t* out_len, const void* in, const size_t in_len);
+//void ecall_process(void** out, size_t* out_len, const void* in, const size_t in_len);
 
 #if defined(__cplusplus)
 }

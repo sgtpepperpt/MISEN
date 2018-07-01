@@ -258,8 +258,8 @@ void TLSConnectionHandler::handle(long thread_id, thread_info_t* thread_info) {
         void* out;
         size_t out_len;
 
-        // execute ecall
-        ecall_process(&out, &out_len, in_buffer, (const size_t)in_len);
+        // execute extern lib processing
+        extern_lib::process_message((uint8_t**)&out, &out_len, (const uint8_t *)in_buffer, (const size_t)in_len);
         free(in_buffer);
 
         // send to client

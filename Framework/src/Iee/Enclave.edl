@@ -8,7 +8,7 @@ enclave {
     trusted {
         public void ecall_init_enclave(unsigned nr_threads);
         public void ecall_thread_enter();
-        public void ecall_process([out]void** out, [out]size_t* out_len, [in, size = in_len]const void* in, size_t in_len);
+        //public void ecall_process([out]void** out, [out]size_t* out_len, [in, size = in_len]const void* in, size_t in_len);
 
         // mbedtls_sgx
         public int sgx_accept();
