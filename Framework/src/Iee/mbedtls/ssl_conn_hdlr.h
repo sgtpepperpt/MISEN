@@ -53,10 +53,6 @@ using std::string;
 
 class TLSConnectionHandler {
 private:
-    /*
-     * static members
-     */
-    const static string pers;
     static sgx_thread_mutex_t mutex;
 
     /*

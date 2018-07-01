@@ -107,7 +107,6 @@ int SGX_CDECL main(int argc, const char **argv) {
 
     // mbedtls
     ssl_conn_init(eid);
-
     printf("  . Bind on https://localhost:%d/ ...", server_port);
     fflush(stdout);
 
@@ -140,7 +139,7 @@ int SGX_CDECL main(int argc, const char **argv) {
         data->info->config = NULL;
         data->info->thread_complete = 0;
 
-        // 3. Wait until a client connects
+        // wait until a client connects
         if (0 != mbedtls_net_set_nonblock(&listen_fd))
             printf("can't set nonblock for the listen socket\n");
 
@@ -154,7 +153,6 @@ int SGX_CDECL main(int argc, const char **argv) {
             break;
         }
 
-        printf("  [ main ]  ok\n");
         printf("  [ main ]  Creating a new thread for client %d\n", client_fd.fd);
 
         memcpy(&data->info->client_fd, &client_fd, sizeof(mbedtls_net_context));

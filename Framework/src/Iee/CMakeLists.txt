@@ -19,7 +19,7 @@ link_directories(${SGX_LIBRARY_PATH} ${MBEDTLS_SGX_DIR}/lib)
 
 add_executable(${ENCLAVE_NAME}
         ${IEE_DIR}/Enclave_t.c ${IEE_DIR}/Enclave.cpp ${IEE_DIR}/thread_handler.cpp
-        ${IEE_DIR}/mbedtls/ecalls.cpp ${IEE_DIR}/mbedtls/pprint.c ${IEE_DIR}/mbedtls/s_server.c ${IEE_DIR}/mbedtls/ssl_conn_hdlr.cpp)
+        ${IEE_DIR}/mbedtls/ecalls.cpp ${IEE_DIR}/mbedtls/pprint.c ${IEE_DIR}/mbedtls/ssl_conn_hdlr.cpp)
 add_dependencies(${ENCLAVE_NAME} edger8r_trusted)
 
 # includes and linking

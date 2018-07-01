@@ -11,7 +11,6 @@ enclave {
         //public void ecall_process([out]void** out, [out]size_t* out_len, [in, size = in_len]const void* in, size_t in_len);
 
         // mbedtls_sgx
-        public int sgx_accept();
         public void ssl_conn_init(void);
         public void ssl_conn_teardown(void);
         public void ssl_conn_handle(long int thread_id, [in,out] thread_info_t* thread_info);

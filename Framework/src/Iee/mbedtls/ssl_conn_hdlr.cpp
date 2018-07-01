@@ -68,6 +68,7 @@ TLSConnectionHandler::TLSConnectionHandler() {
 
     // seed the random number generator
     outside_util::printf("Seeding the random number generator\n");
+    std::string pers = "ssl_pthread_server";
     if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char*)pers.c_str(), pers.length())) != 0) {
         outside_util::printf(" failed: mbedtls_ctr_drbg_seed returned -0x%04x\n", -ret);
         throw std::runtime_error("");
@@ -277,7 +278,6 @@ void TLSConnectionHandler::handle(long thread_id, thread_info_t* thread_info) {
     thread_info->thread_complete = 1;
 }
 
-const string TLSConnectionHandler::pers = "ssl_pthread_server";
 sgx_thread_mutex_t TLSConnectionHandler::mutex = SGX_THREAD_MUTEX_INITIALIZER;
 
 void TLSConnectionHandler::mydebug(void* ctx, int level, const char* file, int line, const char* str) {
