@@ -38,44 +38,6 @@ void* ecall_handle_ssl_connection(void* data) {
     return NULL;
 }
 
-/*
- DEPRECATED, logic goes into enclave
-void* process_client(void* args) {
-    const int socket = ((client_data *)args)->socket;
-    sgx_enclave_id_t eid = ((client_data *)args)->eid;
-    free(args);
-
-    while (1) {
-        size_t in_len;
-        untrusted_util::socket_receive(socket, &in_len, sizeof(size_t));
-
-        void *in_buffer = malloc(in_len);
-        untrusted_util::socket_receive(socket, in_buffer, in_len);
-
-        void* out;
-        size_t out_len;
-
-        // execute ecall
-        sgx_status_t status = ecall_process(eid, &out, &out_len, in_buffer, in_len);
-        free(in_buffer);
-
-        // verify return values from sgx
-        if (status != SGX_SUCCESS) {
-            print_error_message(status);
-            exit(-1);
-        }
-
-        // send to client
-        untrusted_util::socket_send(socket, &out_len, sizeof(size_t));
-        untrusted_util::socket_send(socket, out, out_len);
-
-        free(out);
-    }
-
-    printf("Client closed\n");
-    close(socket);
-}*/
-
 int SGX_CDECL main(int argc, const char **argv) {
     // port to start the server on
     const int server_port = IEE_PORT;
@@ -107,8 +69,7 @@ int SGX_CDECL main(int argc, const char **argv) {
 
     // mbedtls
     ssl_conn_init(eid);
-    printf("  . Bind on https://localhost:%d/ ...", server_port);
-    fflush(stdout);
+    printf("binding on https://localhost:%d...\n", server_port);
 
     // put port in char buf
     char port[5];
@@ -120,10 +81,9 @@ int SGX_CDECL main(int argc, const char **argv) {
         exit(-1);
     }
 
-    printf(" ok\n");
-    printf("  [ main ]  Waiting for a remote connection\n");
+    printf("[main] waiting for a remote connection...\n");
 
-    while (true) {
+    while (1) {
 #ifdef MBEDTLS_ERROR_C
         if (ret != 0) {
             char error_buf[100];
@@ -153,13 +113,13 @@ int SGX_CDECL main(int argc, const char **argv) {
             break;
         }
 
-        printf("  [ main ]  Creating a new thread for client %d\n", client_fd.fd);
+        printf("[main] creating a new thread for client %d\n", client_fd.fd);
 
         memcpy(&data->info->client_fd, &client_fd, sizeof(mbedtls_net_context));
 
         pthread_t tid;
         if ((ret = pthread_create(&tid, NULL, ecall_handle_ssl_connection, data)) != 0) {
-            printf("  [ main ]  failed: thread_create returned %d\n", ret);
+            printf("[main] failed: thread_create returned %d\n", ret);
             mbedtls_net_free(&client_fd);
             continue;
         }
