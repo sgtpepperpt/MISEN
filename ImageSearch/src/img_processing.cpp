@@ -8,7 +8,7 @@
 #include "outside_util.h"
 
 #include "parallel.h"
-#include "seq-kmeans/util.h"
+#include "training/util.h"
 
 #if PARALLEL_IMG_PROCESSING
 static void* parallel_process(void* args) {

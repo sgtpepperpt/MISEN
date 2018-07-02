@@ -24,7 +24,7 @@ typedef struct dist_args {
 
 #define PARALLEL_IMG_PROCESSING 1
 #if PARALLEL_IMG_PROCESSING
-#include <src/seq-kmeans/bagofwords.h>
+#include "training/bagofwords.h"
 typedef struct process_args {
     size_t start;
     size_t end;

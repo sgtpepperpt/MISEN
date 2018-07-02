@@ -23,6 +23,15 @@ add_executable(IeeComm
         ${IEE_COMM_DIR}/mbedtls/mbedtls_error.c ${IEE_COMM_DIR}/mbedtls/mbedtls_net.c)
 
 add_dependencies(IeeComm edger8r_untrusted)
-#TODO check that weird .. include
-target_include_directories(IeeComm PRIVATE ${FRAMEWORK_INCLUDE_DIR} ${EXTERN_INCLUDE_DIR} ${IEE_COMM_DIR}/mbedtls ${IEE_COMM_DIR} ${IEE_COMM_DIR}/ocall ${IEE_COMM_DIR}/sgx_handler ${IEE_COMM_DIR}/threading ${IEE_COMM_DIR}/../${IEE_DIR} ${SGX_SDK}/include ${MBEDTLS_SGX_DIR}/include)
+
+target_include_directories(IeeComm PRIVATE
+        ${FRAMEWORK_INCLUDE_DIR}
+        ${EXTERN_INCLUDE_DIR}
+        ${IEE_COMM_DIR}
+        ${IEE_COMM_DIR}/mbedtls
+        ${IEE_COMM_DIR}/ocall
+        ${IEE_COMM_DIR}/sgx_handler
+        ${IEE_COMM_DIR}/threading
+        ${SGX_SDK}/include
+        ${MBEDTLS_SGX_DIR}/include)
 target_link_libraries(IeeComm ${LIB_UNTRUSTED} sgx_urts pthread sgx_uae_service sgx_uprotected_fs mbedtls_SGX_u)

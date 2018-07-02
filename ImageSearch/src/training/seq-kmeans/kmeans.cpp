@@ -5,9 +5,9 @@
 
 #include "outside_util.h"
 #include "trusted_util.h"
-#include "util.h"
+#include "training/util.h"
 
-#include "../parallel.h"//TODO why the ".."?
+#include "parallel.h"
 
 void online_kmeans_init(float* descriptors, const size_t nr_descs, kmeans_data* data) {
     assertion(nr_descs >= data->k);
