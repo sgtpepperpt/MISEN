@@ -30,8 +30,8 @@ void train_add_image(BagOfWordsTrainer* k, unsigned long id, size_t nr_desc, con
     img_descriptor* descriptor = (img_descriptor*)malloc(sizeof(img_descriptor));
     descriptor->count = nr_desc;
 
-    descriptor->buffer = (float*)malloc(nr_desc * k->desc_len() * sizeof(float));
-    memcpy(descriptor->buffer, in + sizeof(unsigned long) + sizeof(size_t), nr_desc * k->desc_len() * sizeof(float));
+    descriptor->buffer = (float*)malloc(nr_desc * k->get_desc_len() * sizeof(float));
+    memcpy(descriptor->buffer, in + sizeof(unsigned long) + sizeof(size_t), nr_desc * k->get_desc_len() * sizeof(float));
 
     k->add_descriptors(descriptor);
 }
@@ -43,7 +43,7 @@ void train_kmeans(BagOfWordsTrainer* k) {
     // debug: save to file
     void* file = trusted_util::open_secure("centres", "w");
     //outside_util::printf("file des %p\n", file);
-    trusted_util::write_secure(k->get_all_centres(), k->nr_centres(), sizeof(float) * k->desc_len(), file);
+    trusted_util::write_secure(k->get_all_centres(), k->nr_centres(), sizeof(float) * k->get_desc_len(), file);
     trusted_util::close_secure(file);
 }
 
@@ -51,8 +51,8 @@ void train_kmeans_load(BagOfWordsTrainer* k) {
     // for debugging purposes for now
     // assumes current repository config was the same when the file was created (same desc_len and k)
     void* file = trusted_util::open_secure("centres", "r");
-    void* centres = malloc(k->nr_centres() * sizeof(float) * k->desc_len());
-    trusted_util::read_secure(centres, k->nr_centres(), sizeof(float) * k->desc_len(), file);
+    void* centres = malloc(k->nr_centres() * sizeof(float) * k->get_desc_len());
+    trusted_util::read_secure(centres, k->nr_centres(), sizeof(float) * k->get_desc_len(), file);
     trusted_util::close_secure(file);
 
     k->set_centres(centres);

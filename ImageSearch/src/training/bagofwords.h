@@ -25,7 +25,7 @@ public:
     void cleanup();
     int is_full_after(size_t to_add);
     size_t nr_centres();
-    size_t desc_len();
+    size_t get_desc_len();
     float* get_centre(int k);
     const float* const get_all_centres();
 

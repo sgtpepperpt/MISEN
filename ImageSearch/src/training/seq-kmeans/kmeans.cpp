@@ -9,7 +9,7 @@
 
 #include "parallel.h"
 
-void online_kmeans_init(float* descriptors, const size_t nr_descs, kmeans_data* data) {
+void train_kmeans_init(float* descriptors, const size_t nr_descs, kmeans_data* data) {
     assertion(nr_descs >= data->k);
 
     memset(data->centres, 0x00, data->k * data->desc_len * sizeof(float));
@@ -47,7 +47,7 @@ void* parallel_calc_distances(void* args) {
 }
 #endif
 
-double online_kmeans(float* descriptors, const size_t nr_descs, kmeans_data* data) {
+double train_kmeans(float* descriptors, const size_t nr_descs, kmeans_data* data) {
     untrusted_time start = outside_util::curr_time();
 
     double compactness = 0;

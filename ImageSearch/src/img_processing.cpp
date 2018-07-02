@@ -52,7 +52,7 @@ const unsigned* process_new_image(BagOfWordsTrainer* k, const size_t nr_desc, fl
         args[j].descriptors = descriptors;
         args[j].frequencies = frequencies;
         args[j].nr_centres = k->nr_centres();
-        args[j].desc_len = k->desc_len();
+        args[j].desc_len = k->get_desc_len();
         args[j].k = k;
 
         if(j == 0) {

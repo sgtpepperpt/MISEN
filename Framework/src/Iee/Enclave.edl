@@ -38,6 +38,10 @@ enclave {
         void* ocall_untrusted_malloc(size_t length);
         void ocall_untrusted_free(size_t pointer); // we use size_t as we only need the pointer to the malloc, and not the value pointed too, as sgx would assume if passing void*
 
+        // DEBUG: for outside kmeans
+        void ocall_set(size_t num_elems, [user_check]float* buffer);
+        float* ocall_get(int pos);
+
         // outside comm
         int ocall_process([out]void** out, [out]size_t* out_len, [in, size = in_len]const void* in, size_t in_len);
     };

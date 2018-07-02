@@ -40,7 +40,7 @@ size_t BagOfWordsTrainer::nr_centres() {
     return kmeans->k;
 }
 
-size_t BagOfWordsTrainer::desc_len() {
+size_t BagOfWordsTrainer::get_desc_len() {
     return kmeans->desc_len;
 }
 
@@ -67,18 +67,18 @@ void BagOfWordsTrainer::cluster() {
     if(descriptors.empty())
         return;
 
-    float *all_descriptors = (float*)malloc(total_descriptors * kmeans->desc_len * sizeof(float));
+    float* all_descriptors = (float*)malloc(total_descriptors * kmeans->desc_len * sizeof(float));
     //printf("total %lu desc %lu - %lu %p\n", total_descriptors, kmeans->desc_len, total_descriptors * kmeans->desc_len * sizeof(float), all_descriptors);
-    float *tmp = all_descriptors;
+    float* tmp = all_descriptors;
     for (list<img_descriptor*>::iterator it = descriptors.begin(); it != descriptors.end(); ++it) {
         memcpy(tmp, (*it)->buffer, kmeans->desc_len * (*it)->count * sizeof(float));
         tmp += kmeans->desc_len * (*it)->count;// * sizeof(float);
     }
 
     if(!kmeans->started)
-        online_kmeans_init(all_descriptors, total_descriptors, kmeans);
+        train_kmeans_init(all_descriptors, total_descriptors, kmeans);
     else
-        online_kmeans(all_descriptors, total_descriptors, kmeans);
+        train_kmeans(all_descriptors, total_descriptors, kmeans);
 
     free(all_descriptors);
 

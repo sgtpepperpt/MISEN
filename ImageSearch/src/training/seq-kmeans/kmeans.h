@@ -11,7 +11,7 @@ typedef struct kmeans_data {
     int started;
 } kmeans_data;
 
-void online_kmeans_init(float* descriptors, const size_t nr_descs, kmeans_data* data);
-double online_kmeans(float* descriptors, const size_t nr_descs, kmeans_data* data);
+void train_kmeans_init(float* descriptors, const size_t nr_descs, kmeans_data* data);
+double train_kmeans(float* descriptors, const size_t nr_descs, kmeans_data* data);
 
 #endif

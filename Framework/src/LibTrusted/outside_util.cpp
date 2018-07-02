@@ -122,6 +122,26 @@ untrusted_time outside_util::curr_time() {
 }
 /*************************************************** END ALLOCATORS ***************************************************/
 
+//DEBUG: for outside kmeans
+void outside_util::set(size_t num_elems, float* buffer) {
+    sgx_status_t sgx_ret = ocall_set(num_elems, buffer);
+    if(sgx_ret != SGX_SUCCESS) {
+        outside_util::printf("OCALL ERROR ON RETURN: %ld\n", sgx_ret);
+        ocall_exit(-1);
+    }
+}
+
+float* outside_util::get(const int pos) {
+    float* ret;
+    sgx_status_t sgx_ret = ocall_get(&ret, pos);
+    if(sgx_ret != SGX_SUCCESS) {
+        outside_util::printf("OCALL ERROR ON RETURN: %ld\n", sgx_ret);
+        ocall_exit(-1);
+    }
+
+    return ret;
+}
+
 /****************************************************** GENERIC ******************************************************/
 int outside_util::process(void **out, size_t *out_len, const void *in, const size_t in_len) {
     int retval;

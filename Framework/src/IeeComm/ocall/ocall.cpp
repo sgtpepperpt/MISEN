@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <time.h>
+#include <string.h>
 
 #include "definitions.h"
 #include "extern_lib.h"
@@ -70,6 +71,50 @@ void ocall_uee_process(const int socket, void** out, size_t* out_len, const void
 void ocall_close_uee_connection(const int socket) {
     close(socket);
 }
+
+//DEBUG: for outside kmeans
+float** all = NULL;
+int count = 0;
+
+int* ranges;
+
+void ocall_set(size_t num_elems, float* buffer) {
+    if(!all){
+        printf("all initialisation\n");
+        all =  new float*[5000000];
+        ranges = new int[100];
+    }
+
+    float* desc = (float*)malloc(num_elems * 64 * sizeof(float));
+    memcpy(desc, buffer, num_elems * 64 * sizeof(float));
+
+    all[count++] = desc;
+    /*
+    //printf("initialised\n");
+    float* desc = (float*)malloc(num_elems * 64 * sizeof(float));
+    memcpy(desc, buffer, num_elems * 64 * sizeof(float));
+    all[count] = desc;
+    ranges[count++] = count;
+    printf("count %d\n", count);*/
+}
+int aaccess = 0;
+float* ocall_get(const int pos) {
+    if(aaccess++ % 10000000 == 0)
+        printf("access %d\n", aaccess);
+
+    return all[pos];
+/*
+    int sum = 0;
+    int p = 0;
+    while(pos < ranges[p]) {
+        p++;
+        sum += ranges[p];
+    }
+    int x = pos - sum;
+    printf("count %d\n", count);
+    return all[p] + 64 * sizeof(float) * x;*/
+}
+//DEBUG: for outside kmeans end
 
 /***************************************************** ALLOCATORS *****************************************************/
 void* ocall_untrusted_malloc(size_t length) {

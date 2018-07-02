@@ -38,7 +38,7 @@ TLSConnectionHandler::TLSConnectionHandler() {
     /*
      * 1. Load the certificates and private RSA key
      */
-    outside_util::printf("\n  . Loading the server cert. and key...");
+    outside_util::printf("loading the server cert and key...\n");
 
     /*
      * This demonstration program uses embedded test certificates.
@@ -47,24 +47,22 @@ TLSConnectionHandler::TLSConnectionHandler() {
      */
     ret = mbedtls_x509_crt_parse(&srvcert, (const unsigned char*)mbedtls_test_srv_crt, mbedtls_test_srv_crt_len);
     if (ret != 0) {
-        outside_util::printf(" failed\n  !  mbedtls_x509_crt_parse returned %d\n\n", ret);
+        outside_util::printf("failed\n  !  mbedtls_x509_crt_parse returned %d\n\n", ret);
         outside_util::exit(1);
     }
 
     ret = mbedtls_x509_crt_parse(&cachain, (const unsigned char*)mbedtls_test_cas_pem, mbedtls_test_cas_pem_len);
     if (ret != 0) {
-        outside_util::printf(" failed\n  !  mbedtls_x509_crt_parse returned %d\n\n", ret);
+        outside_util::printf("failed\n  !  mbedtls_x509_crt_parse returned %d\n\n", ret);
         outside_util::exit(1);
     }
 
     mbedtls_pk_init(&pkey);
     ret = mbedtls_pk_parse_key(&pkey, (const unsigned char*)mbedtls_test_srv_key, mbedtls_test_srv_key_len, NULL, 0);
     if (ret != 0) {
-        outside_util::printf(" failed\n  !  mbedtls_pk_parse_key returned %d\n\n", ret);
+        outside_util::printf("failed\n  !  mbedtls_pk_parse_key returned %d\n\n", ret);
         outside_util::exit(1);
     }
-
-    outside_util::printf(" ok\n");
 
     // seed the random number generator
     outside_util::printf("Seeding the random number generator\n");
@@ -100,11 +98,9 @@ TLSConnectionHandler::TLSConnectionHandler() {
 
     mbedtls_ssl_conf_ca_chain(&conf, &cachain, NULL);
     if ((ret = mbedtls_ssl_conf_own_cert(&conf, &srvcert, &pkey)) != 0) {
-        outside_util::printf(" failed\n  ! mbedtls_ssl_conf_own_cert returned %d\n\n", ret);
+        outside_util::printf("failed\n  ! mbedtls_ssl_conf_own_cert returned %d\n\n", ret);
         throw std::runtime_error("");
     }
-
-    outside_util::printf(" ok\n");
 }
 
 TLSConnectionHandler::~TLSConnectionHandler() {
