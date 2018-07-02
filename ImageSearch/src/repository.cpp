@@ -9,6 +9,8 @@
 repository* repository_init(unsigned nr_clusters, size_t desc_len) {
     repository* r = (repository*)malloc(sizeof(repository));
 
+    r->desc_len = desc_len;
+    r->cluster_count = nr_clusters;
     r->k = new BagOfWordsTrainer(nr_clusters, desc_len);
 
     // generate keys

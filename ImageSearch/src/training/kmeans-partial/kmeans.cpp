@@ -1,5 +1,4 @@
 #include "kmeans.h"
-#include "sgx_tprotected_fs.h"
 
 #include "trusted_crypto.h"
 #include <vector>
@@ -12,7 +11,7 @@ using namespace std;
 k-means centre initialisation using the following algorithm:
 Arthur & Vassilvitskii (2007) k-means++: The Advantages of Careful Seeding
 */
-static void generateCentersPP(const int socket, const size_t nr_rows, float* _out_centres, const size_t row_len, const unsigned nr_centres) {
+static void generateCentersPP(/*const int socket, */const size_t nr_rows, float* _out_centres, const size_t row_len, const unsigned nr_centres) {
     const int NR_TRIALS = 3;
     int * _centres = (int*)malloc(nr_centres * sizeof(int));
     float *_dist = (float*)malloc(nr_rows * 3 * sizeof(float));
@@ -48,7 +47,7 @@ static void generateCentersPP(const int socket, const size_t nr_rows, float* _ou
         float* buffer_row = outside_util::get(i);
         float* buffer_row2 = outside_util::get(centres[0]);
 
-        dist[i] = normL2Sqr(buffer_row, buffer_row2, row_len);
+        dist[i] = calc_distance(buffer_row, buffer_row2, row_len);
         sum0 += dist[i];
 
         //outside_util::printf("will try free\n");
@@ -72,7 +71,7 @@ static void generateCentersPP(const int socket, const size_t nr_rows, float* _ou
                     break;
             }
 
-            KMeansPPDistanceComputer(socket, tdist2, dist, ci, row_len).compute(0, nr_rows);
+            KMeansPPDistanceComputer(/*socket, */tdist2, dist, ci, row_len).compute(0, nr_rows);
             double s = 0;
             for (unsigned i = 0; i < nr_rows; i++)
                 s += tdist2[i];
@@ -121,7 +120,7 @@ static void generateCentersPP(const int socket, const size_t nr_rows, float* _ou
     free(_dist);
 }
 
-double kmeans(const int socket, const size_t nr_rows, const size_t row_len, const unsigned nr_centres, int* nlabels, unsigned attempts, float* _centres) {
+double train_kmeans(/*const int socket,*/const size_t nr_rows, const size_t row_len, const unsigned nr_centres, int* nlabels, unsigned attempts, float* _centres) {
     assertion(nr_centres > 0);
     assertion(nr_rows >= nr_centres);
 
@@ -154,7 +153,7 @@ double kmeans(const int socket, const size_t nr_rows, const size_t row_len, cons
             swap(centres, old_centres);
 
             if (iter == 0) {
-                generateCentersPP(socket, nr_rows, centres, row_len, nr_centres);
+                generateCentersPP(/*socket, */nr_rows, centres, row_len, nr_centres);
             } else {
                 // compute centres
                 memset(centres, 0x00, row_len * nr_centres * sizeof(float));
@@ -219,7 +218,7 @@ double kmeans(const int socket, const size_t nr_rows, const size_t row_len, cons
                         float* buffer_row = outside_util::get(i);
 
                         const float* sample = buffer_row;
-                        double dist = normL2Sqr(sample, _base_center, row_len);
+                        double dist = calc_distance(sample, _base_center, row_len);
                         outside_util::outside_free(buffer_row);
 
                         if (max_dist <= dist) {
@@ -276,7 +275,7 @@ double kmeans(const int socket, const size_t nr_rows, const size_t row_len, cons
 
             if(is_last_iter) {
                 // don't re-assign labels to avoid creation of empty clusters
-                KMeansDistanceComputer(socket, dists, nlabels, centres, true, row_len, nr_centres).compute(0, nr_rows);
+                KMeansDistanceComputer(/*socket, */dists, nlabels, centres, true, row_len, nr_centres).compute(0, nr_rows);
 
                 // calc compactness by summing all dists
                 compactness = 0;
@@ -286,7 +285,7 @@ double kmeans(const int socket, const size_t nr_rows, const size_t row_len, cons
                 break;
             } else {
                 // assign labels
-                KMeansDistanceComputer(socket, dists, nlabels, centres, false, row_len, nr_centres).compute(0, nr_rows);
+                KMeansDistanceComputer(/*socket, */dists, nlabels, centres, false, row_len, nr_centres).compute(0, nr_rows);
             }
         }
 

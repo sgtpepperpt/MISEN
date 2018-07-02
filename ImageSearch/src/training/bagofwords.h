@@ -6,14 +6,21 @@
 #include <vector>
 
 #include "outside_util.h"
-#include "kmeans.h"
 
 #define MAX_DESCRIPTORS_MEM 150000
 
 typedef struct img_descriptor {
     unsigned count;
-    float* buffer;
+    float* descriptors;
 } img_descriptor;
+
+typedef struct kmeans_data {
+    size_t desc_len;
+    size_t k;
+    float* centres; // nr_clusters * desc_len
+    unsigned *counters; // nr_clusters
+    int started;
+} kmeans_data;
 
 class BagOfWordsTrainer {
 public:
@@ -29,6 +36,7 @@ public:
     float* get_centre(int k);
     const float* const get_all_centres();
 
+    void store(float* p);
     void cluster();
     //vector<unsigned> closest(float* descriptors, size_t nr_descriptors);
 
@@ -41,6 +49,7 @@ private:
     size_t total_descriptors;
 
     kmeans_data* kmeans;
+    float* centroids;
 };
 
 #endif

@@ -1,9 +1,6 @@
 #ifndef K_KMEANS_H
 #define K_KMEANS_H
 
-#include "sgx_tprotected_fs.h"
-
-
 #include <stdlib.h>
 #include <string.h>
 #include <float.h>
@@ -19,12 +16,12 @@ using namespace std;
 
 class KMeansPPDistanceComputer {
 public:
-    KMeansPPDistanceComputer(const int _socket, float *tdist2_, float *dist_, int ci_, const size_t _row_len) {
+    KMeansPPDistanceComputer(/*const int _socket, */float *tdist2_, float *dist_, int ci_, const size_t _row_len) {
         tdist2 = tdist2_;
         dist = dist_;
         ci = ci_;
         row_len = _row_len;
-        socket = _socket;
+        //socket = _socket;
     }
 
     void compute(const int begin, const int end) { // TODO use these
@@ -49,7 +46,7 @@ public:
             float* buffer_row = outside_util::get(i);
             float* buffer_row2 = outside_util::get(ci);
 
-            tdist2[i] = min(normL2Sqr(buffer_row, buffer_row2, row_len), dist[i]);
+            tdist2[i] = min(calc_distance(buffer_row, buffer_row2, row_len), dist[i]);
 
             //outside_util::outside_free(buffer_row);
             //outside_util::outside_free(buffer_row2);
@@ -61,19 +58,19 @@ private:
     float *dist;
     int ci;
     size_t row_len;
-    int socket;
+    //int socket;
 };
 
 class KMeansDistanceComputer {
 public:
-    KMeansDistanceComputer(const int socket_, double *distances_, int *labels_, float *centers_, const bool _only_distance, const size_t _row_len, const unsigned _nr_centres) {
+    KMeansDistanceComputer(/*const int socket_, */double *distances_, int *labels_, float *centers_, const bool _only_distance, const size_t _row_len, const unsigned _nr_centres) {
         distances = distances_;
         labels = labels_;
         centres = centers_;
         only_distance = _only_distance;
         row_len = _row_len;
         nr_centres = _nr_centres;
-        socket = socket_;
+        //socket = socket_;
     }
 
     void compute(int begin, int end) {
@@ -90,7 +87,7 @@ public:
             const float* sample = buffer_row;
             if (only_distance) {
                 const float *centre = centres + labels[i] * row_len;
-                distances[i] = normL2Sqr(sample, centre, row_len);
+                distances[i] = calc_distance(sample, centre, row_len);
                 continue;
             } else {
                 int k_best = 0;
@@ -98,7 +95,7 @@ public:
 
                 for (unsigned k = 0; k < nr_centres; k++) {
                     const float* centre = centres + k * row_len;
-                    const double dist = normL2Sqr(sample, centre, row_len);
+                    const double dist = calc_distance(sample, centre, row_len);
 
                     if (min_dist > dist) {
                         min_dist = dist;
@@ -121,9 +118,9 @@ private:
     bool only_distance;
     size_t row_len;
     unsigned nr_centres;
-    int socket;
+    //int socket;
 };
 
-double kmeans(const int socket, const size_t nr_rows, const size_t row_len, const unsigned nr_centres, int *nlabels, unsigned attempts, float *_centres);
+double train_kmeans(/*const int socket, */const size_t nr_rows, const size_t row_len, const unsigned nr_centres, int *nlabels, unsigned attempts, float *_centres);
 
 #endif

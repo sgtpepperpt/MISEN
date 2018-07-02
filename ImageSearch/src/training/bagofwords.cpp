@@ -1,6 +1,7 @@
 #include "bagofwords.h"
 
 #include <string.h>
+#include "kmeans.h"
 
 using namespace std;
 
@@ -50,7 +51,7 @@ float* BagOfWordsTrainer::get_centre(int k) {
 
 void BagOfWordsTrainer::cleanup() {
     while(!descriptors.empty()) {
-        free(descriptors.back()->buffer);
+        free(descriptors.back()->descriptors);
         free(descriptors.back());
         descriptors.pop_back();
     }
@@ -63,6 +64,10 @@ const float* const BagOfWordsTrainer::get_all_centres() {
     return kmeans->centres;
 }
 
+void BagOfWordsTrainer::store(float* p) {
+    centroids = p;
+}
+
 void BagOfWordsTrainer::cluster() {
     if(descriptors.empty())
         return;
@@ -71,7 +76,7 @@ void BagOfWordsTrainer::cluster() {
     //printf("total %lu desc %lu - %lu %p\n", total_descriptors, kmeans->desc_len, total_descriptors * kmeans->desc_len * sizeof(float), all_descriptors);
     float* tmp = all_descriptors;
     for (list<img_descriptor*>::iterator it = descriptors.begin(); it != descriptors.end(); ++it) {
-        memcpy(tmp, (*it)->buffer, kmeans->desc_len * (*it)->count * sizeof(float));
+        memcpy(tmp, (*it)->descriptors, kmeans->desc_len * (*it)->count * sizeof(float));
         tmp += kmeans->desc_len * (*it)->count;// * sizeof(float);
     }
 

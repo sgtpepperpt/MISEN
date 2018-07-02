@@ -79,16 +79,18 @@ int count = 0;
 int* ranges;
 
 void ocall_set(size_t num_elems, float* buffer) {
-    if(!all){
+    if(!all) {
         printf("all initialisation\n");
-        all =  new float*[5000000];
+        all = new float*[5000000];
         ranges = new int[100];
     }
 
-    float* desc = (float*)malloc(num_elems * 64 * sizeof(float));
-    memcpy(desc, buffer, num_elems * 64 * sizeof(float));
+    for (int i = 0; i < num_elems; ++i) {
+        all[count] = (float*)malloc(64 * sizeof(float));
+        memcpy(all[count], buffer + i * 64 * sizeof(float), 64 * sizeof(float));
+        count++;
+    }
 
-    all[count++] = desc;
     /*
     //printf("initialised\n");
     float* desc = (float*)malloc(num_elems * 64 * sizeof(float));

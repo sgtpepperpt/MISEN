@@ -12,7 +12,11 @@ typedef struct thread_resource {
 } thread_resource;
 
 typedef struct repository {
-    BagOfWordsTrainer* k;
+    // repository constants
+    size_t cluster_count;
+    size_t desc_len;
+
+    BagOfWordsTrainer* k; // TODO deprecate
 
     // keys for server encryption
     uint8_t* kf; // used to derive kw for each centre
