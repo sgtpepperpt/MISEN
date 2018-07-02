@@ -118,7 +118,6 @@ int main(int argc, char** argv) {
     int ret;
     mbedtls_net_context server_fd;
     uint32_t flags;
-    const char* pers = "ssl_client1";
 
     mbedtls_entropy_context entropy;
     mbedtls_ctr_drbg_context ctr_drbg;
@@ -133,16 +132,13 @@ int main(int argc, char** argv) {
     mbedtls_x509_crt_init(&cacert);
     mbedtls_ctr_drbg_init(&ctr_drbg);
 
-    printf("\n  . Seeding the random number generator...");
-
+    printf("seeding the random number generator...\n");
     mbedtls_entropy_init(&entropy);
-    if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char*)pers,
-                                     strlen(pers))) != 0) {
+    const char* pers = "ssl_client1";
+    if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char*)pers, strlen(pers))) != 0) {
         printf(" failed\n  ! mbedtls_ctr_drbg_seed returned %d\n", ret);
         exit(1);
     }
-
-    printf(" ok\n");
 
     // initialise certificates
     printf("loading the CA root certificate...\n");
@@ -152,7 +148,7 @@ int main(int argc, char** argv) {
         exit(1);
     }
 
-    printf(" ok (%d skipped)\n", ret);
+    printf("ok (%d skipped)\n", ret);
 
     // start connection
     printf("connecting to tcp/%s/%s...\n", server_name, port);
@@ -189,7 +185,7 @@ int main(int argc, char** argv) {
     printf("performing the SSL/TLS handshake...\n");
     while ((ret = mbedtls_ssl_handshake(&ssl)) != 0) {
         if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
-            printf(" failed\n  ! mbedtls_ssl_handshake returned -0x%x\n\n", -ret);
+            printf("failed\n  ! mbedtls_ssl_handshake returned -0x%x\n\n", -ret);
             exit(1);
         }
     }
@@ -199,12 +195,10 @@ int main(int argc, char** argv) {
 
     // in real life, we probably want to bail out when ret != 0
     if ((flags = mbedtls_ssl_get_verify_result(&ssl)) != 0) {
+        printf("failed\n");
+
         char vrfy_buf[512];
-
-        printf(" failed\n");
-
-        mbedtls_x509_crt_verify_info(vrfy_buf, sizeof(vrfy_buf), "  ! ", flags);
-
+        mbedtls_x509_crt_verify_info(vrfy_buf, sizeof(vrfy_buf), "! ", flags);
         printf("%s\n", vrfy_buf);
     }
 
