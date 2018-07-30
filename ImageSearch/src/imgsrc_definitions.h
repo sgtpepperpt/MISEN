@@ -10,7 +10,7 @@
 #define ADD_MAX_BATCH_LEN 2000
 #define SEARCH_MAX_BATCH_LEN 1000
 
-#define RESPONSE_DOCS 100
+#define RESPONSE_DOCS 15
 
 // derived values
 #define PAIR_LEN (LABEL_LEN + ENC_VALUE_LEN)

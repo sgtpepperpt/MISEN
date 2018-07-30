@@ -98,3 +98,7 @@ void BagOfWordsTrainer::cluster() {
 void BagOfWordsTrainer::set_centres(void* centres) {// TODO used for debugging
     kmeans->centres = (float*)centres;
 }
+/*
+void BagOfWordsTrainer::set_nr_centres(size_t nr_centres){
+    kmeans->
+}*/

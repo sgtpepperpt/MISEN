@@ -100,8 +100,8 @@ int SGX_CDECL main(int argc, const char **argv) {
         data->info->thread_complete = 0;
 
         // wait until a client connects
-        if (0 != mbedtls_net_set_nonblock(&listen_fd))
-            printf("can't set nonblock for the listen socket\n");
+        /*if (0 != mbedtls_net_set_nonblock(&listen_fd))
+            printf("can't set nonblock for the listen socket\n");*/
 
         mbedtls_net_context client_fd;
         ret = mbedtls_net_accept(&listen_fd, &client_fd, NULL, 0, NULL);

@@ -8,6 +8,7 @@
 #include <sys/time.h>
 #include <arpa/inet.h>
 #include <sodium.h>
+#include <random>
 
 #include "mbedtls/net.h"
 #include "mbedtls/ssl.h"
@@ -17,6 +18,7 @@
 #include "mbedtls/certs.h"
 
 #include "ImageSearch.h"
+#include "client_training.h"
 
 using namespace cv;
 using namespace cv::xfeatures2d;
@@ -32,8 +34,11 @@ int main(int argc, char** argv) {
     // static params
     const char* server_name = IEE_HOSTNAME;
     const int server_port = IEE_PORT;
-    const size_t desc_len = 64;
-    const double surf_threshold = 400;
+    const size_t desc_len = 128;
+    const double surf_threshold = 4000;
+
+    //client_train("/Users/guilherme/inria/");
+    //exit(1);
 
     // may be specified by user
     size_t nr_clusters = 1000;
@@ -206,7 +211,7 @@ int main(int argc, char** argv) {
     gettimeofday(&start, NULL);
 
     // image descriptor parameters
-    Ptr<SURF> surf = SURF::create(surf_threshold);
+    Ptr<SIFT> surf = SIFT::create(surf_threshold);
     Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create("FlannBased");
     //BOWImgDescriptorExtractor* bowExtractor = new BOWImgDescriptorExtractor(surf, matcher);
 
@@ -220,25 +225,55 @@ int main(int argc, char** argv) {
     iee_comm(&ssl, in, in_len);
     free(in);
 
-    if (!load_clusters) {
+    //if (!load_clusters) {
         // adding
-        for (unsigned i = 0; i < files.size(); i++) {
+        /*for (unsigned i = 0; i < files.size(); i++) {
             printf("Train img (%u/%lu) %s\n", i, files.size(), files[i].c_str());
             add_train_images(&in, &in_len, surf, files[i]);
             iee_comm(&ssl, in, in_len);
             free(in);
             printf("\n");
-        }
+        }*/
 
         // train
-        train(&in, &in_len);
+        /*train_lsh(&in, &in_len);
+        iee_comm(&ssl, in, in_len);
+        free(in);*/
+
+        in_len = sizeof(uint8_t) + nr_clusters * desc_len * sizeof(float);
+        in = (uint8_t*)malloc(sizeof(uint8_t) + nr_clusters * desc_len * sizeof(float));
+        in[0] = OP_IEE_SET_CODEBOOK;
+
+        //float* centroids = client_train("/home/guilherme/Datasets/inria/", load_clusters);
+        vector<float*> gaussians(nr_clusters);
+        std::default_random_engine generator(time(0));
+        std::normal_distribution<float> distribution(0.0, 25.0);
+
+        for (int i = 0; i < nr_clusters; ++i) {
+            float* vec = (float*)malloc(desc_len * sizeof(float));
+            for (int j = 0; j < desc_len; ++j)
+                vec[j] = distribution(generator);
+
+            /*for (size_t l = 0; l < DESC_LEN; ++l)
+                printf("%f ", vec[l]);
+            printf("\n");*/
+
+            gaussians[i] = vec;
+        }
+
+        void* p = in + sizeof(uint8_t);
+        for (int k = 0; k < nr_clusters; ++k) {
+            memcpy(p, gaussians[k], desc_len * sizeof(float));
+            p += desc_len * sizeof(float);
+        }
+
         iee_comm(&ssl, in, in_len);
         free(in);
-    } else {
+    /*} else {
         train_load_clusters(&in, &in_len);
         iee_comm(&ssl, in, in_len);
         free(in);
-    }
+    }*/
 
     struct timeval end;
     gettimeofday(&end, NULL);
@@ -256,7 +291,7 @@ int main(int argc, char** argv) {
         // add images to repository
         for (unsigned i = 0; i < files.size(); i++) {
             printf("Add img (%u/%lu)\n\n", i, files.size());
-            add_images(&in, &in_len, surf, files[i]);
+            add_images_lsh(&in, &in_len, surf, files[i]);
             iee_comm(&ssl, in, in_len);
             free(in);
         }

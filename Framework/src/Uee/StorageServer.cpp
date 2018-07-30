@@ -96,9 +96,8 @@ void* process_client(void* args) {
                     uint8_t* label = (uint8_t*)malloc(l_size);
                     memcpy(label, tmp, l_size);
 
-                    /*if(tmp[0] == 0xAE && tmp[1] == 0xD8)
+                    /*if(tmp[0] == 0x8E && tmp[1] == 0x7F && tmp[1] == 0xD4)
                         printf("put label %p\n", I[label]);*/
-
 
                     tmp += l_size;
 
@@ -132,11 +131,11 @@ void* process_client(void* args) {
                     memcpy(label, tmp, l_size);
                     tmp += l_size;
 
-                    //if(i == 7) untrusted_util::debug_printbuf(label, l_size);
+                    //untrusted_util::debug_printbuf(label, l_size);
 
                     if(!I[label]) {
+                        printf("Map error: %lu/%lu\n", i, nr_labels);
                         untrusted_util::debug_printbuf(label, l_size);
-                        printf("Map error: %lu/%lu", i, nr_labels);
                         exit(1);
                     }
 

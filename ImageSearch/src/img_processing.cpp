@@ -80,7 +80,7 @@ const unsigned* process_new_image(BagOfWordsTrainer* k, const size_t nr_desc, fl
         int pos = -1;
 
         for (size_t j = 0; j < k->nr_centres(); ++j) {
-            double dist_to_centre = calc_distance(k->get_centre(j), descriptors + i * k->desc_len(), k->desc_len());
+            double dist_to_centre = calc_distance(k->get_centre(j), descriptors + i * k->get_desc_len(), k->get_desc_len());
 
             if(dist_to_centre < min_dist) {
                 min_dist = dist_to_centre;

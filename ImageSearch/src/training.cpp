@@ -58,6 +58,10 @@ void train_kmeans_load(BagOfWordsTrainer* k) {
     k->set_centres(centres);
 }
 
+void train_kmeans_set(BagOfWordsTrainer* k, float* centres, size_t nr_centres) {
+    k->set_centres(centres);
+}
+
 #if 0
 vector<img_descriptor*> descriptors;
 unsigned file_pending = 0;

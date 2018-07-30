@@ -3,7 +3,10 @@
 
 #include <stdlib.h>
 #include <stdint.h>
+#include <vector>
 #include "training.h"
+
+using namespace std;
 
 typedef struct thread_resource {
     int server_socket;
@@ -26,6 +29,8 @@ typedef struct repository {
     // overall counters
     unsigned* counters;
     unsigned total_docs;
+
+    float** lsh;
 
     // uee socket for main thread
     int server_socket;

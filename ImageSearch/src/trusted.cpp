@@ -18,6 +18,7 @@
 #include "repository.h"
 #include "img_processing.h"
 #include "util.h"
+#include "training/lsh/lsh.h"
 
 using namespace std;
 
@@ -91,11 +92,13 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
     unsigned char ctr[AES_BLOCK_SIZE];
     memset(ctr, 0x00, AES_BLOCK_SIZE);
 
-    const unsigned* frequencies = process_new_image(r->k, nr_desc, descriptors);
-
+    //const unsigned* frequencies = process_new_image(r->k, nr_desc, descriptors);
+    const unsigned* frequencies = calc_freq(r->lsh, descriptors, nr_desc, r->cluster_count);
     /*outside_util::printf("frequencies: ");
-    for (size_t i = 0; i < r->k->nr_centres(); i++)
-        outside_util::printf("%u ", frequencies[i]);
+    for (size_t i = 0; i < r->k->nr_centres(); i++) {
+        if (frequencies[i])
+            outside_util::printf("%lu -> %u\n", i, frequencies[i]);
+    }
     outside_util::printf("\n");*/
 
 #if PARALLEL_ADD_IMG
@@ -137,9 +140,19 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
     uint8_t* req_buffer = (uint8_t*)malloc(max_req_len);
     req_buffer[0] = OP_UEE_ADD;
 
-    size_t to_send = r->k->nr_centres();
+    // TODO should send r->k->nr_centres()?? hides how many real descs, but also more weight for ocalls
+    size_t nr_labels = 0;
+    for (int j = 0; j < r->k->nr_centres(); ++j) {
+        if(frequencies[j])
+            nr_labels++;
+    }
+
+    size_t to_send = nr_labels;//r->k->nr_centres();
     size_t centre_pos = 0;
     while (to_send > 0) {
+        memset(req_buffer, 0x00, max_req_len);
+        req_buffer[0] = OP_UEE_ADD;
+
         size_t batch_len = min(ADD_MAX_BATCH_LEN, to_send);
 
         // add number of pairs to buffer
@@ -157,16 +170,15 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
             uint8_t* label = tmp; // keep a reference to the label
             tmp += LABEL_LEN;
 
-            /*if(label[0] == 0xAE && label[1] == 0xD8) {
-                outside_util::printf("original\n");
+            /*if (label[0] == 0x66 && label[1] == 0xF8) {// TODO due to the empty centroids bug
+                //outside_util::printf("original\n");
                 for (size_t l = 0; l < LABEL_LEN; ++l)
-                    outside_util::printf("%02x ", (tmp-LABEL_LEN)[l]);
+                    outside_util::printf("%02x ", (tmp - LABEL_LEN)[l]);
                 outside_util::printf("\n");
             }*/
 
-            // increase the centre's counter, if present
-            if (frequencies[centre_pos])//TODO remove this if, counter is increased even if 0
-                ++r->counters[centre_pos];
+            // increase the centre's counter
+            ++r->counters[centre_pos];
 
             // calculate value
             // label + img_id + frequency
@@ -182,7 +194,10 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
             tmp += ENC_VALUE_LEN;
 
             to_send--;
-            centre_pos++;
+
+            do {
+                centre_pos++;
+            } while(!frequencies[centre_pos]);
         }
 
         /*for (int j = 0; j < sizeof(unsigned char) + sizeof(size_t) + batch_len * PAIR_LEN; ++j) {
@@ -207,12 +222,19 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
     outside_util::printf("--------------------\n");
 }
 
+typedef struct img_pair {
+    size_t img_id;
+    unsigned frequency;
+} img_pair;
+
 void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* descriptors) {
     using namespace outside_util;
 
-    const unsigned* frequencies = process_new_image(r->k, nr_desc, descriptors);
+    //const unsigned* frequencies = process_new_image(r->k, nr_desc, descriptors);
+    const unsigned* frequencies = calc_freq(r->lsh, descriptors, nr_desc, r->cluster_count);
     /*for (size_t i = 0; i < r->k->nr_centres(); ++i) {
-        outside_util::printf("%u ", frequencies[i]);
+        if(frequencies[i])
+            outside_util::printf("%lu -> %u; ", i, frequencies[i]);
     }
     outside_util::printf("\n");*/
 
@@ -229,14 +251,20 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
     outside_util::printf("\n");*/
 
     // calc size of request; ie sum of counters (for all centres of searched image)
+    vector<size_t> centroids_to_get;
+
     size_t nr_labels = 0;
     for (size_t i = 0; i < r->k->nr_centres(); ++i) {
-        if (frequencies[i])
+        if (frequencies[i]) {
             nr_labels += r->counters[i];
+            centroids_to_get.push_back(i);
+        }
     }
 
+    map<size_t, vector<img_pair>> centroids_result;
+
     // will hold result
-    std::map<unsigned long, double> docs;
+    map<unsigned long, double> scores;
 
     // prepare request to uee
     size_t max_req_len = sizeof(unsigned char) + sizeof(size_t) + SEARCH_MAX_BATCH_LEN * LABEL_LEN;
@@ -244,11 +272,17 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
     req_buffer[0] = OP_UEE_SEARCH;
 
     size_t to_send = nr_labels;
-    size_t centre_pos = 0;
-    size_t counter_pos = 0;
+    unsigned centroid_pos = 0;
+    unsigned counter_of_centroid_pos = 0;
 
     unsigned batch_counter = 0;
     while (to_send > 0) {
+        unsigned init_centroid_pos = centroid_pos;
+        unsigned init_counter_of_centroid_pos = counter_of_centroid_pos;
+
+        memset(req_buffer, 0x00, max_req_len);
+        req_buffer[0] = OP_UEE_SEARCH;
+
         //outside_util::printf("(%02u) centre %lu; counter %lu \n", batch_counter, centre_pos, counter_pos);
         batch_counter++;
 
@@ -261,23 +295,25 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
 
         // add all batch labels to buffer
         for (size_t i = 0; i < batch_len; ++i) {
+            size_t curr_centroid = centroids_to_get[centroid_pos];
+            //outside_util::printf("req %lu %u\n", curr_centroid, counter_of_centroid_pos);
+
             // calc label
-            tcrypto::hmac_sha256(tmp, &counter_pos, sizeof(unsigned), r->centre_keys[centre_pos], LABEL_LEN);
+            tcrypto::hmac_sha256(tmp, &counter_of_centroid_pos, sizeof(unsigned), r->centre_keys[curr_centroid], LABEL_LEN);
             tmp += LABEL_LEN;
 
-            /*if(i == 7) {
-                outside_util::printf("request\n");
-                for (size_t l = 0; l < LABEL_LEN; ++l)
-                    outside_util::printf("%02x ", (tmp-LABEL_LEN)[l]);
-                outside_util::printf("\n");
-            }*/
+            //outside_util::printf("request\n");
+            /*for (size_t l = 0; l < LABEL_LEN; ++l)
+                outside_util::printf("%02x ", (tmp-LABEL_LEN)[l]);
+            outside_util::printf("\n");*/
 
             // update pointers
-            ++counter_pos;
-            if (counter_pos == r->counters[centre_pos]) {
+            ++counter_of_centroid_pos;
+            if (counter_of_centroid_pos >= r->counters[curr_centroid]) {
                 // search for the next centre where the searched image's frequency is non-zero
-                while (!frequencies[++centre_pos]);
-                counter_pos = 0;
+                //while (!frequencies[++centre_pos]); // TODO there is a bug when the query image has a centroid that has counter 0, ie with no descriptor previously assigned to it
+                counter_of_centroid_pos = 0;
+                centroid_pos++;
             }
         }
 
@@ -289,6 +325,9 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
         uee_process(r->server_socket, (void**)&res, &res_len, req_buffer, sizeof(unsigned char) + sizeof(size_t) + batch_len * LABEL_LEN);
         uint8_t* res_tmp = res;
 
+        centroid_pos = init_centroid_pos;
+        counter_of_centroid_pos = init_counter_of_centroid_pos;
+
         // process all answers
         for (size_t i = 0; i < batch_len; ++i) {
             // decode res
@@ -297,11 +336,6 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
             memset(ctr, 0x00, AES_BLOCK_SIZE);
 
             tcrypto::decrypt(res_unenc, res_tmp, ENC_VALUE_LEN, r->ke, ctr);
-
-            /*for (size_t l = 0; l < ENC_VALUE_LEN; ++l)
-                outside_util::printf("%02x ", res_tmp[l]);
-            outside_util::printf("\n");*/
-
             res_tmp += ENC_VALUE_LEN;
 
             int verify = memcmp(res_unenc, (req_buffer + sizeof(unsigned char) + sizeof(size_t)) + i * LABEL_LEN, LABEL_LEN);
@@ -318,28 +352,58 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
                 outside_util::exit(-1);
             }
 
+            size_t curr_centroid = centroids_to_get[centroid_pos];
+
             unsigned long id;
             memcpy(&id, res_unenc + LABEL_LEN, sizeof(unsigned long));
 
             unsigned frequency;
             memcpy(&frequency, res_unenc + LABEL_LEN + sizeof(unsigned long), sizeof(unsigned));
 
-            if (docs[id])
-                docs[id] += frequency ? frequencies[i] * (1 + log10(frequency)) * idf[i] : 0;
+            /*img_pair p;
+            p.frequency = frequency;
+            p.img_id = id;
+            centroids_result[curr_centroid].push_back(p);*/
+
+            //outside_util::printf("res %lu %u\n", curr_centroid, counter_of_centroid_pos);
+            /*outside_util::printf("frequency of %lu: %u\n", curr_centroid, frequencies[curr_centroid]);
+            outside_util::printf("frequency %u %f\n", frequency, idf[curr_centroid]);*/
+
+            if(!scores[id])
+                scores[id] = frequency ? frequencies[curr_centroid] * (1 + log10(frequency)) * idf[curr_centroid] : 0;
             else
-                docs[id] = frequency ? frequencies[i] * (1 + log10(frequency)) * idf[i] : 0;
+                scores[id] += frequency ? frequencies[curr_centroid] * (1 + log10(frequency)) * idf[curr_centroid] : 0;
+
+            // update pointers
+            ++counter_of_centroid_pos;
+            if (counter_of_centroid_pos >= r->counters[curr_centroid]) {
+                counter_of_centroid_pos = 0;
+                centroid_pos++;
+            }
         }
 
         outside_util::outside_free(res);
     }
 
+    for(auto x = scores.begin(); x != scores.end(); x++ ) {
+        outside_util::printf("%lu %f\n", x->first, x->second);
+    }
+
     free(idf);
     free((void*)frequencies);
+
+   /* vector<unsigned long> imgs;
+    for (auto it = centroids_result.begin(); it != centroids_result.end(); it++) {
+        size_t centroid = it->first;
+        vector<img_pair> pairs = it->second;
+
+
+    }*/
 
     // TODO randomise, do not ignore zero counters, fix batch search for 2000
 
     // calculate score and respond to client
-    const unsigned response_imgs = min(docs.size(), RESPONSE_DOCS);
+    const unsigned response_imgs = min(scores.size(), RESPONSE_DOCS);
     const size_t single_res_len = sizeof(unsigned long) + sizeof(double);
 
     // put result in simple structure, to sort
@@ -347,15 +411,15 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
 
     ////////////////////
     //sort_docs(docs, response_imgs, &res); // TODO
-    res = (uint8_t*)malloc(docs.size() * single_res_len);
+    res = (uint8_t*)malloc(scores.size() * single_res_len);
     int pos = 0;
-    for (map<unsigned long, double>::iterator l = docs.begin(); l != docs.end(); ++l) {
+    for (map<unsigned long, double>::iterator l = scores.begin(); l != scores.end(); ++l) {
         memcpy(res + pos * single_res_len, &l->first, sizeof(unsigned long));
         memcpy(res + pos * single_res_len + sizeof(unsigned long), &l->second, sizeof(double));
         pos++;
     }
 
-    qsort(res, docs.size(), single_res_len, compare_results);
+    qsort(res, scores.size(), single_res_len, compare_results);
     for (size_t m = 0; m < response_imgs; ++m) {
         unsigned long a;
         double b;
@@ -419,6 +483,30 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             ok_response(out, out_len);
             break;
         }
+        case OP_IEE_TRAIN_LSH: {
+            outside_util::printf("Train lsh!\n");
+            r->lsh = init_lsh(r->cluster_count);
+            outside_util::printf("Trained lsh!\n");
+            ok_response(out, out_len);
+            break;
+        }
+        case OP_IEE_ADD_LSH: {
+            outside_util::printf("Add lsh images!\n");
+
+            // get image (id, nr_desc, descriptors) from buffer
+            unsigned long id;
+            memcpy(&id, input, sizeof(unsigned long));
+            outside_util::printf("add, id %lu\n", id);
+
+            size_t nr_desc;
+            memcpy(&nr_desc, input + sizeof(unsigned long), sizeof(size_t));
+
+            float* descriptors = (float*)(input + sizeof(unsigned long) + sizeof(size_t));
+
+            add_image(id, nr_desc, descriptors);
+            ok_response(out, out_len);
+            break;
+        }
         case OP_IEE_TRAIN: {
             outside_util::printf("Train kmeans!\n");
             train_kmeans(r->k);
@@ -474,7 +562,7 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
 
             // read iee-side data securely from disc
             void* file = trusted_util::open_secure("iee_data", "rb");
-            if(!file) {
+            if (!file) {
                 outside_util::printf("Could not read data file\n");
                 outside_util::exit(1);
             }
@@ -496,7 +584,7 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
 
             // write iee-side data securely to disc
             void* file = trusted_util::open_secure("iee_data", "wb");
-            if(!file) {
+            if (!file) {
                 outside_util::printf("Could not write data file\n");
                 outside_util::exit(1);
             }
@@ -504,6 +592,25 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             trusted_util::write_secure(&(r->total_docs), sizeof(unsigned), 1, file);
             trusted_util::write_secure(r->counters, sizeof(unsigned) * r->k->nr_centres(), 1, file);
             trusted_util::close_secure(file);
+
+            ok_response(out, out_len);
+            break;
+        }
+        case OP_IEE_SET_CODEBOOK: {
+            //float* centres = (float*)malloc(r->cluster_count * r->desc_len * sizeof(float));
+            //memcpy(centres, input, r->cluster_count * r->desc_len * sizeof(float));
+            //train_kmeans_set(r->k, centres, 0);
+
+            r->lsh = (float**)malloc(sizeof(float*) * r->cluster_count);
+            for (int i = 0; i < r->cluster_count; ++i) {
+                float* p = (float*)malloc(r->desc_len * sizeof(float));
+                memcpy(p, input + i * (r->desc_len * sizeof(float)), r->desc_len * sizeof(float));
+                r->lsh[i] = p;
+
+                /*for (size_t l = 0; l < r->desc_len; ++l)
+                    outside_util::printf("%f ", p[l]);
+                outside_util::printf("\n");*/
+            }
 
             ok_response(out, out_len);
             break;

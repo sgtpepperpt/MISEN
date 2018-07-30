@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(sgx_image_search)
+project(visen)
 
 # process arguments
 if(NOT DEFINED SIMULATED_MODE)

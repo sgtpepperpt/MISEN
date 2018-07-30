@@ -15,12 +15,14 @@ void iee_comm(mbedtls_ssl_context* ssl, const void* in, const size_t in_len);
 std::vector<std::string> get_filenames(int n);
 
 void init(uint8_t** in, size_t* in_len, unsigned nr_clusters, size_t row_len);
-void add_train_images(uint8_t** in, size_t* in_len, const cv::Ptr<cv::xfeatures2d::SURF> surf, std::string file_name);
-void add_images(uint8_t** in, size_t* in_len, const cv::Ptr<cv::xfeatures2d::SURF> surf, std::string file_name);
+void add_train_images(uint8_t** in, size_t* in_len, const cv::Ptr<cv::xfeatures2d::SIFT> surf, std::string file_name);
+void add_images(uint8_t** in, size_t* in_len, const cv::Ptr<cv::xfeatures2d::SIFT> surf, std::string file_name);
+void add_images_lsh(uint8_t** in, size_t* in_len, const cv::Ptr<cv::xfeatures2d::SIFT> surf, std::string file_name);
 void train(uint8_t** in, size_t* in_len);
+void train_lsh(uint8_t** in, size_t* in_len);
 void train_load_clusters(uint8_t** in, size_t* in_len);
 void clear(uint8_t** in, size_t* in_len);
-void search(uint8_t** in, size_t* in_len, const cv::Ptr<cv::xfeatures2d::SURF> surf, const std::string file_name);
-void search_test(mbedtls_ssl_context* ssl, const cv::Ptr<cv::xfeatures2d::SURF> surf);
+void search(uint8_t** in, size_t* in_len, const cv::Ptr<cv::xfeatures2d::SIFT> surf, const std::string file_name);
+void search_test(mbedtls_ssl_context* ssl, const cv::Ptr<cv::xfeatures2d::SIFT> surf);
 
 #endif

@@ -13,7 +13,7 @@ set(DEBUG_FLAGS "-g -O0")
 if (SIMULATED_MODE)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${DEBUG_FLAGS} -c -Wall -fPIC -Wall -m64 -fvisibility=hidden -fpie -fstack-protector")
 else()
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${DEBUG_FLAGS} -c -Wall -fPIC -Wall -m64 -fvisibility=hidden -fpie -fstack-protector -nostdinc++")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${DEBUG_FLAGS} -c -Wall -fPIC -Wall -m64 -fvisibility=hidden -fpie -fstack-protector -fno-builtin-function -nostdinc++")
 endif ()
 
 set(CMAKE_CXX_STANDARD 11)
@@ -22,7 +22,7 @@ set(KMEANS_DIR ${EXTERN_DIR}/src/training/seq-kmeans)
 
 # sources
 set(KMEANS_SRCS ${KMEANS_DIR}/kmeans.cpp)
-set(UTIL_SRCS ${EXTERN_DIR}/src/parallel.cpp ${EXTERN_DIR}/src/scoring.cpp ${EXTERN_DIR}/src/img_processing.cpp ${EXTERN_DIR}/src/util.cpp)
+set(UTIL_SRCS ${EXTERN_DIR}/src/parallel.cpp ${EXTERN_DIR}/src/scoring.cpp ${EXTERN_DIR}/src/img_processing.cpp ${EXTERN_DIR}/src/util.cpp ${EXTERN_DIR}/src/training/lsh/lsh.cpp)
 
 # define target library
 add_library(${EXTERN_LIB_NAME}
