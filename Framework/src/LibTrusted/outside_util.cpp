@@ -62,6 +62,16 @@ void outside_util::exit(int status) {
     ocall_exit(status);
 }
 /****************************************************** END MISC ******************************************************/
+int outside_util::open_socket(const char* addr, int port) {
+    int retval;
+    sgx_status_t sgx_ret = ocall_open_socket(&retval, addr, port);
+    if(sgx_ret != SGX_SUCCESS) {
+        outside_util::printf("OCALL ERROR ON RETURN: %ld\n", sgx_ret);
+        ocall_exit(-1);
+    }
+
+    return retval;
+}
 
 int outside_util::open_uee_connection() {
     int retval;

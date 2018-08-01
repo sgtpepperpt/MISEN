@@ -147,7 +147,7 @@ float** init_lsh(size_t centroids) {
     //std::default_random_engine generator(time(0));
     //std::normal_distribution<float> distribution(0.0, 25.0);
 
-    for (int i = 0; i < centroids; ++i) {
+    for (unsigned i = 0; i < centroids; ++i) {
         gaussians[i] = (float*)malloc(DESC_LEN * sizeof(float));
         for (int j = 0; j < DESC_LEN; ++j)
             gaussians[i][j] = gaussrand(0.0, 25.0); //distribution(generator);

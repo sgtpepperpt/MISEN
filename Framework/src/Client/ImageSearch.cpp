@@ -76,7 +76,7 @@ void iee_comm(mbedtls_ssl_context* ssl, const void* in, const size_t in_len) {
     unsigned char* res;
     iee_recv(ssl, &res, &res_len);
 
-    printf("res: %lu bytes\n", res_len);
+    //printf("res: %lu bytes\n", res_len);
     free(res);
 }
 

@@ -29,6 +29,7 @@ enclave {
         // misc
         void ocall_exit(int code);
         untrusted_time ocall_curr_time();
+        int ocall_open_socket([string,in]const char* addr, int port);
 
         int ocall_open_uee_connection();
         void ocall_uee_process(int socket, [out]void** out, [out]size_t* out_len, [in, size = in_len]const void* in, size_t in_len);

@@ -30,4 +30,6 @@
 #define OP_UEE_READ_MAP 'r'
 #define OP_UEE_CLEAR 'c'
 
+#define OP_RBISEN '4'
+
 #endif

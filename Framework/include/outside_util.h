@@ -30,6 +30,8 @@ namespace outside_util {
     ssize_t write(const int file, const void *buf, const size_t len);
     void close(int file);
 
+    int open_socket(const char* addr, int port);
+
     // uee communication
     int open_uee_connection();
     void uee_process(const int socket, void **out, size_t *out_len, const void *in, const size_t in_len);

@@ -9,6 +9,9 @@
 #include <arpa/inet.h>
 #include <sodium.h>
 #include <random>
+#include <stdint.h>
+#include <assert.h>
+#include <string.h>
 
 #include "mbedtls/net.h"
 #include "mbedtls/ssl.h"
@@ -19,6 +22,13 @@
 
 #include "ImageSearch.h"
 #include "client_training.h"
+
+#include "rbisen/SseClient.hpp"
+
+extern "C" {
+#include "rbisen/Utils.h"
+#include "rbisen/types.h"
+}
 
 using namespace cv;
 using namespace cv::xfeatures2d;
@@ -50,9 +60,11 @@ int main(int argc, char** argv) {
     int load_uee = 0;
     int write_uee = 0;
 
+    int bisen_nrdocs = -1;
+
     // parse terminal arguments
     int c;
-    while ((c = getopt(argc, argv, "htlsarwk:")) != -1) {
+    while ((c = getopt(argc, argv, "htlsarwk:b:")) != -1) {
         switch (c) {
             case 'k':
                 nr_clusters = std::stoul(optarg);
@@ -71,6 +83,9 @@ int main(int argc, char** argv) {
                 break;
             case 'a':
                 add_all = 1;
+                break;
+            case 'b':
+                bisen_nrdocs = std::stoi(optarg);
                 break;
             case 'r':
                 load_uee = 1;
@@ -210,6 +225,74 @@ int main(int argc, char** argv) {
     struct timeval start;
     gettimeofday(&start, NULL);
 
+    //////////// BISEN ////////////
+    SseClient client;
+    unsigned char* data_bisen;
+    unsigned long long data_size_bisen;
+
+    size output_size_bisen;
+    uint8_t* output_bisen;
+
+    //bisen_nrdocs
+
+    const char* dataset_dir = getenv("DATASET_DIR");
+    if (!dataset_dir) {
+        printf("DATASET_DIR not defined!\n");
+        exit(1);
+    }
+
+    // setup
+    data_size_bisen = client.generate_setup_msg(&data_bisen);
+    iee_comm(&ssl, data_bisen, data_size_bisen);
+    free(data_bisen);
+
+    // add
+    // get list of docs for test
+    vector<string> doc_paths;
+    client.listTxtFiles(dataset_dir, doc_paths);
+
+    size_t nr_updates = 0;
+    for (const string doc : doc_paths) {
+        // extract keywords from a 1M, multiple article, file
+        vector<map<string,int>> docs = client.extract_keywords_frequency_wiki(dataset_dir + doc);
+        printf("add %lu updates\n", docs.size());
+        nr_updates += docs.size();
+
+        /*set<string>::iterator iter;
+        for(iter=text.begin(); iter!=text.end();++iter){
+            cout<<(*iter)<< " ";
+        }*/
+
+        for (const map<string, int> text : docs) {
+            // generate the byte* to send to the server
+            data_size_bisen = client.add_new_document(text, &data_bisen);
+            iee_comm(&ssl, data_bisen, data_size_bisen);
+            free(data_bisen);
+        }
+
+        if(bisen_nrdocs > 0 && nr_updates > bisen_nrdocs) {
+            printf("breaking\n");
+            break;
+        }
+    }
+
+    vector<string> queries;
+    queries.push_back("portugal");
+    queries.push_back("!portugal");
+    queries.push_back("time");
+
+    for (unsigned k = 0; k < queries.size(); k++) {
+        string query = queries[k];
+        printf("\n----------------------------\n");
+        printf("Query %d: %s\n", k, query.c_str());
+
+        data_size_bisen = client.search(query, &data_bisen);
+        iee_comm(&ssl, data_bisen, data_size_bisen);
+        free(data_bisen);
+    }
+
+    ///////////////////////////////
+
     // image descriptor parameters
     Ptr<SIFT> surf = SIFT::create(surf_threshold);
     Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create("FlannBased");
@@ -249,9 +332,9 @@ int main(int argc, char** argv) {
         std::default_random_engine generator(time(0));
         std::normal_distribution<float> distribution(0.0, 25.0);
 
-        for (int i = 0; i < nr_clusters; ++i) {
+        for (unsigned i = 0; i < nr_clusters; ++i) {
             float* vec = (float*)malloc(desc_len * sizeof(float));
-            for (int j = 0; j < desc_len; ++j)
+            for (unsigned j = 0; j < desc_len; ++j)
                 vec[j] = distribution(generator);
 
             /*for (size_t l = 0; l < DESC_LEN; ++l)
@@ -262,9 +345,9 @@ int main(int argc, char** argv) {
         }
 
         void* p = in + sizeof(uint8_t);
-        for (int k = 0; k < nr_clusters; ++k) {
+        for (unsigned k = 0; k < nr_clusters; ++k) {
             memcpy(p, gaussians[k], desc_len * sizeof(float));
-            p += desc_len * sizeof(float);
+            p = (unsigned char*)p + desc_len * sizeof(float);
         }
 
         iee_comm(&ssl, in, in_len);

@@ -19,6 +19,7 @@
 #include "img_processing.h"
 #include "util.h"
 #include "training/lsh/lsh.h"
+#include "rbisen/SseIee.h"
 
 using namespace std;
 
@@ -142,7 +143,7 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
 
     // TODO should send r->k->nr_centres()?? hides how many real descs, but also more weight for ocalls
     size_t nr_labels = 0;
-    for (int j = 0; j < r->k->nr_centres(); ++j) {
+    for (unsigned j = 0; j < r->k->nr_centres(); ++j) {
         if(frequencies[j])
             nr_labels++;
     }
@@ -397,7 +398,6 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
         size_t centroid = it->first;
         vector<img_pair> pairs = it->second;
 
-
     }*/
 
     // TODO randomise, do not ignore zero counters, fix batch search for 2000
@@ -602,7 +602,7 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             //train_kmeans_set(r->k, centres, 0);
 
             r->lsh = (float**)malloc(sizeof(float*) * r->cluster_count);
-            for (int i = 0; i < r->cluster_count; ++i) {
+            for (unsigned i = 0; i < r->cluster_count; ++i) {
                 float* p = (float*)malloc(r->desc_len * sizeof(float));
                 memcpy(p, input + i * (r->desc_len * sizeof(float)), r->desc_len * sizeof(float));
                 r->lsh[i] = p;
@@ -613,6 +613,16 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             }
 
             ok_response(out, out_len);
+            break;
+        }
+        case OP_RBISEN: {
+            unsigned char * output;
+            unsigned long long output_len;
+
+            f(&output, &output_len, 0, input, input_len);
+
+            *out = output;
+            *out_len = output_len;
             break;
         }
         default: {

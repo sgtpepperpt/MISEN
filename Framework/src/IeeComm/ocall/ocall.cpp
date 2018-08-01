@@ -52,6 +52,10 @@ untrusted_time ocall_curr_time() {
 }
 /****************************************************** END MISC ******************************************************/
 
+int ocall_open_socket(const char* addr, int port) {
+    return untrusted_util::socket_connect(addr, port);
+}
+
 int ocall_open_uee_connection() {
     const char* host = UEE_HOSTNAME;
     const int port = UEE_PORT;
@@ -85,7 +89,7 @@ void ocall_set(size_t num_elems, float* buffer) {
         ranges = new int[100];
     }
 
-    for (int i = 0; i < num_elems; ++i) {
+    for (unsigned i = 0; i < num_elems; ++i) {
         all[count] = (float*)malloc(64 * sizeof(float));
         memcpy(all[count], buffer + i * 64 * sizeof(float), 64 * sizeof(float));
         count++;
