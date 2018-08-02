@@ -396,7 +396,7 @@ int main(int argc, char** argv) {
         //TODO perform a search from args?
         gettimeofday(&start, NULL);
 
-        search(&in, &in_len, surf, get_filenames(10)[0]);
+        search(&in, &in_len, surf, get_filenames(10, "/home/guilherme/Datasets/inria")[0]);
         iee_send(&ssl, in, in_len);
         free(in);
 

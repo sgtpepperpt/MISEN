@@ -288,6 +288,64 @@ void search(uint8_t** in, size_t* in_len, const Ptr<SIFT> surf, const std::strin
     free(descriptors_buffer);
 }
 
+void search_test_wang(mbedtls_ssl_context* ssl, const Ptr<SIFT> surf) {
+    size_t in_len;
+    uint8_t* in;
+
+    map<unsigned long, vector<unsigned long>> precision_res;
+
+    // generate file list to search
+    vector<string> files;
+    for (int i = 1; i <= 1000; i += 50) {
+        char img[128];
+        sprintf(img, "/home/guilherme/Datasets/wang/%d.jpg", i);
+        files.push_back(img);
+    }
+
+    for (size_t i = 0; i < files.size(); ++i) {
+        search(&in, &in_len, surf, files[i]);
+        iee_send(ssl, in, in_len);
+        free(in);
+
+        // receive response
+        size_t res_len;
+        uint8_t* res;
+        iee_recv(ssl, &res, &res_len);
+
+        // get number of response docs
+        unsigned nr;
+        memcpy(&nr, res, sizeof(unsigned));
+        printf("nr of imgs: %u\n", nr);
+
+#if STORE_RESULTS
+        // store the results in order
+        vector<unsigned long> precision_results;
+#endif
+
+        // decode id and score for each doc
+        for (unsigned j = 0; j < nr; ++j) {
+            unsigned long id;
+            memcpy(&id, res + sizeof(size_t) + j * SRC_RES_LEN, sizeof(unsigned long));
+
+            double score;
+            memcpy(&score, res + sizeof(size_t) + j * SRC_RES_LEN + sizeof(unsigned long), sizeof(double));
+
+            printf("%lu %f\n", id, score);
+#if STORE_RESULTS
+            precision_results.push_back(id);
+#endif
+        }
+
+        free(res);
+        precision_res[filename_to_id(files[i].c_str())] = precision_results;
+    }
+
+#if STORE_RESULTS
+    // write results to file
+    printHolidayResults("results.dat", precision_res);
+#endif
+}
+
 void search_test(mbedtls_ssl_context* ssl, const Ptr<SIFT> surf) {
     size_t in_len;
     uint8_t* in;
