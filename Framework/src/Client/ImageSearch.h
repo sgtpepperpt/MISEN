@@ -3,6 +3,7 @@
 
 #include <opencv2/xfeatures2d.hpp>
 #include <opencv2/opencv.hpp>
+#include <stdlib.h>
 
 #include "mbedtls/net.h"
 
@@ -12,7 +13,7 @@ void iee_send(mbedtls_ssl_context* ssl, const uint8_t* in, const size_t in_len);
 void iee_recv(mbedtls_ssl_context* ssl, uint8_t** out, size_t* out_len);
 void iee_comm(mbedtls_ssl_context* ssl, const void* in, const size_t in_len);
 
-std::vector<std::string> get_filenames(int n);
+std::vector<std::string> get_filenames(int n, std::string dataset_path);
 
 void init(uint8_t** in, size_t* in_len, unsigned nr_clusters, size_t row_len);
 void add_train_images(uint8_t** in, size_t* in_len, const cv::Ptr<cv::xfeatures2d::SIFT> surf, std::string file_name);

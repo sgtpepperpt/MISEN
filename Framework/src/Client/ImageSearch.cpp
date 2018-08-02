@@ -32,16 +32,15 @@ unsigned long filename_to_id(const char* filename) {
     return strtoul(id, NULL, 0);
 }
 
-std::vector<std::string> get_filenames(int n) {
-    string holidayDir = "/home/guilherme/Datasets/inria";
+std::vector<std::string> get_filenames(int n, string dataset_path) {
     vector<string> filenames;
 
     DIR* dir;
     struct dirent* ent;
     int i = 0;
-    if ((dir = opendir(holidayDir.c_str()))) {
+    if ((dir = opendir(dataset_path.c_str()))) {
         while ((ent = readdir(dir)) != NULL && (n < 0 || i < n)) {
-            std::string fname = holidayDir + "/" + ent->d_name;
+            std::string fname = dataset_path + "/" + ent->d_name;
             if (fname.find(".jpg") == string::npos || !fname.length())
                 continue;
 

@@ -298,7 +298,7 @@ int main(int argc, char** argv) {
     Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create("FlannBased");
     //BOWImgDescriptorExtractor* bowExtractor = new BOWImgDescriptorExtractor(surf, matcher);
 
-    const vector<string> files = get_filenames(nr_images);
+    const vector<string> files = get_filenames(nr_images, "/home/guilherme/Datasets/inria");
 
     // init iee and server
     size_t in_len = 0;
