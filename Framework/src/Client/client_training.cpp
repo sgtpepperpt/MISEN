@@ -1,5 +1,7 @@
 #include "client_training.h"
 
+#include "definitions.h"
+
 #include <map>
 #include <stdio.h>
 #include <string.h>
@@ -14,7 +16,6 @@ using namespace cv;
 using namespace cv::xfeatures2d;
 
 #define CLUSTERS 1000
-#define DESC_LEN 128
 
 void extractHolidayFileNames(const char* base_path, int nImgs, std::map<int, std::string> &imgs) {
     DIR* dir;
@@ -54,7 +55,7 @@ float* client_train(const char* path, int load_clusters) {
     map<int, string> imgs;
     extractHolidayFileNames(path, 50000, imgs);
 
-    Ptr<SIFT> surf  = SIFT::create(500);
+    Ptr<SIFT> surf = SIFT::create(500);
     Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create("BruteForce");
     BOWImgDescriptorExtractor* bowExtractor = new BOWImgDescriptorExtractor(surf, matcher);
 

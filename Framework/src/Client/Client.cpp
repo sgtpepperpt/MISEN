@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
     // static params
     const char* server_name = IEE_HOSTNAME;
     const int server_port = IEE_PORT;
-    const size_t desc_len = 128;
+    const size_t desc_len = DESC_LEN;
     const double surf_threshold = 4000;
 
     //client_train("/Users/guilherme/inria/");

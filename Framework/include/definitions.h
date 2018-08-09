@@ -37,4 +37,5 @@
 #define C_LSH 2
 #define CLUSTERING C_KMEANS
 
+#define DESC_LEN 128
 #endif

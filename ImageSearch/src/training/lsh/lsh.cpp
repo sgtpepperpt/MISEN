@@ -3,6 +3,7 @@
 #include "trusted_crypto.h"
 #include "trusted_util.h"
 #include "outside_util.h"
+#include "definitions.h"
 
 #include <random>
 #include <map>
@@ -10,8 +11,6 @@
 #include <float.h>
 #include <math.h>
 #include <string.h>
-
-#define DESC_LEN 128
 
 float dot_product(float* a, float* b) {
     float dot = 0;
