@@ -4,6 +4,10 @@
 #include "untrusted_util_tls.h"
 #include "definitions.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include <getopt.h>
 #include <sys/time.h>
 #include <arpa/inet.h>
@@ -155,7 +159,8 @@ int main(int argc, char** argv) {
     printf("seeding the random number generator...\n");
     mbedtls_entropy_init(&entropy);
     const char* pers = "ssl_client1";
-    if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char*)pers, strlen(pers))) != 0) {
+    if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char*)pers,
+                                     strlen(pers))) != 0) {
         printf(" failed\n  ! mbedtls_ctr_drbg_seed returned %d\n", ret);
         exit(1);
     }
@@ -178,7 +183,8 @@ int main(int argc, char** argv) {
     }
 
     printf("setting up the SSL/TLS structure...\n");
-    if ((ret = mbedtls_ssl_config_defaults(&conf, MBEDTLS_SSL_IS_CLIENT, MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT)) != 0) {
+    if ((ret = mbedtls_ssl_config_defaults(&conf, MBEDTLS_SSL_IS_CLIENT, MBEDTLS_SSL_TRANSPORT_STREAM,
+                                           MBEDTLS_SSL_PRESET_DEFAULT)) != 0) {
         printf(" failed\n  ! mbedtls_ssl_config_defaults returned %d\n\n", ret);
         exit(1);
     }
@@ -254,7 +260,7 @@ int main(int argc, char** argv) {
     size_t nr_updates = 0;
     for (const string doc : doc_paths) {
         // extract keywords from a 1M, multiple article, file
-        vector<map<string,int>> docs = client.extract_keywords_frequency_wiki(dataset_dir + doc);
+        vector<map<string, int>> docs = client.extract_keywords_frequency_wiki(dataset_dir + doc);
         printf("add %lu updates\n", docs.size());
         nr_updates += docs.size();
 
@@ -270,7 +276,7 @@ int main(int argc, char** argv) {
             free(data_bisen);
         }
 
-        if(bisen_nrdocs > 0 && nr_updates > bisen_nrdocs) {
+        if (bisen_nrdocs > 0 && nr_updates > bisen_nrdocs) {
             printf("breaking\n");
             break;
         }
@@ -309,25 +315,55 @@ int main(int argc, char** argv) {
     free(in);
 
     //if (!load_clusters) {
-        // adding
-        /*for (unsigned i = 0; i < files.size(); i++) {
-            printf("Train img (%u/%lu) %s\n", i, files.size(), files[i].c_str());
-            add_train_images(&in, &in_len, surf, files[i]);
-            iee_comm(&ssl, in, in_len);
-            free(in);
-            printf("\n");
-        }*/
-
-        // train
-        /*train_lsh(&in, &in_len);
+    // adding
+    /*for (unsigned i = 0; i < files.size(); i++) {
+        printf("Train img (%u/%lu) %s\n", i, files.size(), files[i].c_str());
+        add_train_images(&in, &in_len, surf, files[i]);
         iee_comm(&ssl, in, in_len);
-        free(in);*/
+        free(in);
+        printf("\n");
+    }*/
 
-        in_len = sizeof(uint8_t) + nr_clusters * desc_len * sizeof(float);
-        in = (uint8_t*)malloc(sizeof(uint8_t) + nr_clusters * desc_len * sizeof(float));
-        in[0] = OP_IEE_SET_CODEBOOK;
+    // train // this was for lsh vectors generation in enclave
+    /*train_lsh(&in, &in_len);
+    iee_comm(&ssl, in, in_len);
+    free(in);*/
 
-        //float* centroids = client_train("/home/guilherme/Datasets/inria/", load_clusters);
+    in_len = sizeof(uint8_t) + nr_clusters * desc_len * sizeof(float);
+    in = (uint8_t*)malloc(sizeof(uint8_t) + nr_clusters * desc_len * sizeof(float));
+    in[0] = OP_IEE_SET_CODEBOOK;
+
+#if CLUSTERING == C_KMEANS
+    #define TRAIN 0
+    #if TRAIN
+        float* centroids = client_train("/home/guilherme/Datasets/inria/", load_clusters);
+
+        void* file = fopen("centroids", "wb");
+        if (!file) {
+            printf("Could not write data file\n");
+            exit(1);
+        }
+
+        fwrite(centroids, nr_clusters, desc_len * sizeof(float), (FILE*)file);
+        fclose((FILE*)file);
+    #else
+        float* centroids = (float*)malloc(nr_clusters * desc_len * sizeof(float));
+        void* file = fopen("centroids", "rb");
+        if (!file) {
+            printf("Could not read data file\n");
+            exit(1);
+        }
+
+        fread(centroids, nr_clusters, desc_len * sizeof(float), (FILE*)file);
+        fclose((FILE*)file);
+    #endif
+
+        memcpy(in + 1, centroids, nr_clusters * desc_len * sizeof(float));
+        iee_comm(&ssl, in, in_len);
+        free(in);
+
+        free(centroids);
+#elif CLUSTERING == C_LSH
         vector<float*> gaussians(nr_clusters);
         std::default_random_engine generator(time(0));
         std::normal_distribution<float> distribution(0.0, 25.0);
@@ -336,10 +372,6 @@ int main(int argc, char** argv) {
             float* vec = (float*)malloc(desc_len * sizeof(float));
             for (unsigned j = 0; j < desc_len; ++j)
                 vec[j] = distribution(generator);
-
-            /*for (size_t l = 0; l < DESC_LEN; ++l)
-                printf("%f ", vec[l]);
-            printf("\n");*/
 
             gaussians[i] = vec;
         }
@@ -352,12 +384,13 @@ int main(int argc, char** argv) {
 
         iee_comm(&ssl, in, in_len);
         free(in);
-    /*} else {
-        train_load_clusters(&in, &in_len);
-        iee_comm(&ssl, in, in_len);
-        free(in);
-    }*/
+#endif
 
+    /*} else {
+train_load_clusters(&in, &in_len);
+iee_comm(&ssl, in, in_len);
+free(in);
+}*/
     struct timeval end;
     gettimeofday(&end, NULL);
     printf("-- Train elapsed time: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
@@ -374,7 +407,11 @@ int main(int argc, char** argv) {
         // add images to repository
         for (unsigned i = 0; i < files.size(); i++) {
             printf("Add img (%u/%lu)\n\n", i, files.size());
+#if CLUSTERING == C_KMEANS
+            add_images(&in, &in_len, surf, files[i]);
+#elif CLUSTERING == C_LSH
             add_images_lsh(&in, &in_len, surf, files[i]);
+#endif
             iee_comm(&ssl, in, in_len);
             free(in);
         }
@@ -433,7 +470,7 @@ int main(int argc, char** argv) {
     printf("Total elapsed time: %ldms\n", untrusted_util::time_elapsed_ms(start, end));
 
     // close ssl connection
-    mbedtls_ssl_close_notify( &ssl );
+    mbedtls_ssl_close_notify(&ssl);
 
     // ssl cleanup
     mbedtls_net_free(&server_fd);

@@ -32,4 +32,9 @@
 
 #define OP_RBISEN '4'
 
+// TODO as arguments, not preprocessor
+#define C_KMEANS 1
+#define C_LSH 2
+#define CLUSTERING C_KMEANS
+
 #endif

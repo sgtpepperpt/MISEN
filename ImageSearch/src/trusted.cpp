@@ -93,8 +93,11 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
     unsigned char ctr[AES_BLOCK_SIZE];
     memset(ctr, 0x00, AES_BLOCK_SIZE);
 
-    //const unsigned* frequencies = process_new_image(r->k, nr_desc, descriptors);
+#if CLUSTERING == C_KMEANS
+    const unsigned* frequencies = process_new_image(r->k, nr_desc, descriptors);
+#elif CLUSTERING == C_LSH
     const unsigned* frequencies = calc_freq(r->lsh, descriptors, nr_desc, r->cluster_count);
+#endif
     /*outside_util::printf("frequencies: ");
     for (size_t i = 0; i < r->k->nr_centres(); i++) {
         if (frequencies[i])
@@ -210,8 +213,7 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
         // send batch to server
         size_t res_len;
         void* res;
-        outside_util::uee_process(r->server_socket, &res, &res_len, req_buffer,
-                                  sizeof(unsigned char) + sizeof(size_t) + batch_len * PAIR_LEN);
+        outside_util::uee_process(r->server_socket, &res, &res_len, req_buffer, sizeof(unsigned char) + sizeof(size_t) + batch_len * PAIR_LEN);
         outside_util::outside_free(res); // discard ok response
     }
 
@@ -231,8 +233,11 @@ typedef struct img_pair {
 void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* descriptors) {
     using namespace outside_util;
 
-    //const unsigned* frequencies = process_new_image(r->k, nr_desc, descriptors);
+#if CLUSTERING == C_KMEANS
+    const unsigned* frequencies = process_new_image(r->k, nr_desc, descriptors);
+#elif CLUSTERING == C_LSH
     const unsigned* frequencies = calc_freq(r->lsh, descriptors, nr_desc, r->cluster_count);
+#endif
     /*for (size_t i = 0; i < r->k->nr_centres(); ++i) {
         if(frequencies[i])
             outside_util::printf("%lu -> %u; ", i, frequencies[i]);
@@ -385,11 +390,11 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
 
         outside_util::outside_free(res);
     }
-
+/*
     for(auto x = scores.begin(); x != scores.end(); x++ ) {
         outside_util::printf("%lu %f\n", x->first, x->second);
     }
-
+*/
     free(idf);
     free((void*)frequencies);
 
@@ -597,10 +602,11 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             break;
         }
         case OP_IEE_SET_CODEBOOK: {
-            //float* centres = (float*)malloc(r->cluster_count * r->desc_len * sizeof(float));
-            //memcpy(centres, input, r->cluster_count * r->desc_len * sizeof(float));
-            //train_kmeans_set(r->k, centres, 0);
-
+#if CLUSTERING == C_KMEANS
+            float* centres = (float*)malloc(r->cluster_count * r->desc_len * sizeof(float));
+            memcpy(centres, input, r->cluster_count * r->desc_len * sizeof(float));
+            train_kmeans_set(r->k, centres, 0);
+#elif CLUSTERING == C_LSH
             r->lsh = (float**)malloc(sizeof(float*) * r->cluster_count);
             for (unsigned i = 0; i < r->cluster_count; ++i) {
                 float* p = (float*)malloc(r->desc_len * sizeof(float));
@@ -611,7 +617,7 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
                     outside_util::printf("%f ", p[l]);
                 outside_util::printf("\n");*/
             }
-
+#endif
             ok_response(out, out_len);
             break;
         }

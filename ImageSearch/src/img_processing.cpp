@@ -27,6 +27,8 @@ static void* parallel_process(void* args) {
             }
         }
 
+        //outside_util::printf("chosen centroid %d\n", pos);
+
         arg->frequencies[pos]++;
     }
 

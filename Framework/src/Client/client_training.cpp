@@ -54,7 +54,7 @@ float* client_train(const char* path, int load_clusters) {
     map<int, string> imgs;
     extractHolidayFileNames(path, 50000, imgs);
 
-    Ptr<SIFT> surf  = SIFT::create(1500);
+    Ptr<SIFT> surf  = SIFT::create(500);
     Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create("BruteForce");
     BOWImgDescriptorExtractor* bowExtractor = new BOWImgDescriptorExtractor(surf, matcher);
 

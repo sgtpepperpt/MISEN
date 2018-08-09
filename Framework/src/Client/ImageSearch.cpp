@@ -3,6 +3,7 @@
 #include "definitions.h"
 #include "untrusted_util_tls.h"
 
+#include <stdlib.h>
 #include <dirent.h>
 #include <map>
 #include <fstream>
