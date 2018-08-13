@@ -604,15 +604,16 @@ void search(bytes* out, size* out_len, const bytes in, const size in_len) {
     void* read_tmp = results_buffer;
     void* write_tmp = *out + sizeof(unsigned);
 
+    outside_util::printf("nr documents %u\n", vi_size(response_docs));
     for(unsigned i = 0; i < elements; i++) {
-        outside_util::printf("%d ", response_docs.array[i]);
+        //outside_util::printf("%d ", response_docs.array[i]);
         memcpy(write_tmp, read_tmp, sizeof(int));
         memcpy(write_tmp + sizeof(int), read_tmp + sizeof(int), sizeof(double));
 
         read_tmp = (char*)read_tmp + sizeof(int) + sizeof(double);
         write_tmp = (char*)write_tmp + sizeof(int) + sizeof(double);
     }
-    outside_util::printf("\n-----------------\n");
+    //outside_util::printf("\n-----------------\n");
 
     // free the buffers in iee_tokens
     for(unsigned i = 0; i < vt_size(query); i++) {

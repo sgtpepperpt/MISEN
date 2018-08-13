@@ -95,17 +95,9 @@ void bisen_update(mbedtls_ssl_context ssl, SseClient* client, int bisen_nr_docs)
     }
 }
 
-void bisen_search(mbedtls_ssl_context ssl, SseClient* client) {
+void bisen_search(mbedtls_ssl_context ssl, SseClient* client, vector<string> queries) {
     unsigned char* data_bisen;
     unsigned long long data_size_bisen;
-
-    vector<string> queries;
-    queries.push_back("portugal");
-    queries.push_back("portugal");
-    queries.push_back("!portugal");
-    queries.push_back("time");
-    queries.push_back("post");
-    queries.push_back("post && portugal");
 
     for (unsigned k = 0; k < queries.size(); k++) {
         string query = queries[k];
@@ -167,6 +159,16 @@ int main(int argc, char** argv) {
     config_lookup_string(&cfg, "visen.clusters_file", (const char**)&visen_clusters_file);
     config_lookup_int(&cfg, "visen.descriptor_threshold", (int*)&visen_descriptor_threshold);
     config_lookup_int(&cfg, "visen.nr_clusters", (int*)&visen_nr_clusters);
+
+
+    vector<string> queries;
+    config_setting_t* queries_setting = config_lookup(&cfg, "bisen.queries");
+    const int count = config_setting_length(queries_setting);
+
+    for(int i = 0; i < count; ++i) {
+        config_setting_t* q = config_setting_get_elem(queries_setting, i);
+        queries.push_back(string(config_setting_get_string(q)));
+    }
 
     // parse terminal arguments
     int c;
@@ -309,7 +311,7 @@ int main(int argc, char** argv) {
         SseClient client;
         bisen_setup(ssl, &client);
         bisen_update(ssl, &client, bisen_nr_docs);
-        bisen_search(ssl, &client);
+        bisen_search(ssl, &client, queries);
     }
 
     ///////////////////////////////
