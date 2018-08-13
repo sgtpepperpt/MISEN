@@ -12,9 +12,9 @@
 #include <math.h>
 #include <string.h>
 
-float dot_product(float* a, float* b) {
+float dot_product(float* a, float* b, size_t desc_len) {
     float dot = 0;
-    for (int j = 0; j < DESC_LEN; ++j) {
+    for (int j = 0; j < desc_len; ++j) {
         dot += a[j] * b[j];
     }
 
@@ -52,6 +52,7 @@ typedef struct lsh_args {
     unsigned* frequencies;
 
     size_t nr_centres;
+    size_t desc_len;
     float** gaussians;
     float* clusters;
 } lsh_args;
@@ -64,7 +65,7 @@ static void* parallel(void* args) {
         double max = DBL_MIN;
         unsigned x = 0;
         for (unsigned i = 0; i < arg->nr_centres; ++i) {
-            float d = dot_product(arg->gaussians[i], arg->descriptors + DESC_LEN * k);
+            float d = dot_product(arg->gaussians[i], arg->descriptors + arg->desc_len * k, arg->desc_len);
             //printf("vector %d: %f\n", k, d);
             if(d > max) {
                 max = d;
@@ -81,7 +82,7 @@ static void* parallel(void* args) {
     return NULL;
 }
 lsh_args* args = NULL;
-const unsigned* calc_freq(float** gaussians, float* descriptors, size_t nr_descs, int centroids) {
+const unsigned* calc_freq(float** gaussians, float* descriptors, size_t nr_descs, size_t desc_len, int centroids) {
     unsigned* frequencies = (unsigned*)malloc(centroids * sizeof(unsigned));
     memset(frequencies, 0x00, centroids * sizeof(unsigned));
 
@@ -98,6 +99,7 @@ const unsigned* calc_freq(float** gaussians, float* descriptors, size_t nr_descs
         args[j].frequencies = frequencies;
         args[j].gaussians = gaussians;
         args[j].nr_centres = centroids;
+        args[j].desc_len = desc_len;
 
         if(j == 0) {
             args[j].start = 0;
@@ -140,18 +142,18 @@ const unsigned* calc_freq(float** gaussians, float* descriptors, size_t nr_descs
 }
 
 #include "outside_util.h"
-float** init_lsh(size_t centroids) {
+float** init_lsh(size_t centroids, size_t desc_len) {
     float** gaussians = (float**)malloc(centroids * sizeof(float*));
 
     //std::default_random_engine generator(time(0));
     //std::normal_distribution<float> distribution(0.0, 25.0);
 
     for (unsigned i = 0; i < centroids; ++i) {
-        gaussians[i] = (float*)malloc(DESC_LEN * sizeof(float));
-        for (int j = 0; j < DESC_LEN; ++j)
+        gaussians[i] = (float*)malloc(desc_len * sizeof(float));
+        for (int j = 0; j < desc_len; ++j)
             gaussians[i][j] = gaussrand(0.0, 25.0); //distribution(generator);
 
-        for (size_t l = 0; l < DESC_LEN; ++l) {
+        for (size_t l = 0; l < desc_len; ++l) {
             if(isnan(gaussians[i][l]))
                 outside_util::printf("erro\n\n");
 

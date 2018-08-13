@@ -63,7 +63,6 @@ void f(bytes* out, size* out_len, const unsigned long long pid, const bytes in, 
 void benchmarking_print() {
     // BENCHMARK : tell server to print statistics
     // this instruction can be safely removed if wanted
-    int tmp_buff_len = sizeof(char);
     unsigned char* tmp_buff = (unsigned char*)malloc(sizeof(unsigned char));
     tmp_buff[0] = '4';
     outside_util::write(server_socket, tmp_buff, sizeof(unsigned char));
@@ -257,7 +256,7 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
             continue;
 
         // fisher-yates shuffle
-        for(unsigned j = 0; j < query->array[i].counter; j++) {
+        for(int j = 0; j < query->array[i].counter; j++) {
             int r = c_random_uint_range(0, k+1);
             if(r != k) {
                 labels[k].tkn = labels[r].tkn;
@@ -458,9 +457,8 @@ int compare_results_rbisen(const void *a, const void *b) {
 }
 
 void search(bytes* out, size* out_len, const bytes in, const size in_len) {
-#ifdef VERBOSE
-    ocall_print_string("Search!\n");
-#endif
+    outside_util::printf("BISEN Search!\n");
+
     /*for(int i = 0; i < in_len; i++)
         printf("%02x", in[i]);
     printf("\n");*/
@@ -534,6 +532,7 @@ void search(bytes* out, size* out_len, const bytes in, const size in_len) {
 
     //calculate boolean formula
     vec_int response_docs = evaluate(query, nDocs, aux_bool);
+    //outside_util::printf("BISEN evaluated! %d\n", vi_size(response_docs));
     //map_t res = hashmap_new();
 
     //for(unsigned i = 0; i < vi_size(response_docs); i++) {
@@ -606,14 +605,14 @@ void search(bytes* out, size* out_len, const bytes in, const size in_len) {
     void* write_tmp = *out + sizeof(unsigned);
 
     for(unsigned i = 0; i < elements; i++) {
-        //ocall_printf("%d ", response_docs.array[i]);
+        outside_util::printf("%d ", response_docs.array[i]);
         memcpy(write_tmp, read_tmp, sizeof(int));
         memcpy(write_tmp + sizeof(int), read_tmp + sizeof(int), sizeof(double));
 
         read_tmp = (char*)read_tmp + sizeof(int) + sizeof(double);
         write_tmp = (char*)write_tmp + sizeof(int) + sizeof(double);
     }
-    //ocall_printf("\n");
+    outside_util::printf("\n-----------------\n");
 
     // free the buffers in iee_tokens
     for(unsigned i = 0; i < vt_size(query); i++) {

@@ -490,7 +490,7 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
         }
         case OP_IEE_TRAIN_LSH: {
             outside_util::printf("Train lsh!\n");
-            r->lsh = init_lsh(r->cluster_count);
+            r->lsh = init_lsh(r->cluster_count, r->desc_len);
             outside_util::printf("Trained lsh!\n");
             ok_response(out, out_len);
             break;
