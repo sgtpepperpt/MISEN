@@ -45,13 +45,19 @@ static void my_debug(void* ctx, int level, const char* file, int line, const cha
     fflush((FILE*)ctx);
 }
 
-void bisen(mbedtls_ssl_context ssl, int bisen_nr_docs) {
-    SseClient client;
+void bisen_setup(mbedtls_ssl_context ssl, SseClient* client) {
     unsigned char* data_bisen;
     unsigned long long data_size_bisen;
 
-    size output_size_bisen;
-    uint8_t* output_bisen;
+    // setup
+    data_size_bisen = client->generate_setup_msg(&data_bisen);
+    iee_comm(&ssl, data_bisen, data_size_bisen);
+    free(data_bisen);
+}
+
+void bisen_update(mbedtls_ssl_context ssl, SseClient* client, int bisen_nr_docs) {
+    unsigned char* data_bisen;
+    unsigned long long data_size_bisen;
 
     const char* dataset_dir = getenv("DATASET_DIR");
     if (!dataset_dir) {
@@ -59,20 +65,14 @@ void bisen(mbedtls_ssl_context ssl, int bisen_nr_docs) {
         exit(1);
     }
 
-    // setup
-    data_size_bisen = client.generate_setup_msg(&data_bisen);
-    iee_comm(&ssl, data_bisen, data_size_bisen);
-    free(data_bisen);
-
-    // add
     // get list of docs for test
     vector<string> doc_paths;
-    client.listTxtFiles(dataset_dir, doc_paths);
+    client->listTxtFiles(dataset_dir, doc_paths);
 
     size_t nr_updates = 0;
     for (const string doc : doc_paths) {
         // extract keywords from a 1M, multiple article, file
-        vector<map<string, int>> docs = client.extract_keywords_frequency_wiki(dataset_dir + doc);
+        vector<map<string, int>> docs = client->extract_keywords_frequency_wiki(dataset_dir + doc);
         nr_updates += docs.size();
         printf("add %lu, total %lu\n", docs.size(), nr_updates);
 
@@ -83,7 +83,7 @@ void bisen(mbedtls_ssl_context ssl, int bisen_nr_docs) {
 
         for (const map<string, int> text : docs) {
             // generate the byte* to send to the server
-            data_size_bisen = client.add_new_document(text, &data_bisen);
+            data_size_bisen = client->add_new_document(text, &data_bisen);
             iee_comm(&ssl, data_bisen, data_size_bisen);
             free(data_bisen);
         }
@@ -93,6 +93,11 @@ void bisen(mbedtls_ssl_context ssl, int bisen_nr_docs) {
             break;
         }
     }
+}
+
+void bisen_search(mbedtls_ssl_context ssl, SseClient* client) {
+    unsigned char* data_bisen;
+    unsigned long long data_size_bisen;
 
     vector<string> queries;
     queries.push_back("portugal");
@@ -107,7 +112,7 @@ void bisen(mbedtls_ssl_context ssl, int bisen_nr_docs) {
         printf("\n----------------------------\n");
         printf("Query %d: %s\n", k, query.c_str());
 
-        data_size_bisen = client.search(query, &data_bisen);
+        data_size_bisen = client->search(query, &data_bisen);
         iee_send(&ssl, data_bisen, data_size_bisen);
 
         uint8_t* bisen_out;
@@ -301,15 +306,16 @@ int main(int argc, char** argv) {
 
     //////////// BISEN ////////////
     if(use_text) {
-        bisen(ssl, bisen_nr_docs);
+        SseClient client;
+        bisen_setup(ssl, &client);
+        bisen_update(ssl, &client, bisen_nr_docs);
+        bisen_search(ssl, &client);
     }
 
     ///////////////////////////////
     if(use_images) {
         // image descriptor parameters
         Ptr<SIFT> extractor = SIFT::create(visen_descriptor_threshold);
-        Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create("FlannBased");
-        //BOWImgDescriptorExtractor* bowExtractor = new BOWImgDescriptorExtractor(surf, matcher);
 
         const vector<string> files = get_filenames(nr_images, "/home/guilherme/Datasets/inria");
 

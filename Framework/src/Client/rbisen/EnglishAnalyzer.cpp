@@ -76,6 +76,10 @@ set<string> EnglishAnalyzer::extractUniqueKeywords(string fname) {
 //unsigned long portugal = 0;
 //int seen_pt = 0;
 //unsigned long seen = 0;
+#define REGISTER_ARTICLES 1
+#if REGISTER_ARTICLES
+size_t overall_id = 0;
+#endif
 vector<map<string, int>> EnglishAnalyzer::extractUniqueKeywords_wiki(string fname) {
     //seen_pt = 0;
     vector<map<string, int>> word_map;
@@ -88,13 +92,30 @@ vector<map<string, int>> EnglishAnalyzer::extractUniqueKeywords_wiki(string fnam
         exit(1);
     }
 
+#if REGISTER_ARTICLES
+    FILE* f = fopen("articles.txt", "a");
+    if (f == NULL) {
+        printf("Error opening file!\n");
+        exit(1);
+    }
+#endif
+
     unsigned curr_article = 0;
     string line;
     while (getline(file, line)) {
         const char* l = line.c_str();
 
-        if(!memcmp(l, "<doc ", 5))
+        if(!memcmp(l, "<doc ", 5)) {
+#if REGISTER_ARTICLES
+            const char* title = strstr(l, "title=") + 7;
+            char tmp[strlen(title)];
+            strcpy(tmp, title);
+            tmp[strlen(title) - 2] = '\0';
+
+            fprintf(f, "%lu %s\n", overall_id++, tmp);
+#endif
             continue;
+        }
 
         if(!memcmp(l, "</doc>", 5)) {
             //seen_pt = 0;
@@ -136,6 +157,9 @@ vector<map<string, int>> EnglishAnalyzer::extractUniqueKeywords_wiki(string fnam
         cout << endl;
     }*/
     //printf("seen %lu words (pt %lu)\n", seen, portugal);
+#if REGISTER_ARTICLES
+    fclose(f);
+#endif
     return word_map;
 }
 
