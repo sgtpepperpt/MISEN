@@ -55,7 +55,7 @@ void bisen_setup(mbedtls_ssl_context ssl, SseClient* client) {
     free(data_bisen);
 }
 
-void bisen_update(mbedtls_ssl_context ssl, SseClient* client, unsigned bisen_nr_docs) {
+void bisen_update(mbedtls_ssl_context ssl, SseClient* client, unsigned bisen_nr_docs, char* bisen_doc_type) {
     unsigned char* data_bisen;
     unsigned long long data_size_bisen;
 
@@ -71,19 +71,20 @@ void bisen_update(mbedtls_ssl_context ssl, SseClient* client, unsigned bisen_nr_
 
     size_t nr_updates = 0;
     for (const string doc : doc_paths) {
-        // extract keywords from a 1M, multiple article, file
-        vector<map<string, int>> docs = client->extract_keywords_frequency_wiki(dataset_dir + doc);
+        vector<map<string, int>> docs;
 
-        //vector<map<string, int>> docs;
-        //docs.push_back(client->extract_keywords_frequency(dataset_dir + doc));
+        if(!strcmp(bisen_doc_type, "wiki")) {
+            // extract keywords from a 1M, multiple article, file
+            docs = client->extract_keywords_frequency_wiki(dataset_dir + doc);
+        } else if(!strcmp(bisen_doc_type, "normal")) {
+            // one file is one document
+            docs.push_back(client->extract_keywords_frequency(dataset_dir + doc));
+        } else {
+            printf("Document type not recognised\n");
+            exit(0);
+        }
 
         nr_updates += docs.size();
-        printf("add %lu, total %lu\n", docs.size(), nr_updates);
-
-        /*set<string>::iterator iter;
-        for(iter=text.begin(); iter!=text.end();++iter){
-            cout<<(*iter)<< " ";
-        }*/
 
         for (const map<string, int> text : docs) {
             // generate the byte* to send to the server
@@ -263,6 +264,9 @@ int main(int argc, char** argv) {
     unsigned bisen_nr_docs;
     config_lookup_int(&cfg, "bisen.nr_docs", (int*)&bisen_nr_docs);
 
+    char* bisen_doc_type;
+    config_lookup_string(&cfg, "bisen.doc_type", (const char**)&bisen_doc_type);
+
     char* visen_train_mode, *visen_train_technique, *visen_search_mode, *visen_clusters_file;
     unsigned visen_descriptor_threshold, visen_nr_clusters;
     config_lookup_string(&cfg, "visen.train_technique", (const char**)&visen_train_technique);
@@ -427,7 +431,7 @@ int main(int argc, char** argv) {
         printf("-- BISEN setup: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
 
         gettimeofday(&start, NULL);
-        bisen_update(ssl, &client, bisen_nr_docs);
+        bisen_update(ssl, &client, bisen_nr_docs, bisen_doc_type);
         gettimeofday(&end, NULL);
         printf("-- BISEN updates: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
 

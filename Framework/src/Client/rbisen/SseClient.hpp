@@ -37,23 +37,23 @@ public:
 
     unsigned long long generate_setup_msg(unsigned char** data);
     unsigned long long add_new_document(map<string, int> words, unsigned char** data);
-    unsigned long long add_words(int doc_id, set<string> words, unsigned char** data);
+    //unsigned long long add_words(int doc_id, set<string> words, unsigned char** data);
     int search(string query, unsigned char** data);
 
     // functions for testing purposes
-    string generate_random_query(vector<string> all_words, const int size, const int not_prob, const int and_prob);
+    //string generate_random_query(vector<string> all_words, const int size, const int not_prob, const int and_prob);
     void listTxtFiles (string path, vector<string>& docs);
     vector<map<string, int>> extract_keywords_frequency_wiki(string fname);
     map<string, int> extract_keywords_frequency(string fname);
 
     void list_words();
 
-    const unsigned long count_articles(string dataset_dir, vector<string> vector);
+    //const unsigned long count_articles(string dataset_dir, vector<string> vector);
 
 private:
     int new_doc();
     unsigned long long generate_add_msg(int doc_id, map<string, int> words, unsigned char **data);
-    string get_random_segment(vector<string> segments);
+    //string get_random_segment(vector<string> segments);
 };
 
 #endif /* SseClient_hpp */

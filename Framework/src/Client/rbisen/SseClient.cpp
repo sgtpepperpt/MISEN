@@ -203,26 +203,26 @@ int SseClient::search(string query, unsigned char** data) {
 }
 
 void SseClient::listTxtFiles (std::string path, std::vector<std::string>& docs) {
-    DIR* dir = opendir (path.c_str());
+    DIR* dir = opendir(path.c_str());
     if (dir) {
         struct dirent* hFile;
-        while ((hFile = readdir (dir)) != NULL ) {
-            if ( !strcmp( hFile->d_name, "."  ) || !strcmp( hFile->d_name, ".." ) || hFile->d_name[0] == '.' ) continue;
-            std::string fname = hFile->d_name;
+        while ((hFile = readdir (dir))) {
+            if (!strcmp(hFile->d_name, ".") || !strcmp(hFile->d_name, "..") || hFile->d_name[0] == '.') continue;
+            string fname = hFile->d_name;
             const size_t pos = fname.find(".txt");
-            if (pos != std::string::npos) {
-//                std::string idString = fname.substr(4,pos-4);
-//                const int id = atoi(idString.c_str());
-                std::string fullPath = path;
+            if (pos != string::npos) {
+                string fullPath = path;
                 path += fname;
                 docs.push_back(fname);
             }
         }
-        closedir (dir);
-    } else
-        pee ("SseClient::listTxtFiles couldn't open dataset dir.");
+        closedir(dir);
+        sort(docs.begin(), docs.end());
+    } else {
+        pee("SseClient::listTxtFiles couldn't open dataset dir.");
+    }
 }
-
+/*
 string SseClient::get_random_segment(vector<string> segments) {
     return segments[client_c_random_uint_range(0, segments.size())];
 }
@@ -292,7 +292,7 @@ string SseClient::generate_random_query(vector<string> all_words, const int size
     }
 
     return segments.front();
-}
+}*/
 
 // http://thispointer.com/how-to-sort-a-map-by-value-in-c/
 typedef function<bool(pair<string, int>, pair<string, int>)> Comparator;

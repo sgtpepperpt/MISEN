@@ -7,14 +7,17 @@
 //
 
 #include "ClientCrypt.h"
+#include <string.h>
 
 void client_init_crypt() {
     // generate kF and Kenc
-    client_kEnc = (unsigned char *)malloc(client_symBlocksize * sizeof(unsigned char *));
-    client_c_random(client_kEnc, client_symBlocksize);
+    client_kEnc = (unsigned char *)malloc(client_symBlocksize * sizeof(unsigned char));
+    //client_c_random(client_kEnc, client_symBlocksize);
+    memset(client_kEnc, 0x00, client_symBlocksize);
 
-    client_kF = (unsigned char *)malloc(client_fBlocksize * sizeof(unsigned char *));
-    client_c_random(client_kF, client_fBlocksize);
+    client_kF = (unsigned char *)malloc(client_fBlocksize * sizeof(unsigned char));
+    //client_c_random(client_kF, client_fBlocksize);
+    memset(client_kF, 0x00, client_fBlocksize);
 }
 
 void client_destroy_crypt() {
