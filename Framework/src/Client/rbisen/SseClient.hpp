@@ -44,6 +44,7 @@ public:
     string generate_random_query(vector<string> all_words, const int size, const int not_prob, const int and_prob);
     void listTxtFiles (string path, vector<string>& docs);
     vector<map<string, int>> extract_keywords_frequency_wiki(string fname);
+    map<string, int> extract_keywords_frequency(string fname);
 
     void list_words();
 

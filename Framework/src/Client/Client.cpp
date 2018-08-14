@@ -55,7 +55,7 @@ void bisen_setup(mbedtls_ssl_context ssl, SseClient* client) {
     free(data_bisen);
 }
 
-void bisen_update(mbedtls_ssl_context ssl, SseClient* client, int bisen_nr_docs) {
+void bisen_update(mbedtls_ssl_context ssl, SseClient* client, unsigned bisen_nr_docs) {
     unsigned char* data_bisen;
     unsigned long long data_size_bisen;
 
@@ -73,6 +73,10 @@ void bisen_update(mbedtls_ssl_context ssl, SseClient* client, int bisen_nr_docs)
     for (const string doc : doc_paths) {
         // extract keywords from a 1M, multiple article, file
         vector<map<string, int>> docs = client->extract_keywords_frequency_wiki(dataset_dir + doc);
+
+        //vector<map<string, int>> docs;
+        //docs.push_back(client->extract_keywords_frequency(dataset_dir + doc));
+
         nr_updates += docs.size();
         printf("add %lu, total %lu\n", docs.size(), nr_updates);
 
@@ -127,6 +131,114 @@ void bisen_search(mbedtls_ssl_context ssl, SseClient* client, vector<string> que
     }
 }
 
+void visen_setup(mbedtls_ssl_context ssl, size_t desc_len, unsigned visen_nr_clusters) {
+    size_t in_len = 0;
+    uint8_t* in = NULL;
+
+    init(&in, &in_len, visen_nr_clusters, desc_len);
+    iee_comm(&ssl, in, in_len);
+    free(in);
+}
+
+void visen_train_client_kmeans(mbedtls_ssl_context ssl, size_t desc_len, unsigned visen_nr_clusters, char* visen_train_mode, char* visen_centroids_file, Ptr<SIFT> extractor) {
+    size_t in_len = sizeof(uint8_t) + visen_nr_clusters * desc_len * sizeof(float);
+    uint8_t* in = (uint8_t*)malloc(sizeof(uint8_t) + visen_nr_clusters * desc_len * sizeof(float));
+    in[0] = OP_IEE_SET_CODEBOOK_CLIENT_KMEANS;
+
+    float* centroids;
+    if(!strcmp(visen_train_mode, "train")) {
+        centroids = client_train("/home/guilherme/Datasets/inria/", visen_nr_clusters, desc_len, extractor);
+
+        FILE* file = fopen(visen_centroids_file, "wb");
+        if (!file) {
+            printf("Could not write centroids file\n");
+            exit(1);
+        }
+
+        fwrite(centroids, visen_nr_clusters, desc_len * sizeof(float), file);
+        fclose(file);
+    } else if(!strcmp(visen_train_mode, "load")) {
+        centroids = (float*)malloc(visen_nr_clusters * desc_len * sizeof(float));
+        FILE* file = fopen(visen_centroids_file, "rb");
+        if (!file) {
+            printf("Could not read centroids file\n");
+            exit(1);
+        }
+
+        fread(centroids, visen_nr_clusters, desc_len * sizeof(float), file);
+        fclose(file);
+    } else {
+        printf("error in train mode\n");
+        exit(1);
+    }
+
+    memcpy(in + 1, centroids, visen_nr_clusters * desc_len * sizeof(float));
+    iee_comm(&ssl, in, in_len);
+    free(in);
+    free(centroids);
+}
+
+void visen_train_iee_kmeans(mbedtls_ssl_context ssl, char* visen_train_mode, Ptr<SIFT> extractor, const vector<string> files) {
+    size_t in_len;
+    uint8_t* in;
+
+    // adding
+    for (unsigned i = 0; i < files.size(); i++) {
+        if(i % 100 == 0)
+            printf("Train img (%u/%lu) %s\n", i, files.size(), files[i].c_str());
+
+        add_train_images(&in, &in_len, extractor, files[i]);
+        iee_comm(&ssl, in, in_len);
+        free(in);
+    }
+
+    // train // this was for lsh vectors generation in enclave
+    train(&in, &in_len);
+    iee_comm(&ssl, in, in_len);
+    free(in);
+}
+/*
+void visen_train_client_lsh(mbedtls_ssl_context ssl, size_t desc_len, unsigned visen_nr_clusters, char* visen_train_mode, Ptr<SIFT> extractor, const vector<string> files) {
+    size_t in_len;
+    uint8_t* in;
+
+    vector<float*> gaussians(visen_nr_clusters);
+    std::default_random_engine generator(time(0));
+    std::normal_distribution<float> distribution(0.0, 25.0);
+
+    for (unsigned i = 0; i < visen_nr_clusters; ++i) {
+        float* vec = (float*)malloc(desc_len * sizeof(float));
+        for (unsigned j = 0; j < desc_len; ++j)
+            vec[j] = distribution(generator);
+
+        gaussians[i] = vec;
+    }
+
+    in[0] = OP_IEE_SET_CODEBOOK_CLIENT_LSH;
+
+    void* p = in + sizeof(uint8_t);
+    for (unsigned k = 0; k < visen_nr_clusters; ++k) {
+        memcpy(p, gaussians[k], desc_len * sizeof(float));
+        p = (unsigned char*)p + desc_len * sizeof(float);
+    }
+
+    iee_comm(&ssl, in, in_len);
+    free(in);
+}*/
+
+void visen_add_files(mbedtls_ssl_context ssl, Ptr<SIFT> extractor, const vector<string> files) {
+    size_t in_len;
+    uint8_t* in;
+
+    for (unsigned i = 0; i < files.size(); i++) {
+        if(i % 1000 == 0)
+            printf("Add img (%u/%lu)\n", i, files.size());
+        add_images(&in, &in_len, extractor, files[i]);
+        iee_comm(&ssl, in, in_len);
+        free(in);
+    }
+}
+
 int main(int argc, char** argv) {
     // static params
     const char* server_name = IEE_HOSTNAME;
@@ -148,8 +260,8 @@ int main(int argc, char** argv) {
     int use_images = 0;
     config_lookup_int(&cfg, "use_images", &use_images);
 
-    int bisen_nr_docs;
-    config_lookup_int(&cfg, "bisen.nr_docs", &bisen_nr_docs);
+    unsigned bisen_nr_docs;
+    config_lookup_int(&cfg, "bisen.nr_docs", (int*)&bisen_nr_docs);
 
     char* visen_train_mode, *visen_train_technique, *visen_search_mode, *visen_clusters_file;
     unsigned visen_descriptor_threshold, visen_nr_clusters;
@@ -303,107 +415,69 @@ int main(int argc, char** argv) {
         printf("%s\n", vrfy_buf);
     }
 
-    struct timeval start;
-    gettimeofday(&start, NULL);
+    struct timeval start, end;
 
     //////////// BISEN ////////////
     if(use_text) {
         SseClient client;
+
+        gettimeofday(&start, NULL);
         bisen_setup(ssl, &client);
+        gettimeofday(&end, NULL);
+        printf("-- BISEN setup: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+
+        gettimeofday(&start, NULL);
         bisen_update(ssl, &client, bisen_nr_docs);
+        gettimeofday(&end, NULL);
+        printf("-- BISEN updates: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+
+        gettimeofday(&start, NULL);
         bisen_search(ssl, &client, queries);
+        gettimeofday(&end, NULL);
+        printf("-- BISEN searches: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
     }
 
     ///////////////////////////////
     if(use_images) {
         // image descriptor parameters
         Ptr<SIFT> extractor = SIFT::create(visen_descriptor_threshold);
-
         const vector<string> files = get_filenames(nr_images, "/home/guilherme/Datasets/inria");
 
         // init iee and server
-        size_t in_len = 0;
-        uint8_t* in = NULL;
+        gettimeofday(&start, NULL);
+        visen_setup(ssl, desc_len, visen_nr_clusters);
+        gettimeofday(&end, NULL);
+        printf("-- VISEN setup: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
 
-        init(&in, &in_len, visen_nr_clusters, desc_len);
-        iee_comm(&ssl, in, in_len);
-        free(in);
-
-        // adding
-        /*for (unsigned i = 0; i < files.size(); i++) {
-            printf("Train img (%u/%lu) %s\n", i, files.size(), files[i].c_str());
-            add_train_images(&in, &in_len, surf, files[i]);
-            iee_comm(&ssl, in, in_len);
-            free(in);
-            printf("\n");
-        }*/
-
-        // train // this was for lsh vectors generation in enclave; also for kmeans without _lsh
-        /*train_lsh(&in, &in_len);
-        iee_comm(&ssl, in, in_len);
-        free(in);*/
-
-        in_len = sizeof(uint8_t) + visen_nr_clusters * desc_len * sizeof(float);
-        in = (uint8_t*)malloc(sizeof(uint8_t) + visen_nr_clusters * desc_len * sizeof(float));
-        in[0] = OP_IEE_SET_CODEBOOK;
-
-        float* centroids;
-        if(!strcmp(visen_train_mode, "train")) {
-            centroids = client_train("/home/guilherme/Datasets/inria/", visen_nr_clusters, desc_len, extractor);
-
-            FILE* file = fopen("centroids", "wb");
-            if (!file) {
-                printf("Could not write data file\n");
-                exit(1);
-            }
-
-            fwrite(centroids, visen_nr_clusters, desc_len * sizeof(float), file);
-            fclose(file);
-        } else if(!strcmp(visen_train_mode, "load")) {
-            centroids = (float*)malloc(visen_nr_clusters * desc_len * sizeof(float));
-            FILE* file = fopen("centroids5000", "rb");
-            if (!file) {
-                printf("Could not read data file\n");
-                exit(1);
-            }
-
-            fread(centroids, visen_nr_clusters, desc_len * sizeof(float), file);
-            fclose(file);
-        } else {
-            printf("error in train mode\n");
-            exit(1);
+        // train
+        gettimeofday(&start, NULL);
+        if(!strcmp(visen_train_technique, "client_kmeans")) {
+            visen_train_client_kmeans(ssl, desc_len, visen_nr_clusters, visen_train_mode, visen_clusters_file, extractor);
+        } else if(!strcmp(visen_train_technique, "iee_kmeans")) {
+            visen_train_iee_kmeans(ssl, visen_train_mode, extractor, files);
         }
 
-        memcpy(in + 1, centroids, visen_nr_clusters * desc_len * sizeof(float));
-        iee_comm(&ssl, in, in_len);
-        free(in);
-        free(centroids);
-
-        struct timeval end;
         gettimeofday(&end, NULL);
-        printf("-- Train elapsed time: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+        printf("-- VISEN train: %ldms %s--\n", untrusted_util::time_elapsed_ms(start, end), visen_train_technique);
 
         // add images to repository
-        for (unsigned i = 0; i < files.size(); i++) {
-            printf("Add img (%u/%lu)\n\n", i, files.size());
-            add_images(&in, &in_len, extractor, files[i]);
-            iee_comm(&ssl, in, in_len);
-            free(in);
-        }
-
+        gettimeofday(&start, NULL);
+        visen_add_files(ssl, extractor, files);
         gettimeofday(&end, NULL);
-        printf("-- Add img elapsed time: %ldms %lu imgs--\n", untrusted_util::time_elapsed_ms(start, end), files.size());
+        printf("-- VISEN add imgs: %ldms %lu imgs--\n", untrusted_util::time_elapsed_ms(start, end), files.size());
 
         // search
+        gettimeofday(&start, NULL);
         search_test(&ssl, extractor);
+        gettimeofday(&end, NULL);
+        printf("-- VISEN searches: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
 
         // clear
+        size_t in_len;
+        uint8_t* in;
         clear(&in, &in_len);
         iee_comm(&ssl, in, in_len);
         free(in);
-
-        gettimeofday(&end, NULL);
-        printf("Total elapsed time: %ldms\n", untrusted_util::time_elapsed_ms(start, end));
     }
 
     // close ssl connection
@@ -419,39 +493,13 @@ int main(int argc, char** argv) {
     return 0;
 }
 
-/*
-
-// TODO train technique
-#if CLUSTERING == C_LSH
-        vector<float*> gaussians(nr_clusters);
-        std::default_random_engine generator(time(0));
-        std::normal_distribution<float> distribution(0.0, 25.0);
-
-        for (unsigned i = 0; i < nr_clusters; ++i) {
-            float* vec = (float*)malloc(desc_len * sizeof(float));
-            for (unsigned j = 0; j < desc_len; ++j)
-                vec[j] = distribution(generator);
-
-            gaussians[i] = vec;
-        }
-
-        void* p = in + sizeof(uint8_t);
-        for (unsigned k = 0; k < nr_clusters; ++k) {
-            memcpy(p, gaussians[k], desc_len * sizeof(float));
-            p = (unsigned char*)p + desc_len * sizeof(float);
-        }
-
-        iee_comm(&ssl, in, in_len);
-        free(in);
-#endif
-*/
     /*} else {
 train_load_clusters(&in, &in_len);
 iee_comm(&ssl, in, in_len);
 free(in);
 }*/
 
-/*gettimeofday(&start, NULL);
+/*
 if (load_uee) {
     // tell iee to load images from disc
     unsigned char op = OP_IEE_READ_MAP;
@@ -460,8 +508,6 @@ if (load_uee) {
 #if CLUSTERING == C_LSH
 add_images_lsh(&in, &in_len, surf, files[i]);
 #endif
-
-
 
 /*if (write_uee) {
     // send persist message to iee

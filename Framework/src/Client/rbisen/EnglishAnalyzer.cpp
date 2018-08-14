@@ -43,15 +43,16 @@ void EnglishAnalyzer::stemWord_wiki(char* word) {
     word[stem(word,0,strlen(word)-1)+1]  = 0; /* calls the stemmer and uses its result to zero-terminate the string in s */
 }
 
-set<string> EnglishAnalyzer::extractUniqueKeywords(string fname) {
-    FILE* f = fopen(fname.c_str(),"r");
-    //printf("%s\n", fname.c_str());
-    set<string> words;
+map<string, int> EnglishAnalyzer::extractUniqueKeywords(string file) {
+    const char* fname = file.c_str();
+    FILE* f = fopen(fname,"r");
+    map<string, int> word_map;
+
     while(true) {
         int ch = getc(f);
         if (ch == EOF) {
             fclose(f);
-            return words;
+            return word_map;
         }
         if (isalnum(ch)) {
             int i = 0;
@@ -65,17 +66,19 @@ set<string> EnglishAnalyzer::extractUniqueKeywords(string fname) {
                     break;
                 }
             }
+            if (!isStopWord(s)) {
+                s[stem(s,0,i-1)+1] = 0;/* calls the stemmer and uses its result to zero-terminate the string in s */
 
-            if (!isStopWord(s))
-                words.insert(stemWord(s));
-
-            memset(s, 0x00, i);
+                if(word_map[s])
+                    word_map[s]++;
+                else
+                    word_map[s] = 1;
+            }
+            memset(s,0,i);
         }
     }
 }
-//unsigned long portugal = 0;
-//int seen_pt = 0;
-//unsigned long seen = 0;
+
 #define REGISTER_ARTICLES 1
 #if REGISTER_ARTICLES
 size_t overall_id = 0;
@@ -93,6 +96,9 @@ vector<map<string, int>> EnglishAnalyzer::extractUniqueKeywords_wiki(string fnam
     }
 
 #if REGISTER_ARTICLES
+    if(overall_id == 0)
+        remove("articles.txt");
+
     FILE* f = fopen("articles.txt", "a");
     if (f == NULL) {
         printf("Error opening file!\n");
@@ -114,6 +120,14 @@ vector<map<string, int>> EnglishAnalyzer::extractUniqueKeywords_wiki(string fnam
 
             fprintf(f, "%lu %s\n", overall_id++, tmp);
 #endif
+
+            char m[128];
+            sprintf(m, "aaaa%lu", overall_id);
+
+            string n(tmp);
+            replace(n.begin(), n.end(), ' ', '_');
+            word_map[curr_article][n] = 1;
+            word_map[curr_article][m] = 1;
             continue;
         }
 

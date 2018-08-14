@@ -68,6 +68,10 @@ int SseClient::new_doc() {
     return nDocs++;
 }
 
+map<string, int> SseClient::extract_keywords_frequency(string fname) {
+    return analyzer->extractUniqueKeywords(fname);
+}
+
 vector<map<string, int>> SseClient::extract_keywords_frequency_wiki(string fname) {
     return analyzer->extractUniqueKeywords_wiki(fname);
 }

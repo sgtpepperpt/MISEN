@@ -23,7 +23,7 @@ static void search(bytes* out, size* out_len, const bytes in, const size in_len)
 static void get_docs_from_server(vec_token *query, const unsigned count_words, const unsigned total_labels);
 
 static int server_socket;
-static int last_ndocs;
+static unsigned last_ndocs;
 static unsigned char* aux_bool;
 
 void print_buffer(const char* name, const unsigned char* buf, const unsigned long long len) {

@@ -601,12 +601,15 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             ok_response(out, out_len);
             break;
         }
-        case OP_IEE_SET_CODEBOOK: {
-#if CLUSTERING == C_KMEANS
+        case OP_IEE_SET_CODEBOOK_CLIENT_KMEANS: {
             float* centres = (float*)malloc(r->cluster_count * r->desc_len * sizeof(float));
             memcpy(centres, input, r->cluster_count * r->desc_len * sizeof(float));
             train_kmeans_set(r->k, centres, 0);
-#elif CLUSTERING == C_LSH
+
+            ok_response(out, out_len);
+            break;
+        }
+        case OP_IEE_SET_CODEBOOK_CLIENT_LSH: {
             r->lsh = (float**)malloc(sizeof(float*) * r->cluster_count);
             for (unsigned i = 0; i < r->cluster_count; ++i) {
                 float* p = (float*)malloc(r->desc_len * sizeof(float));
@@ -617,18 +620,46 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
                     outside_util::printf("%f ", p[l]);
                 outside_util::printf("\n");*/
             }
-#endif
-            ok_response(out, out_len);
             break;
         }
         case OP_RBISEN: {
-            unsigned char * output;
+            unsigned char* output;
             unsigned long long output_len;
 
             f(&output, &output_len, 0, input, input_len);
 
             *out = output;
             *out_len = output_len;
+            break;
+        }
+        case OP_MISEN_QUERY: {
+            outside_util::printf("multimodal search\n");
+
+            // bisen
+            unsigned char* output_bisen;
+            unsigned long long output_len_bisen;
+
+            size_t bisen_len;
+            memcpy(&bisen_len, input, sizeof(size_t));
+
+            uint8_t* bisen_query = input + sizeof(size_t);
+
+            f(&output_bisen, &output_len_bisen, 0, input, input_len);
+
+            // visen
+            uint8_t* output_visen;
+            size_t output_len_visen;
+
+            size_t nr_desc;
+            memcpy(&nr_desc, input + sizeof(size_t) + bisen_len, sizeof(size_t));
+
+            float* descriptors = (float*)(input + 2 * sizeof(size_t) + bisen_len);
+
+            search_image(&output_visen, &output_len_visen, nr_desc, descriptors);
+
+            // join results
+
+
             break;
         }
         default: {

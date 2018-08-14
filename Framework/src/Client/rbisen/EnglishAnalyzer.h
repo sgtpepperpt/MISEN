@@ -30,7 +30,7 @@ class EnglishAnalyzer {
 public:
     EnglishAnalyzer();
     ~EnglishAnalyzer();
-    set<string> extractUniqueKeywords(string fname);
+    map<string, int> extractUniqueKeywords(string fname);
     vector<map<string, int>> extractUniqueKeywords_wiki(string fname);
     char* stemWord(string word);
     void stemWord_wiki(char* word);

@@ -14,7 +14,7 @@
 
 float dot_product(float* a, float* b, size_t desc_len) {
     float dot = 0;
-    for (int j = 0; j < desc_len; ++j) {
+    for (unsigned j = 0; j < desc_len; ++j) {
         dot += a[j] * b[j];
     }
 
@@ -150,7 +150,7 @@ float** init_lsh(size_t centroids, size_t desc_len) {
 
     for (unsigned i = 0; i < centroids; ++i) {
         gaussians[i] = (float*)malloc(desc_len * sizeof(float));
-        for (int j = 0; j < desc_len; ++j)
+        for (unsigned j = 0; j < desc_len; ++j)
             gaussians[i][j] = gaussrand(0.0, 25.0); //distribution(generator);
 
         for (size_t l = 0; l < desc_len; ++l) {
