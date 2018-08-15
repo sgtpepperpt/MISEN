@@ -15,7 +15,7 @@ vec_int get_not_docs(int nDocs, vec_int negate, unsigned char* count){
     //vi_print(negate);
 
     // increase the count for elems in the original vector
-    for(unsigned i = 0; i < vi_size(negate); i++) {
+    for(unsigned i = 0; i < vi_size(&negate); i++) {
         //printf("aa %p\n", negate.array);
         count[negate.array[i]] =1;
         nops++;
@@ -44,11 +44,11 @@ vec_int evaluate(vec_token rpn_expr, int nDocs, unsigned char* count) {
     vt_init(&eval_stack, MAX_QUERY_TOKENS);
 
     iee_token tkn;
-    for(unsigned i = 0; i < vt_size(rpn_expr); i++) {
+    for(unsigned i = 0; i < vt_size(&rpn_expr); i++) {
         tkn = rpn_expr.array[i];
 
         if(tkn.type == '&') {
-            if (vt_size(eval_stack) < 2) {
+            if (vt_size(&eval_stack) < 2) {
                 outside_util::printf("Insufficient operands for AND!\n");
                 outside_util::exit(-1);
             }
@@ -78,7 +78,7 @@ vec_int evaluate(vec_token rpn_expr, int nDocs, unsigned char* count) {
             vi_destroy(&and1);
             vi_destroy(&and2);
         } else if(tkn.type == '|') {
-            if (vt_size(eval_stack) < 2) {
+            if (vt_size(&eval_stack) < 2) {
                 outside_util::printf("Insufficient operands for OR!\n");
                 outside_util::exit(-1);
             }
@@ -109,7 +109,7 @@ vec_int evaluate(vec_token rpn_expr, int nDocs, unsigned char* count) {
             vi_destroy(&or1);
             vi_destroy(&or2);
         } else if(tkn.type == '!') {
-            if (vt_size(eval_stack) < 1) {
+            if (vt_size(&eval_stack) < 1) {
                 outside_util::printf("Insufficient operands for NOT!\n");
                 outside_util::exit(-1);
             }
@@ -141,7 +141,7 @@ vec_int evaluate(vec_token rpn_expr, int nDocs, unsigned char* count) {
         }
     }
 
-    if (vt_size(eval_stack) != 1) {
+    if (vt_size(&eval_stack) != 1) {
         outside_util::printf("Wrong number of operands left\n");
         //printf("Wrong number of operands left: %u\n", vt_size(eval_stack));
         //ocall_printf("%02x\n", vt_peek_back(eval_stack).type);

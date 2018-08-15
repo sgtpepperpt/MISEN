@@ -13,7 +13,7 @@
 
 typedef struct iee_token {
     char type;
-    int counter;
+    unsigned counter;
     double idf;
     unsigned char* kW;
     vec_int docs;

@@ -19,26 +19,17 @@ void vi_push_back(vec_int* v, int e) {
         v->array[v->counter++] = e;
 }
 
-void vi_pop_back(vec_int* v) {
-    if(v->counter > 0)
-        v->counter--;
+unsigned vi_size(vec_int* v) {
+    return v->counter;
 }
 
-int vi_peek_back(vec_int v) {
-    return v.array[v.counter - 1];
-}
-
-unsigned vi_size(vec_int v) {
-    return v.counter;
-}
-
-int vi_contains(vec_int v, int e) {
+int vi_index_of(vec_int v, int e) {
     for(int i = 0; i < v.counter; i++) {
         if(v.array[i] == e)
-            return 1;
+            return i;
     }
 
-    return 0;
+    return -1;
 }
 
 vec_int vi_vec_union(vec_int a, vec_int b, unsigned char* count, unsigned ndocs) {

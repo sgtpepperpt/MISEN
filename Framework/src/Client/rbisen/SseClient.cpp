@@ -217,7 +217,7 @@ void SseClient::listTxtFiles (std::string path, std::vector<std::string>& docs) 
             }
         }
         closedir(dir);
-        sort(docs.begin(), docs.end());
+        sort(docs.begin(), docs.end(), greater<string>()); // documents with more articles happen to be at the end for the wikipedia dataset
     } else {
         pee("SseClient::listTxtFiles couldn't open dataset dir.");
     }

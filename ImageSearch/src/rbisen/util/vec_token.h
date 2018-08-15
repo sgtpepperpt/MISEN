@@ -7,7 +7,7 @@
 typedef struct vec_token {
     iee_token* array;
     int max_size;
-    int counter;
+    unsigned counter;
 } vec_token;
 
 // initialisers
@@ -21,6 +21,6 @@ void vt_pop_back(vec_token* v);
 
 // elements access
 iee_token vt_peek_back(vec_token v);
-unsigned vt_size(vec_token v);
+unsigned vt_size(vec_token* v);
 
 #endif

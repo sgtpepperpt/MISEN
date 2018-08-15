@@ -185,6 +185,11 @@ static void update(bytes *out, size *out_len, const bytes in, const size in_len)
             memcpy(kW, tmp, H_BYTES);
             tmp = (char*)tmp + H_BYTES;
 
+            /*outside_util::printf("%d %d ", doc_id, frequency);
+            for(unsigned k = 0; k < H_BYTES; k++)
+                outside_util::printf("%02x", kW[k]);
+            outside_util::printf("\n");*/
+
             // calculate "label" (key) and add to batch_buffer
             rbisen_c_hmac((unsigned char*)label, (unsigned char*)&counter, sizeof(int), kW);
 
@@ -250,13 +255,13 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
 
     // iterate over all the needed words, and then over all its occurences (given by the counter), and fills the requests array
     int k = 0;
-    for(unsigned i = 0; i < vt_size(*query); i++) {
+    for(unsigned i = 0; i < vt_size(query); i++) {
         // ignore non-word tokens
         if(query->array[i].type != WORD_TOKEN)
             continue;
 
         // fisher-yates shuffle
-        for(int j = 0; j < query->array[i].counter; j++) {
+        for(unsigned j = 0; j < query->array[i].counter; j++) {
             int r = c_random_uint_range(0, k+1);
             if(r != k) {
                 labels[k].tkn = labels[r].tkn;
@@ -377,38 +382,58 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
 }
 
 void calc_idf(vec_token *query, const unsigned total_docs) {
-    for(unsigned i = 0; i < vt_size(*query); i++) {
+    for(unsigned i = 0; i < vt_size(query); i++) {
         iee_token* t = &query->array[i];
 
         if(t->type != 'w')
             continue;
 
-        unsigned nr_docs = vi_size(t->docs);
+        unsigned nr_docs = vi_size(&t->docs);
         t->idf = !nr_docs ? 0 : log10(total_docs / nr_docs);// nr_docs should have +1 to avoid 0 division
 
-        outside_util::printf("idf %c %f %lu %lu\n", t->type, t->idf, nr_docs, total_docs);
+        //outside_util::printf("idf %c %f %lu %lu\n", t->type, t->idf, nr_docs, total_docs);
     }
 }
 
 void calc_tfidf(vec_token *query, vec_int* response_docs, void* results) {
+    /*for (int i = 0; i < vi_size(response_docs); ++i)
+        outside_util::printf("%d ", response_docs->array[i]);
+    outside_util::printf("\n");*/
+
+    /*outside_util::printf("query ");
+    for (int i = 0; i < vt_size(query); ++i) {
+        for (int j = 0; j < query->array[i].counter; ++j) {
+            outside_util::printf("%d %d; ", query->array[i].docs.array[j], query->array[i].doc_frequencies.array[j]);
+        }
+        outside_util::printf("\n");
+    }*/
+
     void* tmp = results;
     double max = 0;
 
     //iterate over the response docs
-    for(unsigned i = 0; i < vi_size(*response_docs); i++) {
-        int key = response_docs->array[i];
+    for(unsigned i = 0; i < vi_size(response_docs); i++) {
+        //outside_util::printf("doc id %d; ", response_docs->array[i]);
+        int curr_doc = response_docs->array[i];
         double tf_idf = 0;
 
-        // for each response doc, iterate over the terms and find who uses them
-        for(unsigned j = 0; j < vt_size(*query); j++) {
+        // for each response doc, iterate over all terms and find who uses them
+        for(unsigned j = 0; j < vt_size(query); j++) {
             iee_token* t = &query->array[j];
 
             if(t->type != 'w')
                 continue;
 
-            int pos = vi_contains(t->docs, key);
+            /*outside_util::printf("term ", j);
+            for(unsigned k = 0; k < H_BYTES; k++)
+                outside_util::printf("%02x", t->kW[k]);
+            outside_util::printf("\n");*/
+
+            int pos = vi_index_of(t->docs, curr_doc);
+            //outside_util::printf("pos %d; ", pos);
             if(pos != -1) {
                 tf_idf += t->doc_frequencies.array[pos] * t->idf;
+                //outside_util::printf("freq %d ", t->doc_frequencies.array[pos]);
                 max += tf_idf;
 
                 if(tf_idf > 100){
@@ -420,10 +445,11 @@ void calc_tfidf(vec_token *query, vec_int* response_docs, void* results) {
                     ocall_print_string("\n");*/
                 }
             }
+            //outside_util::printf("\n");
         }
 
         // store tf-idf in result buffer
-        memcpy(tmp, &key, sizeof(int));
+        memcpy(tmp, &curr_doc, sizeof(int));
         memcpy(tmp + sizeof(int), &tf_idf, sizeof(double));
         tmp = (char*)tmp + sizeof(int) + sizeof(double);
     }
@@ -457,11 +483,7 @@ int compare_results_rbisen(const void *a, const void *b) {
 }
 
 void search(bytes* out, size* out_len, const bytes in, const size in_len) {
-    outside_util::printf("BISEN Search!\n");
-
-    /*for(int i = 0; i < in_len; i++)
-        printf("%02x", in[i]);
-    printf("\n");*/
+    outside_util::printf("-----------------\nBISEN Search!\n");
 
     vec_token query;
     vt_init(&query, MAX_QUERY_TOKENS);
@@ -482,7 +504,7 @@ void search(bytes* out, size* out_len, const bytes in, const size in_len) {
             count_words++;
 
             // read counter
-            tkn.counter = iee_readIntFromArr(in, &pos);
+            tkn.counter = (unsigned)iee_readIntFromArr(in, &pos);
             count_labels += tkn.counter;
 
             // read kW
@@ -494,7 +516,7 @@ void search(bytes* out, size* out_len, const bytes in, const size in_len) {
             vi_init(&tkn.doc_frequencies, tkn.counter);
             tkn.docs.counter = tkn.counter;
         } else if(tkn.type == META_TOKEN) {
-            nDocs = iee_readIntFromArr(in, &pos);
+            nDocs = (unsigned)iee_readIntFromArr(in, &pos);
             continue;
         }
 
@@ -530,38 +552,30 @@ void search(bytes* out, size* out_len, const bytes in, const size in_len) {
         last_ndocs = nDocs;
     }
 
+    outside_util::printf("query ");
+    for (int i = 0; i < vt_size(&query); ++i) {
+        for (int j = 0; j < query.array[i].counter; ++j) {
+            outside_util::printf("%d %d; ", query.array[i].docs.array[j], query.array[i].doc_frequencies.array[j]);
+        }
+        outside_util::printf("\n");
+    }
+
     //calculate boolean formula
     vec_int response_docs = evaluate(query, nDocs, aux_bool);
-    //outside_util::printf("BISEN evaluated! %d\n", vi_size(response_docs));
-    //map_t res = hashmap_new();
-
-    //for(unsigned i = 0; i < vi_size(response_docs); i++) {
-    //    hashmap_put(res, response_docs.array[i], 0);
-    //}
-
-    /*for(unsigned i = 0; i < vt_size(query); i++) {
-        ocall_print_string("a ");
-
-        for(unsigned f = 0; f < vi_size(query.array[i].docs); f++) {
-            ocall_print_unsigned(query.array[i].docs.array[f]);
-            ocall_print_string(" ");
-        }
-        ocall_print_string("\n");
-    }*/
+    outside_util::printf("BISEN evaluated! %d docs: ", vi_size(&response_docs));
+    for (int i = 0; i < vi_size(&response_docs); ++i)
+        outside_util::printf("%d ", response_docs.array[i]);
+    outside_util::printf("\n");
 
     void* results_buffer = NULL;
-    if(vi_size(response_docs)) {
+    if(vi_size(&response_docs)) {
         // calculate idf for each term
         calc_idf(&query, nDocs);
 
-        results_buffer = malloc(vi_size(response_docs) * (sizeof(int) + sizeof(double)));
+        results_buffer = malloc(vi_size(&response_docs) * (sizeof(int) + sizeof(double)));
 
         // calculate tf-idf for each document
         calc_tfidf(&query, &response_docs, results_buffer);
-
-#ifdef VERBOSE
-        ocall_print_string("Query Evaluated in IEE!\n");
-#endif
 
         /*void* tmp1 = results_buffer;
         for (int j = 0; j < vi_size(response_docs); ++j) {
@@ -575,7 +589,7 @@ void search(bytes* out, size* out_len, const bytes in, const size in_len) {
             tmp1 = (char*)tmp1 + sizeof(int) + sizeof(double);
         }
         ocall_print_string("--------------\n");*/
-        qsort(results_buffer, vi_size(response_docs), sizeof(int) + sizeof(double), compare_results_rbisen);
+        qsort(results_buffer, vi_size(&response_docs), sizeof(int) + sizeof(double), compare_results_rbisen);
         void* tmp = results_buffer;
         /*for (int j = 0; j < 15; ++j) {
             int a; memcpy(&a, tmp, sizeof(int));
@@ -598,13 +612,13 @@ void search(bytes* out, size* out_len, const bytes in, const size in_len) {
     memset(*out, 0, output_size);
 
     // add nr of elements at beggining, useful if they are less than threshold
-    const unsigned elements = std::min(threshold, vi_size(response_docs));
+    const unsigned elements = std::min(threshold, vi_size(&response_docs));
     memcpy(*out, &elements, sizeof(unsigned));
 
     void* read_tmp = results_buffer;
     void* write_tmp = *out + sizeof(unsigned);
 
-    outside_util::printf("nr documents %u\n", vi_size(response_docs));
+    outside_util::printf("nr documents %u\n", vi_size(&response_docs));
     for(unsigned i = 0; i < elements; i++) {
         //outside_util::printf("%d ", response_docs.array[i]);
         memcpy(write_tmp, read_tmp, sizeof(int));
@@ -616,7 +630,7 @@ void search(bytes* out, size* out_len, const bytes in, const size in_len) {
     //outside_util::printf("\n-----------------\n");
 
     // free the buffers in iee_tokens
-    for(unsigned i = 0; i < vt_size(query); i++) {
+    for(unsigned i = 0; i < vt_size(&query); i++) {
         iee_token t = query.array[i];
 
         // vi_destroy(&t.doc_frequencies);
@@ -635,9 +649,7 @@ void search(bytes* out, size* out_len, const bytes in, const size in_len) {
     if(results_buffer)
         free(results_buffer);
 
-#ifdef VERBOSE
-    ocall_print_string("Finished Search!\n");
-#endif
+    outside_util::printf("Finished Search!\n-----------------\n");
 
     benchmarking_print();
 }

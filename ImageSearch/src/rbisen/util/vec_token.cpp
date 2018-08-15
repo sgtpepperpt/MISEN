@@ -41,31 +41,6 @@ iee_token vt_peek_back(vec_token v) {
     return v.array[v.counter - 1];
 }
 
-unsigned vt_size(vec_token v) {
-    return v.counter;
+unsigned vt_size(vec_token* v) {
+    return v->counter;
 }
-
-/*
-int main (char* argv, int argc) {
-    vec_token va;
-    init(&va, 4);
-
-    push_back(&va, 8);
-    push_back(&va, 19);
-    push_back(&va, 3);
-    push_back(&va, 4);
-
-    vec_token vb;
-    init(&vb, 4);
-    
-    push_back(&vb, 19);
-    push_back(&vb, 1);
-    push_back(&vb, 4);
-    push_back(&vb, 3);
-    
-    for(int i = 0; i < r.counter; i++)
-        ocall_printf("%d ", r.array[i]);
-    ocall_printf("\n");
-
-    return 0;
-}*/
