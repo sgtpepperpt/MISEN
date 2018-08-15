@@ -26,13 +26,6 @@ static int server_socket;
 static unsigned last_ndocs;
 static unsigned char* aux_bool;
 
-void print_buffer(const char* name, const unsigned char* buf, const unsigned long long len) {
-    /*ocall_printf("%s size: %llu\n", name, len);
-    for(unsigned i = 0; i < len; i++)
-        ocall_printf("%02x", buf[i]);
-    ocall_printf("\n");*/
-}
-
 // IEE entry point
 void f(bytes* out, size* out_len, const unsigned long long pid, const bytes in, const size in_len) {
     #ifdef VERBOSE
@@ -72,10 +65,7 @@ void init_pipes() {
     server_socket = outside_util::open_socket("localhost", 7899);
     outside_util::printf("Finished IEE init! Gonna start listening for client requests through bridge!\n");
 }
-/*
-void destroy_pipes() {
-    outside_util::close(server_socket);
-}*/
+
 static void setup(bytes* out, size* out_len, const bytes in, const size in_len) {
 #ifdef VERBOSE
     ocall_print_string("IEE: Starting Setup!\n");
@@ -185,11 +175,6 @@ static void update(bytes *out, size *out_len, const bytes in, const size in_len)
             memcpy(kW, tmp, H_BYTES);
             tmp = (char*)tmp + H_BYTES;
 
-            /*outside_util::printf("%d %d ", doc_id, frequency);
-            for(unsigned k = 0; k < H_BYTES; k++)
-                outside_util::printf("%02x", kW[k]);
-            outside_util::printf("\n");*/
-
             // calculate "label" (key) and add to batch_buffer
             rbisen_c_hmac((unsigned char*)label, (unsigned char*)&counter, sizeof(int), kW);
 
@@ -201,14 +186,6 @@ static void update(bytes *out, size *out_len, const bytes in, const size in_len)
 
             // store in batch_buffer
             rbisen_c_encrypt((unsigned char*)d, unenc_data, d_unenc_len, nonce, get_kEnc());
-/*
-            for(unsigned j = 0; j < 40; j++)
-                printf("%02x", ((unsigned char*)unenc_data)[j]);
-            printf(": dec\n")
-
-            for(unsigned k = 0; k < 80; k++)
-                printf("%02x", ((unsigned char*)d)[k]);
-            printf(": cif\n");*/
         }
 
         // send batch to server
@@ -330,27 +307,10 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
         for(unsigned i = 0; i < batch_size; i++) {
             label_request* req = &labels[label_pos + i];
             rbisen_c_decrypt(dec_buff, res_buff + (res_len * i), res_len, nonce, get_kEnc());
-/*
-            for(unsigned j = 0; j < 80; j++)
-                printf("%02x", ((unsigned char*)res_buff + (res_len * i))[j]);
-            printf(": cif\n");
 
-            for(unsigned k = 0; k < 40; k++)
-                printf("%02x", ((unsigned char*)dec_buff)[k]);
-            printf(": dec\n\n");
-
-*/
             // aux pointer for req
             unsigned char* tmp_req = req_buff + sizeof(char) + sizeof(unsigned);
-/*
-            for(unsigned x = 0; x < H_BYTES; x++)
-                printf("%02x", (tmp_req + i * req_len)[x]);
-            printf(" : expected\n");
 
-            for(unsigned x = 0; x < H_BYTES; x++)
-                printf("%02x", dec_buff[x]);
-            printf(" : got\n");
-*/
             // verify
             if(memcmp(dec_buff, tmp_req + i * req_len, H_BYTES)) {
                 outside_util::printf("Label verification doesn't match! Exit\n");
@@ -389,7 +349,7 @@ void calc_idf(vec_token *query, const unsigned total_docs) {
             continue;
 
         unsigned nr_docs = vi_size(&t->docs);
-        t->idf = !nr_docs ? 0 : log10(total_docs / nr_docs);// nr_docs should have +1 to avoid 0 division
+        t->idf = !nr_docs ? 0 : log10((double)total_docs / nr_docs);// nr_docs should have +1 to avoid 0 division
 
         //outside_util::printf("idf %c %f %lu %lu\n", t->type, t->idf, nr_docs, total_docs);
     }
@@ -435,15 +395,6 @@ void calc_tfidf(vec_token *query, vec_int* response_docs, void* results) {
                 tf_idf += t->doc_frequencies.array[pos] * t->idf;
                 //outside_util::printf("freq %d ", t->doc_frequencies.array[pos]);
                 max += tf_idf;
-
-                if(tf_idf > 100){
-                    /*ocall_print_unsigned(key);
-                    ocall_print_string(" -> ");
-                    //ocall_print_unsigned(t->doc_frequencies.array[pos]);
-                    //ocall_print_string(" -> ");
-                    ocall_print_double(tf_idf);
-                    ocall_print_string("\n");*/
-                }
             }
             //outside_util::printf("\n");
         }
@@ -552,20 +503,20 @@ void search(bytes* out, size* out_len, const bytes in, const size in_len) {
         last_ndocs = nDocs;
     }
 
-    outside_util::printf("query ");
+    /*outside_util::printf("query ");
     for (int i = 0; i < vt_size(&query); ++i) {
         for (int j = 0; j < query.array[i].counter; ++j) {
             outside_util::printf("%d %d; ", query.array[i].docs.array[j], query.array[i].doc_frequencies.array[j]);
         }
         outside_util::printf("\n");
-    }
+    }*/
 
     //calculate boolean formula
     vec_int response_docs = evaluate(query, nDocs, aux_bool);
-    outside_util::printf("BISEN evaluated! %d docs: ", vi_size(&response_docs));
-    for (int i = 0; i < vi_size(&response_docs); ++i)
+    outside_util::printf("BISEN evaluated! %d docs\n", vi_size(&response_docs));
+    /*for (int i = 0; i < vi_size(&response_docs); ++i)
         outside_util::printf("%d ", response_docs.array[i]);
-    outside_util::printf("\n");
+    outside_util::printf("\n");*/
 
     void* results_buffer = NULL;
     if(vi_size(&response_docs)) {
@@ -644,7 +595,6 @@ void search(bytes* out, size* out_len, const bytes in, const size in_len) {
 
     vt_destroy(&query);
     vi_destroy(&response_docs);
-    //hashmap_free(res); // also frees values
 
     if(results_buffer)
         free(results_buffer);

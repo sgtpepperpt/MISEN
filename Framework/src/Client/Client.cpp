@@ -45,17 +45,17 @@ static void my_debug(void* ctx, int level, const char* file, int line, const cha
     fflush((FILE*)ctx);
 }
 
-void bisen_setup(mbedtls_ssl_context ssl, SseClient* client) {
+void bisen_setup(mbedtls_ssl_context* ssl, SseClient* client) {
     unsigned char* data_bisen;
     unsigned long long data_size_bisen;
 
     // setup
     data_size_bisen = client->generate_setup_msg(&data_bisen);
-    iee_comm(&ssl, data_bisen, data_size_bisen);
+    iee_comm(ssl, data_bisen, data_size_bisen);
     free(data_bisen);
 }
 
-void bisen_update(mbedtls_ssl_context ssl, SseClient* client, unsigned bisen_nr_docs, char* bisen_doc_type) {
+void bisen_update(mbedtls_ssl_context* ssl, SseClient* client, unsigned bisen_nr_docs, char* bisen_doc_type) {
     unsigned char* data_bisen;
     unsigned long long data_size_bisen;
 
@@ -64,6 +64,8 @@ void bisen_update(mbedtls_ssl_context ssl, SseClient* client, unsigned bisen_nr_
         printf("DATASET_DIR not defined!\n");
         exit(1);
     }
+
+    printf("Update type: %s\n", bisen_doc_type);
 
     // get list of docs for test
     vector<string> doc_paths;
@@ -89,7 +91,7 @@ void bisen_update(mbedtls_ssl_context ssl, SseClient* client, unsigned bisen_nr_
         for (const map<string, int> text : docs) {
             // generate the byte* to send to the server
             data_size_bisen = client->add_new_document(text, &data_bisen);
-            iee_comm(&ssl, data_bisen, data_size_bisen);
+            iee_comm(ssl, data_bisen, data_size_bisen);
             free(data_bisen);
         }
 
@@ -100,7 +102,7 @@ void bisen_update(mbedtls_ssl_context ssl, SseClient* client, unsigned bisen_nr_
     }
 }
 
-void bisen_search(mbedtls_ssl_context ssl, SseClient* client, vector<string> queries) {
+void bisen_search(mbedtls_ssl_context* ssl, SseClient* client, vector<string> queries) {
     unsigned char* data_bisen;
     unsigned long long data_size_bisen;
 
@@ -110,11 +112,11 @@ void bisen_search(mbedtls_ssl_context ssl, SseClient* client, vector<string> que
         printf("Query %d: %s\n", k, query.c_str());
 
         data_size_bisen = client->search(query, &data_bisen);
-        iee_send(&ssl, data_bisen, data_size_bisen);
+        iee_send(ssl, data_bisen, data_size_bisen);
 
         uint8_t* bisen_out;
         size_t bisen_out_len;
-        iee_recv(&ssl, &bisen_out, &bisen_out_len);
+        iee_recv(ssl, &bisen_out, &bisen_out_len);
 
         unsigned n_docs;
         memcpy(&n_docs, bisen_out, sizeof(int));
@@ -132,16 +134,16 @@ void bisen_search(mbedtls_ssl_context ssl, SseClient* client, vector<string> que
     }
 }
 
-void visen_setup(mbedtls_ssl_context ssl, size_t desc_len, unsigned visen_nr_clusters) {
+void visen_setup(mbedtls_ssl_context* ssl, size_t desc_len, unsigned visen_nr_clusters) {
     size_t in_len = 0;
     uint8_t* in = NULL;
 
     init(&in, &in_len, visen_nr_clusters, desc_len);
-    iee_comm(&ssl, in, in_len);
+    iee_comm(ssl, in, in_len);
     free(in);
 }
 
-void visen_train_client_kmeans(mbedtls_ssl_context ssl, size_t desc_len, unsigned visen_nr_clusters, char* visen_train_mode, char* visen_centroids_file, Ptr<SIFT> extractor) {
+void visen_train_client_kmeans(mbedtls_ssl_context* ssl, size_t desc_len, unsigned visen_nr_clusters, char* visen_train_mode, char* visen_centroids_file, Ptr<SIFT> extractor) {
     size_t in_len = sizeof(uint8_t) + visen_nr_clusters * desc_len * sizeof(float);
     uint8_t* in = (uint8_t*)malloc(sizeof(uint8_t) + visen_nr_clusters * desc_len * sizeof(float));
     in[0] = OP_IEE_SET_CODEBOOK_CLIENT_KMEANS;
@@ -174,12 +176,12 @@ void visen_train_client_kmeans(mbedtls_ssl_context ssl, size_t desc_len, unsigne
     }
 
     memcpy(in + 1, centroids, visen_nr_clusters * desc_len * sizeof(float));
-    iee_comm(&ssl, in, in_len);
+    iee_comm(ssl, in, in_len);
     free(in);
     free(centroids);
 }
 
-void visen_train_iee_kmeans(mbedtls_ssl_context ssl, char* visen_train_mode, Ptr<SIFT> extractor, const vector<string> files) {
+void visen_train_iee_kmeans(mbedtls_ssl_context* ssl, char* visen_train_mode, Ptr<SIFT> extractor, const vector<string> files) {
     size_t in_len;
     uint8_t* in;
 
@@ -189,13 +191,13 @@ void visen_train_iee_kmeans(mbedtls_ssl_context ssl, char* visen_train_mode, Ptr
             printf("Train img (%u/%lu) %s\n", i, files.size(), files[i].c_str());
 
         add_train_images(&in, &in_len, extractor, files[i]);
-        iee_comm(&ssl, in, in_len);
+        iee_comm(ssl, in, in_len);
         free(in);
     }
 
     // train // this was for lsh vectors generation in enclave
     train(&in, &in_len);
-    iee_comm(&ssl, in, in_len);
+    iee_comm(ssl, in, in_len);
     free(in);
 }
 /*
@@ -227,7 +229,7 @@ void visen_train_client_lsh(mbedtls_ssl_context ssl, size_t desc_len, unsigned v
     free(in);
 }*/
 
-void visen_add_files(mbedtls_ssl_context ssl, Ptr<SIFT> extractor, const vector<string> files) {
+void visen_add_files(mbedtls_ssl_context* ssl, Ptr<SIFT> extractor, const vector<string> files) {
     size_t in_len;
     uint8_t* in;
 
@@ -235,16 +237,96 @@ void visen_add_files(mbedtls_ssl_context ssl, Ptr<SIFT> extractor, const vector<
         if(i % 1000 == 0)
             printf("Add img (%u/%lu)\n", i, files.size());
         add_images(&in, &in_len, extractor, files[i]);
-        iee_comm(&ssl, in, in_len);
+        iee_comm(ssl, in, in_len);
+        free(in);
+    }
+}
+
+typedef struct configs {
+    int use_text = 0, use_images = 0, use_multimodal = 0;
+
+    unsigned bisen_nr_docs = 1000;
+    char* bisen_doc_type;
+    vector<string> bisen_queries;
+
+    char* visen_train_mode, *visen_train_technique, *visen_search_mode, *visen_clusters_file;
+    unsigned visen_descriptor_threshold, visen_nr_clusters, visen_desc_len;
+} configs;
+
+void separated_tests(const configs* const settings, mbedtls_ssl_context* ssl) {
+    struct timeval start, end;
+
+    //////////// BISEN ////////////
+    if(settings->use_text) {
+        SseClient client;
+
+        gettimeofday(&start, NULL);
+        bisen_setup(ssl, &client);
+        gettimeofday(&end, NULL);
+        printf("-- BISEN setup: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+
+        gettimeofday(&start, NULL);
+        bisen_update(ssl, &client, settings->bisen_nr_docs, settings->bisen_doc_type);
+        gettimeofday(&end, NULL);
+        printf("-- BISEN updates: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+
+        gettimeofday(&start, NULL);
+        bisen_search(ssl, &client, settings->bisen_queries);
+        gettimeofday(&end, NULL);
+        printf("-- BISEN searches: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+    }
+
+    ///////////////////////////////
+    if(settings->use_images) {
+        // image descriptor parameters
+        Ptr<SIFT> extractor = SIFT::create(settings->visen_descriptor_threshold);
+        const vector<string> files = get_filenames(-1, "/home/guilherme/Datasets/inria");
+
+        // init iee and server
+        gettimeofday(&start, NULL);
+        visen_setup(ssl, settings->visen_desc_len, settings->visen_nr_clusters);
+        gettimeofday(&end, NULL);
+        printf("-- VISEN setup: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+
+        // train
+        gettimeofday(&start, NULL);
+        if(!strcmp(settings->visen_train_technique, "client_kmeans")) {
+            visen_train_client_kmeans(ssl, settings->visen_desc_len, settings->visen_nr_clusters, settings->visen_train_mode, settings->visen_clusters_file, extractor);
+        } else if(!strcmp(settings->visen_train_technique, "iee_kmeans")) {
+            visen_train_iee_kmeans(ssl, settings->visen_train_mode, extractor, files);
+        }
+
+        gettimeofday(&end, NULL);
+        printf("-- VISEN train: %ldms %s--\n", untrusted_util::time_elapsed_ms(start, end), settings->visen_train_technique);
+
+        // add images to repository
+        gettimeofday(&start, NULL);
+        visen_add_files(ssl, extractor, files);
+        gettimeofday(&end, NULL);
+        printf("-- VISEN add imgs: %ldms %lu imgs--\n", untrusted_util::time_elapsed_ms(start, end), files.size());
+
+        // search
+        gettimeofday(&start, NULL);
+        search_test(ssl, extractor);
+        gettimeofday(&end, NULL);
+        printf("-- VISEN searches: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+
+        // clear
+        size_t in_len;
+        uint8_t* in;
+        clear(&in, &in_len);
+        iee_comm(ssl, in, in_len);
         free(in);
     }
 }
 
 int main(int argc, char** argv) {
+    configs program_configs;
+
     // static params
     const char* server_name = IEE_HOSTNAME;
     const int server_port = IEE_PORT;
-    const size_t desc_len = 128;
+    program_configs.visen_desc_len = 128;
 
     config_t cfg;
     config_init(&cfg);
@@ -255,35 +337,26 @@ int main(int argc, char** argv) {
         exit(1);
     }
 
-    int use_text = 0;
-    config_lookup_int(&cfg, "use_text", &use_text);
+    config_lookup_int(&cfg, "use_text", &program_configs.use_text);
+    config_lookup_int(&cfg, "use_images", &program_configs.use_images);
+    config_lookup_int(&cfg, "use_multimodal", &program_configs.use_multimodal);
 
-    int use_images = 0;
-    config_lookup_int(&cfg, "use_images", &use_images);
+    config_lookup_int(&cfg, "bisen.nr_docs", (int*)&program_configs.bisen_nr_docs);
+    config_lookup_string(&cfg, "bisen.doc_type", (const char**)&program_configs.bisen_doc_type);
 
-    unsigned bisen_nr_docs;
-    config_lookup_int(&cfg, "bisen.nr_docs", (int*)&bisen_nr_docs);
+    config_lookup_string(&cfg, "visen.train_technique", (const char**)&program_configs.visen_train_technique);
+    config_lookup_string(&cfg, "visen.train_mode", (const char**)&program_configs.visen_train_mode);
+    config_lookup_string(&cfg, "visen.search_mode", (const char**)&program_configs.visen_search_mode);
+    config_lookup_string(&cfg, "visen.clusters_file", (const char**)&program_configs.visen_clusters_file);
+    config_lookup_int(&cfg, "visen.descriptor_threshold", (int*)&program_configs.visen_descriptor_threshold);
+    config_lookup_int(&cfg, "visen.nr_clusters", (int*)&program_configs.visen_nr_clusters);
 
-    char* bisen_doc_type;
-    config_lookup_string(&cfg, "bisen.doc_type", (const char**)&bisen_doc_type);
-
-    char* visen_train_mode, *visen_train_technique, *visen_search_mode, *visen_clusters_file;
-    unsigned visen_descriptor_threshold, visen_nr_clusters;
-    config_lookup_string(&cfg, "visen.train_technique", (const char**)&visen_train_technique);
-    config_lookup_string(&cfg, "visen.train_mode", (const char**)&visen_train_mode);
-    config_lookup_string(&cfg, "visen.search_mode", (const char**)&visen_search_mode);
-    config_lookup_string(&cfg, "visen.clusters_file", (const char**)&visen_clusters_file);
-    config_lookup_int(&cfg, "visen.descriptor_threshold", (int*)&visen_descriptor_threshold);
-    config_lookup_int(&cfg, "visen.nr_clusters", (int*)&visen_nr_clusters);
-
-
-    vector<string> queries;
     config_setting_t* queries_setting = config_lookup(&cfg, "bisen.queries");
     const int count = config_setting_length(queries_setting);
 
     for(int i = 0; i < count; ++i) {
         config_setting_t* q = config_setting_get_elem(queries_setting, i);
-        queries.push_back(string(config_setting_get_string(q)));
+        program_configs.bisen_queries.push_back(string(config_setting_get_string(q)));
     }
 
     // parse terminal arguments
@@ -291,10 +364,10 @@ int main(int argc, char** argv) {
     while ((c = getopt(argc, argv, "hk:b:")) != -1) {
         switch (c) {
             case 'k':
-                visen_nr_clusters = std::stoul(optarg);
+                program_configs.visen_nr_clusters = (unsigned)std::stoi(optarg);
                 break;
             case 'b':
-                bisen_nr_docs = std::stoi(optarg);
+                program_configs.bisen_nr_docs = (unsigned)std::stoi(optarg);
                 break;
             case 'h':
                 printf("Usage: ./Client nr-imgs\n");
@@ -312,18 +385,15 @@ int main(int argc, char** argv) {
         }
     }
 
-    const int nr_images = -1;
-
-    if(use_text)
-        printf("BISEN: %d documents\n", bisen_nr_docs);
+    if(program_configs.use_text)
+        printf("BISEN: %d documents\n", program_configs.bisen_nr_docs);
     else
         printf("BISEN: disabled\n");
 
-    if(use_images)
-        printf("VISEN: train %s; search %s\n", visen_train_mode, visen_search_mode);
+    if(program_configs.use_images)
+        printf("VISEN: train %s; search %s\n", program_configs.visen_train_mode, program_configs.visen_search_mode);
     else
         printf("VISEN: disabled\n");
-
 
     // init mbedtls
     // put port in char buf
@@ -419,70 +489,8 @@ int main(int argc, char** argv) {
         printf("%s\n", vrfy_buf);
     }
 
-    struct timeval start, end;
-
-    //////////// BISEN ////////////
-    if(use_text) {
-        SseClient client;
-
-        gettimeofday(&start, NULL);
-        bisen_setup(ssl, &client);
-        gettimeofday(&end, NULL);
-        printf("-- BISEN setup: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
-
-        gettimeofday(&start, NULL);
-        bisen_update(ssl, &client, bisen_nr_docs, bisen_doc_type);
-        gettimeofday(&end, NULL);
-        printf("-- BISEN updates: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
-
-        gettimeofday(&start, NULL);
-        bisen_search(ssl, &client, queries);
-        gettimeofday(&end, NULL);
-        printf("-- BISEN searches: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
-    }
-
-    ///////////////////////////////
-    if(use_images) {
-        // image descriptor parameters
-        Ptr<SIFT> extractor = SIFT::create(visen_descriptor_threshold);
-        const vector<string> files = get_filenames(nr_images, "/home/guilherme/Datasets/inria");
-
-        // init iee and server
-        gettimeofday(&start, NULL);
-        visen_setup(ssl, desc_len, visen_nr_clusters);
-        gettimeofday(&end, NULL);
-        printf("-- VISEN setup: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
-
-        // train
-        gettimeofday(&start, NULL);
-        if(!strcmp(visen_train_technique, "client_kmeans")) {
-            visen_train_client_kmeans(ssl, desc_len, visen_nr_clusters, visen_train_mode, visen_clusters_file, extractor);
-        } else if(!strcmp(visen_train_technique, "iee_kmeans")) {
-            visen_train_iee_kmeans(ssl, visen_train_mode, extractor, files);
-        }
-
-        gettimeofday(&end, NULL);
-        printf("-- VISEN train: %ldms %s--\n", untrusted_util::time_elapsed_ms(start, end), visen_train_technique);
-
-        // add images to repository
-        gettimeofday(&start, NULL);
-        visen_add_files(ssl, extractor, files);
-        gettimeofday(&end, NULL);
-        printf("-- VISEN add imgs: %ldms %lu imgs--\n", untrusted_util::time_elapsed_ms(start, end), files.size());
-
-        // search
-        gettimeofday(&start, NULL);
-        search_test(&ssl, extractor);
-        gettimeofday(&end, NULL);
-        printf("-- VISEN searches: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
-
-        // clear
-        size_t in_len;
-        uint8_t* in;
-        clear(&in, &in_len);
-        iee_comm(&ssl, in, in_len);
-        free(in);
-    }
+    // do bisen and visen test separately
+    separated_tests(&program_configs, &ssl);
 
     // close ssl connection
     mbedtls_ssl_close_notify(&ssl);
