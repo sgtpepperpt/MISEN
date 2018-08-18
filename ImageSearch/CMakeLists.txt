@@ -25,7 +25,6 @@ set(KMEANS_SRCS ${KMEANS_DIR}/kmeans.cpp)
 set(UTIL_SRCS ${EXTERN_DIR}/src/parallel.cpp ${EXTERN_DIR}/src/scoring.cpp ${EXTERN_DIR}/src/img_processing.cpp ${EXTERN_DIR}/src/util.cpp ${EXTERN_DIR}/src/training/lsh/lsh.cpp)
 
 # define target library
-message(${EXTERN_DIR}/src/rbisen/IeeCrypt.c)
 add_library(${EXTERN_LIB_NAME}
         ${EXTERN_DIR}/src/rbisen/util/IeeUtils.cpp ${EXTERN_DIR}/src/rbisen/util/vec_int.cpp ${EXTERN_DIR}/src/rbisen/util/vec_token.cpp
         ${EXTERN_DIR}/src/rbisen/IeeCrypt.cpp ${EXTERN_DIR}/src/rbisen/QueryEvaluator.cpp ${EXTERN_DIR}/src/rbisen/SseIee.cpp

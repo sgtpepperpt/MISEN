@@ -135,12 +135,12 @@ unsigned long long SseClient::generate_add_msg(int doc_id, map<string, int> word
 }
 
 //boolean operands: AND, OR, NOT, (, )
-int SseClient::search(string query, unsigned char** data) {
+size_t SseClient::search(string query, unsigned char** data) {
     // parse the query into token structs and apply the shunting yard algorithm
     vector<client_token> infix_query = parser->tokenize(query);
     vector<client_token> rpn = parser->shunting_yard(infix_query);
 
-    int data_size = 2 * sizeof(unsigned char); // char from op
+    size_t data_size = 2 * sizeof(unsigned char); // char from op
 
     // first query iteration: to get needed size and counters
     for(unsigned i = 0; i < rpn.size(); i++) {
@@ -202,7 +202,7 @@ int SseClient::search(string query, unsigned char** data) {
     return data_size;
 }
 
-void SseClient::listTxtFiles (std::string path, std::vector<std::string>& docs) {
+void listTxtFiles (std::string path, std::vector<std::string>& docs) {
     DIR* dir = opendir(path.c_str());
     if (dir) {
         struct dirent* hFile;

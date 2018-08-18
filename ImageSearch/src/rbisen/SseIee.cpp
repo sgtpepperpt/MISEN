@@ -17,9 +17,9 @@
 static void init_pipes();
 //static void destroy_pipes();
 static void benchmarking_print(); // only for benchmarking, prints stats
-static void setup(bytes* out, size* out_len, const bytes in, const size in_len);
-static void update(bytes* out, size* out_len, const bytes in, const size in_len);
-static void search(bytes* out, size* out_len, const bytes in, const size in_len);
+static void setup(bytes* out, size* out_len, uint8_t* in, const size in_len);
+static void update(bytes* out, size* out_len, uint8_t* in, const size in_len);
+static void search(bytes* out, size* out_len, uint8_t* in, const size in_len);
 static void get_docs_from_server(vec_token *query, const unsigned count_words, const unsigned total_labels);
 
 static int server_socket;
@@ -27,7 +27,7 @@ static unsigned last_ndocs;
 static unsigned char* aux_bool;
 
 // IEE entry point
-void f(bytes* out, size* out_len, const unsigned long long pid, const bytes in, const size in_len) {
+void f(bytes* out, size* out_len, const unsigned long long pid, uint8_t* in, const size in_len) {
     #ifdef VERBOSE
     //ocall_strprint("\n***** Entering IEE *****\n");
     #endif
@@ -66,7 +66,7 @@ void init_pipes() {
     outside_util::printf("Finished IEE init! Gonna start listening for client requests through bridge!\n");
 }
 
-static void setup(bytes* out, size* out_len, const bytes in, const size in_len) {
+static void setup(bytes* out, size* out_len, uint8_t* in, const size in_len) {
 #ifdef VERBOSE
     ocall_print_string("IEE: Starting Setup!\n");
 #endif
@@ -116,7 +116,7 @@ static void setup(bytes* out, size* out_len, const bytes in, const size in_len) 
 #endif
 }
 
-static void update(bytes *out, size *out_len, const bytes in, const size in_len) {
+static void update(bytes *out, size *out_len, uint8_t* in, const size in_len) {
 #ifdef VERBOSE
     //ocall_print_string("IEE: Started add!\n");
 #endif
@@ -433,7 +433,7 @@ int compare_results_rbisen(const void *a, const void *b) {
         return d_a < d_b ? 1 : -1;
 }
 
-void search(bytes* out, size* out_len, const bytes in, const size in_len) {
+void search(bytes* out, size* out_len, uint8_t* in, const size in_len) {
     outside_util::printf("-----------------\nBISEN Search!\n");
 
     vec_token query;

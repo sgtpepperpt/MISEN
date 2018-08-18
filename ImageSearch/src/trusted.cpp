@@ -3,6 +3,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <map>
+#include <set>
 
 // includes from framework
 #include "definitions.h"
@@ -222,7 +223,6 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
 
     r->total_docs++;
     free((void*)frequencies);
-    outside_util::printf("--------------------\n");
 }
 
 typedef struct img_pair {
@@ -432,7 +432,7 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
         memcpy(&a, res + m * single_res_len, sizeof(unsigned long));
         memcpy(&b, res + m * single_res_len + sizeof(unsigned long), sizeof(double));
 
-        outside_util::printf("%lu %f\n", a, b);
+        //outside_util::printf("%lu %f\n", a, b);
     }
     outside_util::printf("\n");
     ////////////////////
@@ -519,12 +519,10 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             break;
         }
         case OP_IEE_ADD: {
-            outside_util::printf("Add after train images!\n");
-
             // get image (id, nr_desc, descriptors) from buffer
             unsigned long id;
             memcpy(&id, input, sizeof(unsigned long));
-            outside_util::printf("add, id %lu\n", id);
+            //outside_util::printf("add, id %lu\n", id);
 
             size_t nr_desc;
             memcpy(&nr_desc, input + sizeof(unsigned long), sizeof(size_t));
@@ -536,8 +534,6 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             break;
         }
         case OP_IEE_SEARCH: {
-            outside_util::printf("Search!\n");
-
             size_t nr_desc;
             memcpy(&nr_desc, input, sizeof(size_t));
 
@@ -573,7 +569,7 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             }
 
             trusted_util::read_secure(&(r->total_docs), sizeof(unsigned), 1, file);
-            trusted_util::read_secure(r->counters, sizeof(unsigned) * r->k->nr_centres(), 1, file);
+            trusted_util::read_secure(r->counters, sizeof(unsigned) * r->cluster_count, 1, file);
             trusted_util::close_secure(file);
 
             ok_response(out, out_len);
@@ -595,7 +591,7 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             }
 
             trusted_util::write_secure(&(r->total_docs), sizeof(unsigned), 1, file);
-            trusted_util::write_secure(r->counters, sizeof(unsigned) * r->k->nr_centres(), 1, file);
+            trusted_util::write_secure(r->counters, sizeof(unsigned) * r->cluster_count, 1, file);
             trusted_util::close_secure(file);
 
             ok_response(out, out_len);
@@ -644,7 +640,7 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
 
             uint8_t* bisen_query = input + sizeof(size_t);
 
-            f(&output_bisen, &output_len_bisen, 0, input, input_len);
+            f(&output_bisen, &output_len_bisen, 0, bisen_query, bisen_len);
 
             // visen
             uint8_t* output_visen;
@@ -657,8 +653,90 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
 
             search_image(&output_visen, &output_len_visen, nr_desc, descriptors);
 
-            // join results
+            ///////////////////////////////////////////////////////////////////
+            map<unsigned, double> bisen_scores, visen_scores;
+            vector<pair<unsigned, double>> misen_scores;
 
+            const size_t bisen_res_len = sizeof(unsigned) + sizeof(double);
+            const size_t visen_res_len = sizeof(unsigned long) + sizeof(double);
+
+            // join results
+            unsigned n_docs_bisen;
+            memcpy(&n_docs_bisen, output_bisen, sizeof(int));
+            outside_util::printf("Number of docs bisen: %d\n", n_docs_bisen);
+
+            set<unsigned> all_docs;
+            for (unsigned i = 0; i < n_docs_bisen; ++i) {
+                unsigned d;
+                double s;
+                memcpy(&d, output_bisen + sizeof(unsigned) + i * bisen_res_len, sizeof(int));
+                memcpy(&s, output_bisen + sizeof(unsigned) + i * bisen_res_len + sizeof(int), sizeof(double));
+
+                bisen_scores[d] = s;
+                all_docs.insert(d);
+            }
+
+            unsigned n_docs_visen;
+            memcpy(&n_docs_visen, output_visen, sizeof(unsigned));
+            outside_util::printf("nr of imgs visen: %u\n", n_docs_visen);
+
+            for (unsigned i = 0; i < n_docs_visen; ++i) {
+                unsigned long id;
+                double score;
+                memcpy(&id, output_visen + sizeof(size_t) + i * visen_res_len, sizeof(unsigned long));
+                memcpy(&score, output_visen + sizeof(size_t) + i * visen_res_len + sizeof(unsigned long), sizeof(double));
+
+                visen_scores[id] = score;
+                all_docs.insert(id);
+            }
+
+            // give scores for all documents (ISR)
+            for (unsigned doc : all_docs) {
+                const int is_in_bisen = bisen_scores.find(doc) != bisen_scores.end();
+                const int is_in_visen = visen_scores.find(doc) != visen_scores.end();
+
+                if(is_in_bisen && is_in_visen) {
+                    misen_scores.push_back(make_pair(doc, 2 * ((1 / (bisen_scores[doc] * bisen_scores[doc])) + (1 / (visen_scores[doc] * visen_scores[doc])))));
+                } else if(is_in_bisen) {
+                    misen_scores.push_back(make_pair(doc, 1 / (bisen_scores[doc] * bisen_scores[doc])));
+                } else if(is_in_visen) {
+                    misen_scores.push_back(make_pair(doc, 1 / (visen_scores[doc] * visen_scores[doc])));
+                }
+            }
+
+            auto map_comparator = [](std::pair<unsigned, double> const & a, std::pair<unsigned, double> const & b) {
+                return a.second < b.second;
+            };
+            std::sort(misen_scores.begin(), misen_scores.end(), map_comparator);
+
+            ///////////////////////////////////////////////////////////////////
+            // return to client
+            const int n_docs_misen = min(min(n_docs_bisen, n_docs_visen), 20);
+
+            // return query results
+            size_t output_size = sizeof(unsigned) + n_docs_misen * (sizeof(unsigned) + sizeof(double));
+            *out_len = sizeof(unsigned char) * output_size;
+            *out = (unsigned char*)malloc(*out_len);
+            memset(*out, 0, output_size);
+
+            // add nr of elements at beggining
+            memcpy(*out, &n_docs_misen, sizeof(unsigned));
+
+            void* write_tmp = *out + sizeof(unsigned);
+
+            outside_util::printf("nr documents %u\n", n_docs_misen);
+            int count = 0;
+            for(auto it = misen_scores.begin(); it != misen_scores.end(); ++it) {
+                memcpy(write_tmp, &it->first, sizeof(unsigned));
+                memcpy(write_tmp + sizeof(unsigned), &it->second, sizeof(double));
+
+                write_tmp = (char*)write_tmp + sizeof(unsigned) + sizeof(double);
+
+                if(++count > n_docs_misen)
+                    break;
+            }
+
+            ///////////////////////////////////////////////////////////////////
 
             break;
         }

@@ -25,6 +25,6 @@ void train_load_clusters(uint8_t** in, size_t* in_len);
 void clear(uint8_t** in, size_t* in_len);
 void search(uint8_t** in, size_t* in_len, const cv::Ptr<cv::xfeatures2d::SIFT> surf, const std::string file_name);
 void search_test_wang(mbedtls_ssl_context* ssl, const cv::Ptr<cv::xfeatures2d::SIFT> surf);
-void search_test(mbedtls_ssl_context* ssl, const cv::Ptr<cv::xfeatures2d::SIFT> surf);
+void search_test(mbedtls_ssl_context* ssl, const cv::Ptr<cv::xfeatures2d::SIFT> extractor);
 
 #endif

@@ -146,7 +146,7 @@ void* process_client(void* args) {
             }
             case OP_UEE_READ_MAP: {
                 printf("Reading map from disk\n");
-                FILE* map_file = fopen("map_data", "r");
+                FILE* map_file = fopen("map_data", "rb");
                 if(!map_file){
                     printf("Error opening map file\n!");
                     exit(1);
@@ -185,7 +185,7 @@ void* process_client(void* args) {
             }
             case OP_UEE_WRITE_MAP: {
                 printf("Writing map to disk\n");
-                FILE* map_file = fopen("map_data", "w");
+                FILE* map_file = fopen("map_data", "wb");
                 if(!map_file){
                     printf("Error opening map file\n!");
                     exit(1);

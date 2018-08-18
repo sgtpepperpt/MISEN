@@ -272,6 +272,8 @@ void search(uint8_t** in, size_t* in_len, const Ptr<SIFT> surf, const std::strin
             descriptors_buffer[i * desc_len + j] = *descriptors.ptr<float>(i, j);
     }
 
+    printf("nr desc %lu\n", nr_desc);
+
     // send
     *in_len = sizeof(unsigned char) + sizeof(size_t) + nr_desc * desc_len * sizeof(float);
 
@@ -347,7 +349,7 @@ void search_test_wang(mbedtls_ssl_context* ssl, const Ptr<SIFT> surf) {
 #endif
 }
 
-void search_test(mbedtls_ssl_context* ssl, const Ptr<SIFT> surf) {
+void search_test(mbedtls_ssl_context* ssl, const Ptr<SIFT> extractor) {
     size_t in_len;
     uint8_t* in;
 
@@ -362,7 +364,7 @@ void search_test(mbedtls_ssl_context* ssl, const Ptr<SIFT> surf) {
     }
 
     for (size_t i = 0; i < files.size(); ++i) {
-        search(&in, &in_len, surf, files[i]);
+        search(&in, &in_len, extractor, files[i]);
         iee_send(ssl, in, in_len);
         free(in);
 
