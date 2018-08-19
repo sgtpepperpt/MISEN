@@ -7,7 +7,7 @@
 
 #include "outside_util.h"
 
-#define MAX_DESCRIPTORS_MEM 150000
+#define MAX_DESCRIPTORS_MEM 100000
 
 typedef struct img_descriptor {
     unsigned count;

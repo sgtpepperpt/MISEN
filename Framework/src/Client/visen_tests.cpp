@@ -163,7 +163,7 @@ void visen_train_iee_kmeans(mbedtls_ssl_context* ssl, char* visen_train_mode, Pt
         free(in);
     }
 
-    // train // this was for lsh vectors generation in enclave
+    // train // this was also for lsh vectors generation in enclave
     train(&in, &in_len);
     iee_comm(ssl, in, in_len);
     free(in);
