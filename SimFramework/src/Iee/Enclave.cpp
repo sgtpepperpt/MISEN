@@ -37,7 +37,8 @@ void ecall_thread_enter() {
 }
 
 void ecall_process(void** out, size_t* out_len, const void* in, const size_t in_len) {
-    // TODO do not use these hardcoded values
+    extern_lib::process_message((uint8_t**)out, out_len, (const uint8_t *) in, in_len);
+    /*// TODO do not use these hardcoded values
     uint8_t key[crypto_secretbox_KEYBYTES];
     memset(key, 0x00, crypto_secretbox_KEYBYTES);
 
@@ -60,5 +61,5 @@ void ecall_process(void** out, size_t* out_len, const void* in, const size_t in_
 
     // cleanup
     free(in_unenc);
-    free(out_unenc);
+    free(out_unenc);*/
 }

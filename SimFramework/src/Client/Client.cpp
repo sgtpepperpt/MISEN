@@ -1,385 +1,238 @@
 #include "Client.h"
 
 #include "untrusted_util.h"
+#include "definitions.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include <getopt.h>
-#include <fstream>
 #include <sys/time.h>
+#include <arpa/inet.h>
 #include <sodium.h>
+#include <random>
+#include <stdint.h>
+#include <assert.h>
+#include <string.h>
+#include <libconfig.h>
+
+#include "ImageSearch.h"
+#include "visen_tests.h"
+#include "bisen_tests.h"
+#include "misen_tests.h"
+#include "util.h"
 
 using namespace cv;
 using namespace cv::xfeatures2d;
 using namespace std;
 
-// TODO now hardcoded for dev
-uint8_t key[AES_BLOCK_SIZE];
-uint8_t ctr[AES_BLOCK_SIZE];
+typedef struct configs {
+    int use_text = 0, use_images = 0, use_multimodal = 0;
 
+    unsigned bisen_nr_docs = 1000;
+    char* bisen_doc_type, *bisen_dataset_dir;
+    vector<string> bisen_queries;
 
-#define STORE_RESULTS 1
+    char* visen_train_mode, *visen_train_technique, *visen_add_mode, *visen_search_mode, *visen_clusters_file, *visen_dataset_dir;
+    unsigned visen_descriptor_threshold, visen_nr_clusters, visen_desc_len;
 
-#define SRC_RES_LEN (sizeof(unsigned long) + sizeof(double))
+    unsigned misen_nr_docs = 1000, misen_nr_queries = 10;
+    char* misen_text_dir, *misen_img_dir;
+} configs;
 
-#if STORE_RESULTS
+void separated_tests(const configs* const settings, secure_connection* conn) {
+    struct timeval start, end;
 
-void printHolidayResults(const char* path, std::map<unsigned long, std::vector<unsigned long>> results) {
-    std::ofstream ofs(path);
-    std::map<unsigned long, std::vector<unsigned long>>::iterator it;
-    for (it = results.begin(); it != results.end(); ++it) {
-        ofs << it->first << ".jpg";
-        for (unsigned long i = 0; i < it->second.size(); i++)
-            ofs << " " << i << " " << it->second.at(i) << ".jpg";
-        ofs << std::endl;
+    //////////// BISEN ////////////
+    if(settings->use_text) {
+        SseClient client;
+        vector<string> txt_paths = list_txt_files(-1, settings->bisen_dataset_dir); // get all paths and decide nr of docs in update (wiki mode is special)
+        sort(txt_paths.begin(), txt_paths.end(), greater<string>()); // documents with more articles happen to be at the end for the wikipedia dataset
+
+        gettimeofday(&start, NULL);
+        bisen_setup(conn, &client);
+        gettimeofday(&end, NULL);
+        printf("-- BISEN setup: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+
+        gettimeofday(&start, NULL);
+        bisen_update(conn, &client, settings->bisen_doc_type, settings->bisen_nr_docs, txt_paths);
+        gettimeofday(&end, NULL);
+        printf("-- BISEN updates: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+
+        gettimeofday(&start, NULL);
+        bisen_search(conn, &client, settings->bisen_queries);
+        gettimeofday(&end, NULL);
+        printf("-- BISEN searches: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
     }
 
-    ofs.close();
-}
+    ///////////////////////////////
+    if(settings->use_images) {
+        // image descriptor parameters
+        Ptr<SIFT> extractor = SIFT::create(settings->visen_descriptor_threshold);
+        const vector<string> files = list_img_files(-1, settings->visen_dataset_dir);
 
-#endif
+        // init iee and server
+        gettimeofday(&start, NULL);
+        visen_setup(conn, settings->visen_desc_len, settings->visen_nr_clusters);
+        gettimeofday(&end, NULL);
+        printf("-- VISEN setup: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
 
-unsigned long filename_to_id(const char* filename) {
-    const char* id = strrchr(filename, '/') + sizeof(char); // +sizeof(char) excludes the slash
-    return strtoul(id, NULL, 0);
-}
+        // train
+        gettimeofday(&start, NULL);
+        if(!strcmp(settings->visen_train_technique, "client_kmeans"))
+            visen_train_client_kmeans(conn, settings->visen_desc_len, settings->visen_nr_clusters, settings->visen_train_mode, settings->visen_clusters_file, settings->visen_dataset_dir, extractor);
+        else if(!strcmp(settings->visen_train_technique, "iee_kmeans"))
+            visen_train_iee_kmeans(conn, settings->visen_train_mode, extractor, files);
+        gettimeofday(&end, NULL);
+        printf("-- VISEN train: %ldms %s--\n", untrusted_util::time_elapsed_ms(start, end), settings->visen_train_technique);
 
-vector<string> get_filenames(int n) {
-    string holidayDir = "/home/guilherme/Datasets/inria";
-    vector<string> filenames;
-
-    DIR* dir;
-    struct dirent* ent;
-    int i = 0;
-    if ((dir = opendir(holidayDir.c_str()))) {
-        while ((ent = readdir(dir)) != NULL && (n < 0 || i < n)) {
-            std::string fname = holidayDir + "/" + ent->d_name;
-            if (fname.find(".jpg") == string::npos || !fname.length())
-                continue;
-
-            //printf("%s\n", fname.c_str());
-            filenames.push_back(fname);
-            i++;
+        // add images to repository
+        gettimeofday(&start, NULL);
+        if(!strcmp(settings->visen_add_mode, "normal")) {
+            visen_add_files(conn, extractor, files);
+        } else if(!strcmp(settings->visen_add_mode, "load")) {
+            // tell iee to load images from disc
+            unsigned char op = OP_IEE_READ_MAP;
+            iee_comm(conn, &op, 1);
+        } else {
+            printf("Add mode error\n");
+            exit(1);
         }
-        closedir(dir);
+        gettimeofday(&end, NULL);
+        printf("-- VISEN add imgs: %ldms %lu imgs--\n", untrusted_util::time_elapsed_ms(start, end), files.size());
+
+        if(!strcmp(settings->visen_add_mode, "normal")) {
+            // send persist storage message to iee, useful for debugging and testing
+            unsigned char op = OP_IEE_WRITE_MAP;
+            iee_comm(conn, &op, 1);
+        }
+
+        // search
+        gettimeofday(&start, NULL);
+        search_test(conn, extractor);
+        gettimeofday(&end, NULL);
+        printf("-- VISEN searches: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+
+        // clear
+        size_t in_len;
+        uint8_t* in;
+        clear(&in, &in_len);
+        iee_comm(conn, in, in_len);
+        free(in);
     }
-
-    return filenames;
 }
 
-void iee_send(const int socket, const uint8_t* in, const size_t in_len) {
-    // TODO do not use these hardcoded values
-    uint8_t key[crypto_secretbox_KEYBYTES];
-    memset(key, 0x00, crypto_secretbox_KEYBYTES);
+void multimodal_tests(const configs* const settings, secure_connection* conn) {
+    struct timeval start, end;
 
-    uint8_t nonce[crypto_secretbox_NONCEBYTES];
-    memset(nonce, 0x00, crypto_secretbox_NONCEBYTES);
+    // image descriptor parameters
+    Ptr<SIFT> extractor = SIFT::create(settings->visen_descriptor_threshold);
+    SseClient client;
 
-    // encrypt before sending
-    size_t enc_len = in_len + SODIUM_EXPBYTES;
-    uint8_t* enc = (uint8_t*)malloc(enc_len);
-    utcrypto::sodium_encrypt(enc, (uint8_t *)in, in_len, nonce, key);
+    vector<string> txt_paths = list_txt_files(settings->misen_nr_docs, settings->misen_text_dir);
+    vector<string> img_paths = list_img_files(settings->misen_nr_docs, settings->misen_img_dir);
 
-    untrusted_util::socket_send(socket, &enc_len, sizeof(size_t));
-    untrusted_util::socket_send(socket, enc, enc_len);
+    // have txt in the same order as imgs
+    sort(txt_paths.begin(), txt_paths.end());
+    sort(img_paths.begin(), img_paths.end());
 
-    free(enc);
-}
+    // init
+    gettimeofday(&start, NULL);
+    visen_setup(conn, settings->visen_desc_len, settings->visen_nr_clusters);
 
-void iee_recv(const int socket, uint8_t** out, size_t* out_len) {
-    // TODO do not use these hardcoded values
-    uint8_t key[crypto_secretbox_KEYBYTES];
-    memset(key, 0x00, crypto_secretbox_KEYBYTES);
+    bisen_setup(conn, &client);
+    gettimeofday(&end, NULL);
+    printf("-- MISEN setup: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
 
-    uint8_t nonce[crypto_secretbox_NONCEBYTES];
-    memset(nonce, 0x00, crypto_secretbox_NONCEBYTES);
+    // train (for images)
+    gettimeofday(&start, NULL);
+    visen_train_client_kmeans(conn, settings->visen_desc_len, settings->visen_nr_clusters, (char*)"load", settings->visen_clusters_file, NULL, extractor);
+    gettimeofday(&end, NULL);
+    printf("-- MISEN train: %ldms %s--\n", untrusted_util::time_elapsed_ms(start, end), settings->visen_train_technique);
 
-    size_t res_len;
-    unsigned char* res;
-    untrusted_util::socket_receive(socket, &res_len, sizeof(size_t));
-    res = (uint8_t*)malloc(res_len);
-    untrusted_util::socket_receive(socket, res, res_len);
+    // add documents to iee
+    gettimeofday(&start, NULL);
+    bisen_update(conn, &client, (char*)"normal", settings->misen_nr_docs, txt_paths);
+    visen_add_files(conn, extractor, img_paths);
+    gettimeofday(&end, NULL);
+    printf("-- MISEN updates: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
 
-    *out_len = res_len - SODIUM_EXPBYTES;
-    *out = (uint8_t*)malloc(*out_len);
-    utcrypto::sodium_decrypt(*out, res, res_len, nonce, key);
+    // searches
+    gettimeofday(&start, NULL);
+    vector<pair<string, string>> multimodal_queries = generate_multimodal_queries(txt_paths, img_paths, settings->misen_nr_queries);
+    misen_search(conn, &client, extractor, multimodal_queries);
+    gettimeofday(&end, NULL);
+    printf("-- MISEN searches: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
 
-    free(res);
-}
-
-void iee_comm(const int socket, const void* in, const size_t in_len) {
-    iee_send(socket, (uint8_t*)in, in_len);
-
-    size_t res_len;
-    unsigned char* res;
-    iee_recv(socket, &res, &res_len);
-
-    printf("res: %lu bytes\n", res_len);
-    free(res);
-}
-
-void init(uint8_t** in, size_t* in_len, unsigned nr_clusters, size_t row_len) {
-    *in_len = sizeof(unsigned char) + sizeof(unsigned) + sizeof(size_t);
-    *in = (uint8_t*)malloc(*in_len);
-
-    *in[0] = OP_IEE_INIT;
-    memcpy(*in + sizeof(unsigned char), &nr_clusters, sizeof(unsigned));
-    memcpy(*in + sizeof(unsigned char) + sizeof(unsigned), &row_len, sizeof(size_t));
-}
-
-void add_train_images(uint8_t** in, size_t* in_len, const Ptr<SURF> surf, std::string file_name) {
-    unsigned long id = filename_to_id(file_name.c_str());
-
-    Mat image = imread(file_name);
-    if (!image.data) {
-        printf("No image data for %s\n", file_name.c_str());
-        exit(1);
-    }
-
-    vector<KeyPoint> keypoints;
-    surf->detect(image, keypoints);
-
-    Mat descriptors;
-    surf->compute(image, keypoints, descriptors);
-
-    const size_t desc_len = (size_t)descriptors.size().width;
-    const size_t nr_desc = (size_t)descriptors.size().height;
-
-    float* descriptors_buffer = (float*)malloc(desc_len * nr_desc * sizeof(float));
-    for (unsigned i = 0; i < nr_desc; i++) {
-        for (size_t j = 0; j < desc_len; j++)
-            descriptors_buffer[i * desc_len + j] = *descriptors.ptr<float>(i, j);
-    }
-
-    // send
-    *in_len = sizeof(unsigned char) + sizeof(unsigned long) + sizeof(size_t) + nr_desc * desc_len * sizeof(float);
-    *in = (uint8_t*)malloc(*in_len);
-    uint8_t* tmp = *in;
-
-    tmp[0] = OP_IEE_TRAIN_ADD;
-    tmp += sizeof(unsigned char);
-
-    memcpy(tmp, &id, sizeof(unsigned long));
-    tmp += sizeof(unsigned long);
-
-    memcpy(tmp, &nr_desc, sizeof(size_t));
-    tmp += sizeof(size_t);
-
-    memcpy(tmp, descriptors_buffer, nr_desc * desc_len * sizeof(float));
-
-    free(descriptors_buffer);
-}
-
-void add_images(uint8_t** in, size_t* in_len, const Ptr<SURF> surf, std::string file_name) {
-    unsigned long id = filename_to_id(file_name.c_str());
-
-    Mat image = imread(file_name);
-    if (!image.data) {
-        printf("No image data for %s\n", file_name.c_str());
-        exit(1);
-    }
-
-    vector<KeyPoint> keypoints;
-    surf->detect(image, keypoints);
-
-    Mat descriptors;
-    surf->compute(image, keypoints, descriptors);
-
-    const size_t desc_len = (size_t)descriptors.size().width;
-    const size_t nr_desc = (size_t)descriptors.size().height;
-
-    float* descriptors_buffer = (float*)malloc(desc_len * nr_desc * sizeof(float));
-    for (unsigned i = 0; i < nr_desc; i++) {
-        for (size_t j = 0; j < desc_len; j++)
-            descriptors_buffer[i * desc_len + j] = *descriptors.ptr<float>(i, j);
-    }
-
-    // send
-    *in_len = sizeof(unsigned char) + sizeof(unsigned long) + sizeof(size_t) + nr_desc * desc_len * sizeof(float);
-    *in = (uint8_t*)malloc(*in_len);
-    uint8_t* tmp = *in;
-
-    tmp[0] = OP_IEE_ADD;
-    tmp += sizeof(unsigned char);
-
-    memcpy(tmp, &id, sizeof(unsigned long));
-    tmp += sizeof(unsigned long);
-
-    memcpy(tmp, &nr_desc, sizeof(size_t));
-    tmp += sizeof(size_t);
-
-    memcpy(tmp, descriptors_buffer, nr_desc * desc_len * sizeof(float));
-
-    free(descriptors_buffer);
-}
-
-void train(uint8_t** in, size_t* in_len) {
-    *in_len = sizeof(unsigned char);
-
-    *in = (uint8_t*)malloc(*in_len);
-    *in[0] = OP_IEE_TRAIN;
-}
-
-void train_load_clusters(uint8_t** in, size_t* in_len) {
-    *in_len = sizeof(unsigned char);
-
-    *in = (uint8_t*)malloc(*in_len);
-    *in[0] = OP_IEE_LOAD;
-}
-
-void clear(uint8_t** in, size_t* in_len) {
-    *in_len = sizeof(unsigned char);
-
-    *in = (uint8_t*)malloc(*in_len);
-    *in[0] = OP_IEE_CLEAR;
-}
-
-void search(uint8_t** in, size_t* in_len, const Ptr<SURF> surf, const std::string file_name) {
-    const char* id = strrchr(file_name.c_str(), '/') + sizeof(char); // +sizeof(char) excludes the slash
-    printf(" - Search for %s -\n", id);
-
-    Mat image = imread(file_name);
-    if (!image.data) {
-        printf("No image data for %s\n", file_name.c_str());
-        exit(1);
-    }
-
-    vector<KeyPoint> keypoints;
-    surf->detect(image, keypoints);
-
-    Mat descriptors;
-    surf->compute(image, keypoints, descriptors);
-
-    const size_t desc_len = (size_t)descriptors.size().width;
-    const size_t nr_desc = (size_t)descriptors.size().height;
-
-    float* descriptors_buffer = (float*)malloc(desc_len * nr_desc * sizeof(float));
-
-    for (unsigned i = 0; i < nr_desc; ++i) {
-        for (size_t j = 0; j < desc_len; ++j)
-            descriptors_buffer[i * desc_len + j] = *descriptors.ptr<float>(i, j);
-    }
-
-    // send
-    *in_len = sizeof(unsigned char) + sizeof(size_t) + nr_desc * desc_len * sizeof(float);
-
-    *in = (uint8_t*)malloc(*in_len);
-    uint8_t* tmp = *in;
-
-    tmp[0] = OP_IEE_SEARCH;
-    tmp += sizeof(unsigned char);
-
-    memcpy(tmp, &nr_desc, sizeof(size_t));
-    tmp += sizeof(size_t);
-
-    memcpy(tmp, descriptors_buffer, nr_desc * desc_len * sizeof(float));
-
-    free(descriptors_buffer);
-}
-
-void search_test(const int socket, const Ptr<SURF> surf) {
+    // cleanup
     size_t in_len;
     uint8_t* in;
-
-    map<unsigned long, vector<unsigned long>> precision_res;
-
-    // generate file list to search
-    vector<string> files;
-    for (int i = 100000; i <= 149900; i += 100) {
-        char img[128];
-        sprintf(img, "/home/guilherme/Datasets/inria/%d.jpg", i);
-        files.push_back(img);
-    }
-
-    for (size_t i = 0; i < files.size(); ++i) {
-        search(&in, &in_len, surf, files[i]);
-        iee_send(socket, in, in_len);
-        free(in);
-
-        // receive response
-        size_t res_len;
-        uint8_t* res;
-        iee_recv(socket, &res, &res_len);
-
-        // get number of response docs
-        unsigned nr;
-        memcpy(&nr, res, sizeof(unsigned));
-        printf("nr of imgs: %u\n", nr);
-
-#if STORE_RESULTS
-        // store the results in order
-        vector<unsigned long> precision_results;
-#endif
-
-        // decode id and score for each doc
-        for (unsigned j = 0; j < nr; ++j) {
-            unsigned long id;
-            memcpy(&id, res + sizeof(size_t) + j * SRC_RES_LEN, sizeof(unsigned long));
-
-            double score;
-            memcpy(&score, res + sizeof(size_t) + j * SRC_RES_LEN + sizeof(unsigned long), sizeof(double));
-
-            printf("%lu %f\n", id, score);
-#if STORE_RESULTS
-            precision_results.push_back(id);
-#endif
-        }
-
-        free(res);
-        precision_res[filename_to_id(files[i].c_str())] = precision_results;
-    }
-
-#if STORE_RESULTS
-    // write results to file
-    printHolidayResults("results.dat", precision_res);
-#endif
+    clear(&in, &in_len);
+    iee_comm(conn, in, in_len);
+    free(in);
 }
 
 int main(int argc, char** argv) {
-    memset(key, 0x00, AES_BLOCK_SIZE);
-    memset(ctr, 0x00, AES_BLOCK_SIZE);
+    configs program_configs;
 
-    // fixed params
+    // static params
     const char* server_name = IEE_HOSTNAME;
     const int server_port = IEE_PORT;
-    const size_t desc_len = 64;
-    const double surf_threshold = 400;
+    program_configs.visen_desc_len = 128;
 
-    // may be specified by user
-    size_t nr_clusters = 1000;
-    int train_only = 0;
-    int load_clusters = 0;
-    int do_search_test = 0;
-    int add_all = 0;
+    config_t cfg;
+    config_init(&cfg);
 
-    int load_uee = 0;
-    int write_uee = 0;
+    if(!config_read_file(&cfg, "../isen.cfg")) {
+        fprintf(stderr, "%s:%d - %s\n", config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
+        config_destroy(&cfg);
+        exit(1);
+    }
+
+    config_lookup_int(&cfg, "use_text", &program_configs.use_text);
+    config_lookup_int(&cfg, "use_images", &program_configs.use_images);
+    config_lookup_int(&cfg, "use_multimodal", &program_configs.use_multimodal);
+
+    config_lookup_int(&cfg, "bisen.nr_docs", (int*)&program_configs.bisen_nr_docs);
+    config_lookup_string(&cfg, "bisen.doc_type", (const char**)&program_configs.bisen_doc_type);
+    config_lookup_string(&cfg, "bisen.dataset_dir", (const char**)&program_configs.bisen_dataset_dir);
+
+    config_lookup_string(&cfg, "visen.train_technique", (const char**)&program_configs.visen_train_technique);
+    config_lookup_string(&cfg, "visen.train_mode", (const char**)&program_configs.visen_train_mode);
+    config_lookup_string(&cfg, "visen.add_mode", (const char**)&program_configs.visen_add_mode);
+    config_lookup_string(&cfg, "visen.search_mode", (const char**)&program_configs.visen_search_mode);
+    config_lookup_string(&cfg, "visen.clusters_file", (const char**)&program_configs.visen_clusters_file);
+    config_lookup_string(&cfg, "visen.dataset_dir", (const char**)&program_configs.visen_dataset_dir);
+    config_lookup_int(&cfg, "visen.descriptor_threshold", (int*)&program_configs.visen_descriptor_threshold);
+    config_lookup_int(&cfg, "visen.nr_clusters", (int*)&program_configs.visen_nr_clusters);
+
+    config_lookup_string(&cfg, "misen.text_dir", (const char**)&program_configs.misen_text_dir);
+    config_lookup_string(&cfg, "misen.img_dir", (const char**)&program_configs.misen_img_dir);
+    config_lookup_int(&cfg, "misen.nr_docs", (int*)&program_configs.misen_nr_docs);
+    config_lookup_int(&cfg, "misen.nr_queries", (int*)&program_configs.misen_nr_queries);
+
+    config_setting_t* queries_setting = config_lookup(&cfg, "bisen.queries");
+    const int count = config_setting_length(queries_setting);
+
+    for(int i = 0; i < count; ++i) {
+        config_setting_t* q = config_setting_get_elem(queries_setting, i);
+        program_configs.bisen_queries.push_back(string(config_setting_get_string(q)));
+    }
 
     // parse terminal arguments
     int c;
-    while ((c = getopt(argc, argv, "htlsarwk:")) != -1) {
+    while ((c = getopt(argc, argv, "hk:b:")) != -1) {
         switch (c) {
             case 'k':
-                nr_clusters = stoul(optarg);
+                program_configs.visen_nr_clusters = (unsigned)std::stoi(optarg);
                 break;
-            case 't':
-                train_only = 1;
+            case 'b':
+                program_configs.bisen_nr_docs = (unsigned)std::stoi(optarg);
                 break;
             case 'h':
                 printf("Usage: ./Client nr-imgs\n");
                 exit(0);
-            case 'l':
-                load_clusters = 1;
-                break;
-            case 's':
-                do_search_test = 1;
-                break;
-            case 'a':
-                add_all = 1;
-                break;
-            case 'r':
-                load_uee = 1;
-                break;
-            case 'w':
-                write_uee = 1;
-                break;
             case '?':
                 if (optopt == 'c')
                     fprintf(stderr, "-%c requires an argument.\n", optopt);
@@ -393,145 +246,75 @@ int main(int argc, char** argv) {
         }
     }
 
-    if (argv[optind] && (add_all || load_uee)) {
-        printf("Nr of images can not be specified with add all or load uee!\n");
-        exit(1);
-    }
-
-    if (!argv[optind] && !load_uee && !add_all) {
-        printf("Nr of images not specified!\n");
-        exit(1);
-    }
-
-    if (load_uee && add_all) {
-        printf("Add all images is not compatible with load uee option!\n");
-        exit(1);
-    }
-
-    if (load_uee && write_uee) {
-        printf("Load UEE is not compatible with write UEE option!\n");
-        exit(1);
-    }
-
-    const int nr_images = add_all || load_uee ? -1 : atoi(argv[optind]);
-
-    printf("Running with %d images, %lu clusters\n", nr_images, nr_clusters);
-
-    struct timeval start;
-    gettimeofday(&start, NULL);
-
-    // establish connection to iee_comm server
-    const int socket = untrusted_util::socket_connect(server_name, server_port);
-
-    // image descriptor parameters
-    Ptr<SURF> surf = SURF::create(surf_threshold);
-    Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create("FlannBased");
-    //BOWImgDescriptorExtractor* bowExtractor = new BOWImgDescriptorExtractor(surf, matcher);
-
-    const vector<string> files = get_filenames(nr_images);
-
-    // init iee and server
-    size_t in_len = 0;
-    uint8_t* in = NULL;
-
-    init(&in, &in_len, nr_clusters, desc_len);
-    iee_comm(socket, in, in_len);
-    free(in);
-
-    if (!load_clusters) {
-        // adding
-        for (unsigned i = 0; i < files.size(); i++) {
-            printf("Train img (%u/%lu) %s\n", i, files.size(), files[i].c_str());
-            add_train_images(&in, &in_len, surf, files[i]);
-            iee_comm(socket, in, in_len);
-            free(in);
-            printf("\n");
-        }
-
-        // train
-        train(&in, &in_len);
-        iee_comm(socket, in, in_len);
-        free(in);
+    if(program_configs.use_multimodal) {
+        printf("MISEN: %d documents\n", program_configs.bisen_nr_docs);
     } else {
-        train_load_clusters(&in, &in_len);
-        iee_comm(socket, in, in_len);
-        free(in);
+        if(program_configs.use_text)
+            printf("BISEN: %d documents\n", program_configs.bisen_nr_docs);
+        else
+            printf("BISEN: disabled\n");
+
+        if(program_configs.use_images)
+            printf("VISEN: train %s; search %s\n", program_configs.visen_train_mode, program_configs.visen_search_mode);
+        else
+            printf("VISEN: disabled\n");
     }
 
-    struct timeval end;
-    gettimeofday(&end, NULL);
-    printf("-- Train elapsed time: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+    // init mbedtls
+    secure_connection* conn;
+    untrusted_util::init_secure_connection(&conn, server_name, server_port);
 
-    if (train_only)
-        return 0;
-
-    gettimeofday(&start, NULL);
-    if (load_uee) {
-        // tell iee to load images from disc
-        unsigned char op = OP_IEE_READ_MAP;
-        iee_comm(socket, &op, 1);
+    if(program_configs.use_multimodal) {
+        multimodal_tests(&program_configs, conn);
     } else {
-        // add images to repository
-        for (unsigned i = 0; i < files.size(); i++) {
-            printf("Add img (%u/%lu)\n\n", i, files.size());
-            add_images(&in, &in_len, surf, files[i]);
-            iee_comm(socket, in, in_len);
-            free(in);
-        }
+        // do bisen and visen test separately
+        separated_tests(&program_configs, conn);
     }
 
-    gettimeofday(&end, NULL);
-    printf("-- Add img elapsed time: %ldms %lu imgs--\n", untrusted_util::time_elapsed_ms(start, end), files.size());
-
-    if (write_uee) {
-        // send persist message to iee
-        unsigned char op = OP_IEE_WRITE_MAP;
-        iee_comm(socket, &op, 1);
-    }
-
-    // search
-    if (do_search_test) {
-        search_test(socket, surf);
-    } else {
-        //TODO perform a search from args?
-        gettimeofday(&start, NULL);
-
-        search(&in, &in_len, surf, get_filenames(10)[0]);
-        iee_send(socket, in, in_len);
-        free(in);
-
-        // receive response and print
-        size_t res_len;
-        uint8_t* res;
-        iee_recv(socket, &res, &res_len);
-
-        unsigned nr;
-        memcpy(&nr, res, sizeof(unsigned));
-        printf("nr of imgs: %u\n", nr);
-
-        for (unsigned j = 0; j < nr; ++j) {
-            unsigned long id;
-            memcpy(&id, res + sizeof(size_t) + j * SRC_RES_LEN, sizeof(unsigned long));
-
-            double score;
-            memcpy(&score, res + sizeof(size_t) + j * SRC_RES_LEN + sizeof(unsigned long), sizeof(double));
-
-            printf("%lu %f\n", id, score);
-
-        }
-
-        gettimeofday(&end, NULL);
-        printf("-- Search elapsed time: %ldms--\n", untrusted_util::time_elapsed_ms(start, end));
-    }
-
-
-    // clear
-    clear(&in, &in_len);
-    iee_comm(socket, in, in_len);
-    free(in);
-
-    gettimeofday(&end, NULL);
-    printf("Total elapsed time: %ldms\n", untrusted_util::time_elapsed_ms(start, end));
+    // close ssl connection
+    untrusted_util::close_secure_connection(conn);
 
     return 0;
 }
+
+    /*} else {
+train_load_clusters(&in, &in_len);
+iee_comm(&ssl, in, in_len);
+free(in);
+}*/
+
+#if CLUSTERING == C_LSH
+add_images_lsh(&in, &in_len, surf, files[i]);
+#endif
+
+/*
+//TODO perform a search from args?
+    gettimeofday(&start, NULL);
+
+    search(&in, &in_len, surf, get_filenames(10, "/home/guilherme/Datasets/inria")[0]);
+    iee_send(&ssl, in, in_len);
+    free(in);
+
+    // receive response and print
+    size_t res_len;
+    uint8_t* res;
+    iee_recv(&ssl, &res, &res_len);
+
+    unsigned nr;
+    memcpy(&nr, res, sizeof(unsigned));
+    printf("nr of imgs: %u\n", nr);
+
+    for (unsigned j = 0; j < nr; ++j) {
+        unsigned long id;
+        memcpy(&id, res + sizeof(size_t) + j * SRC_RES_LEN, sizeof(unsigned long));
+
+        double score;
+        memcpy(&score, res + sizeof(size_t) + j * SRC_RES_LEN + sizeof(unsigned long), sizeof(double));
+
+        printf("%lu %f\n", id, score);
+
+    }
+
+    gettimeofday(&end, NULL);
+    printf("-- Search elapsed time: %ldms--\n", untrusted_util::time_elapsed_ms(start, end));
+ */
