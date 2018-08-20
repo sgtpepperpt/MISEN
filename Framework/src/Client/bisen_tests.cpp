@@ -55,7 +55,7 @@ void bisen_update(mbedtls_ssl_context* ssl, SseClient* client, unsigned bisen_nr
             free(data_bisen);
         }
 
-        if (nr_updates > bisen_nr_docs) {
+        if (nr_updates >= bisen_nr_docs) {
             printf("breaking\n");
             break;
         }

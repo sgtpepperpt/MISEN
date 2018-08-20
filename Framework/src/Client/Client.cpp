@@ -28,6 +28,7 @@
 #include "ImageSearch.h"
 #include "visen_tests.h"
 #include "bisen_tests.h"
+#include "misen_tests.h"
 
 using namespace cv;
 using namespace cv::xfeatures2d;
@@ -130,75 +131,12 @@ void separated_tests(const configs* const settings, mbedtls_ssl_context* ssl) {
     }
 }
 
-void misen_search(mbedtls_ssl_context* ssl, SseClient* client, Ptr<SIFT> extractor, vector<pair<string, string>> queries) {
-    for (unsigned k = 0; k < queries.size(); k++) {
-        string text_query = queries[k].first;
-        string img_file_path = queries[k].second;
-
-        printf("\n----------------------------\n");
-        printf("Query %d: %s %s\n", k, text_query.c_str(), img_file_path.c_str());
-
-        size_t query_bisen_len, query_visen_len;
-        uint8_t* query_bisen, *query_visen;
-
-        query_bisen_len = client->search(text_query, &query_bisen);
-        search(&query_visen, &query_visen_len, extractor, img_file_path);
-
-        uint8_t multimodal_query[2 * sizeof(size_t) + query_bisen_len + query_visen_len];
-        memcpy(multimodal_query, &query_bisen_len, sizeof(size_t));
-        memcpy(multimodal_query + sizeof(size_t), query_bisen, query_bisen_len);
-
-        memcpy(multimodal_query + sizeof(size_t) + query_bisen_len, &query_visen_len, sizeof(size_t));
-        memcpy(multimodal_query + 2 * sizeof(size_t) + query_bisen_len, query_visen, query_visen_len);
-
-        free(query_bisen);
-        free(query_visen);
-
-        iee_send(ssl, multimodal_query, 2 * sizeof(size_t) + query_bisen_len + query_visen_len);
-
-        uint8_t* res;
-        size_t res_len;
-        iee_recv(ssl, &res, &res_len);
-
-        unsigned nr_docs;
-        memcpy(&nr_docs, res, sizeof(int));
-        printf("Number of docs: %d\n", nr_docs);
-
-        for (unsigned i = 0; i < nr_docs; ++i) {
-            unsigned d;
-            double s;
-            memcpy(&d, res + sizeof(unsigned) + i * (sizeof(unsigned) + sizeof(double)), sizeof(unsigned));
-            memcpy(&s, res + sizeof(unsigned) + i * (sizeof(unsigned) + sizeof(double)) + sizeof(unsigned), sizeof(double));
-            printf("%ul %f\n", d, s);
-        }
-
-        free(res);
-    }
-}
-
-vector<pair<string, string>> generate_multimodal_queries(unsigned nr_docs) {
-    vector<pair<string, string>> multimodal_queries;
-
-    vector<string> txt_paths;
-    listTxtFiles("/home/guilherme/Datasets/mirflickr/meta/tags/", txt_paths);
-    sort(txt_paths.begin(), txt_paths.end(), greater<string>()); // have txt in the same order as imgs
-
-    vector<string> img_paths = get_filenames(nr_docs, "/home/guilherme/Datasets/mirflickr/");
-
-    for (unsigned i = 0; i < nr_docs; ++i) {
-        multimodal_queries.push_back(make_pair(txt_paths[i], img_paths[i]));
-        cout << txt_paths[i] << " " << img_paths[i] << endl;
-    }
-
-    return multimodal_queries;
-}
-
 void multimodal_tests(const configs* const settings, mbedtls_ssl_context* ssl) {
     struct timeval start, end;
 
     // image descriptor parameters
     Ptr<SIFT> extractor = SIFT::create(settings->visen_descriptor_threshold);
-    const vector<string> files = get_filenames(-1, "/home/guilherme/Datasets/inria");
+    const vector<string> files = get_filenames(settings->bisen_nr_docs, "/home/guilherme/Datasets/mirflickr/");
     SseClient client;
 
     // init
@@ -222,7 +160,7 @@ void multimodal_tests(const configs* const settings, mbedtls_ssl_context* ssl) {
 
     // add documents to iee
     gettimeofday(&start, NULL);
-    bisen_update(ssl, &client, settings->bisen_nr_docs, settings->bisen_doc_type, settings->bisen_dataset_dir);
+    bisen_update(ssl, &client, settings->bisen_nr_docs, settings->bisen_doc_type, "/home/guilherme/Datasets/mirflickr/meta/tags/");
     visen_add_files(ssl, extractor, files);
     gettimeofday(&end, NULL);
     printf("-- MISEN updates: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));

@@ -448,6 +448,21 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
     free(res);
 }
 
+typedef struct response {
+    unsigned doc_id;
+    double score;
+} response;
+
+int compare_results_misen(const void *a, const void *b) {
+    const response* d_a = (const response*)a;
+    const response* d_b = (const response*)b;
+
+    if (d_a->score == d_b->score)
+        return 0;
+    else
+        return d_a->score < d_b->score ? 1 : -1;
+}
+
 void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* in, const size_t in_len) {
     // pass pointer without op char to processing functions
     uint8_t* input = ((uint8_t*)in) + sizeof(unsigned char);
@@ -630,37 +645,27 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
         }
         case OP_MISEN_QUERY: {
             outside_util::printf("multimodal search\n");
+            uint8_t* tmp = input;
 
+            map<unsigned, double> bisen_scores, visen_scores;
+            const size_t bisen_res_len = sizeof(unsigned) + sizeof(double);
+            const size_t visen_res_len = sizeof(unsigned long) + sizeof(double);
+            const size_t misen_res_len = sizeof(unsigned) + sizeof(double);
+
+            ///////////////////////////////////////////////////////////////////
             // bisen
             unsigned char* output_bisen;
             unsigned long long output_len_bisen;
 
             size_t bisen_len;
-            memcpy(&bisen_len, input, sizeof(size_t));
+            memcpy(&bisen_len, tmp, sizeof(size_t));
+            tmp += sizeof(size_t);
 
-            uint8_t* bisen_query = input + sizeof(size_t);
+            uint8_t* bisen_query = tmp;
+            tmp += bisen_len;
 
-            f(&output_bisen, &output_len_bisen, 0, bisen_query, bisen_len);
+            f(&output_bisen, &output_len_bisen, 0, bisen_query + 1, bisen_len - 1);
 
-            // visen
-            uint8_t* output_visen;
-            size_t output_len_visen;
-
-            size_t nr_desc;
-            memcpy(&nr_desc, input + sizeof(size_t) + bisen_len, sizeof(size_t));
-
-            float* descriptors = (float*)(input + 2 * sizeof(size_t) + bisen_len);
-
-            search_image(&output_visen, &output_len_visen, nr_desc, descriptors);
-
-            ///////////////////////////////////////////////////////////////////
-            map<unsigned, double> bisen_scores, visen_scores;
-            vector<pair<unsigned, double>> misen_scores;
-
-            const size_t bisen_res_len = sizeof(unsigned) + sizeof(double);
-            const size_t visen_res_len = sizeof(unsigned long) + sizeof(double);
-
-            // join results
             unsigned n_docs_bisen;
             memcpy(&n_docs_bisen, output_bisen, sizeof(int));
             outside_util::printf("Number of docs bisen: %d\n", n_docs_bisen);
@@ -676,6 +681,28 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
                 all_docs.insert(d);
             }
 
+            free(output_bisen);
+
+            ///////////////////////////////////////////////////////////////////
+            // visen
+            uint8_t* output_visen;
+            size_t output_len_visen;
+
+            size_t visen_len;
+            memcpy(&visen_len, tmp, sizeof(size_t));
+            tmp += sizeof(size_t);
+
+            // discard op
+            tmp += sizeof(unsigned char);
+
+            size_t nr_desc;
+            memcpy(&nr_desc, tmp, sizeof(size_t));
+            tmp += sizeof(size_t);
+
+            float* descriptors = (float*)tmp;
+
+            search_image(&output_visen, &output_len_visen, nr_desc, descriptors);
+
             unsigned n_docs_visen;
             memcpy(&n_docs_visen, output_visen, sizeof(unsigned));
             outside_util::printf("nr of imgs visen: %u\n", n_docs_visen);
@@ -690,54 +717,62 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
                 all_docs.insert(id);
             }
 
+            free(output_visen);
+
+            outside_util::printf("processed all\n");
+
+            ///////////////////////////////////////////////////////////////////
+            // join results
             // give scores for all documents (ISR)
+            response* misen_scores = (response*)malloc(sizeof(response) * all_docs.size());
+            unsigned count = 0;
+
             for (unsigned doc : all_docs) {
                 const int is_in_bisen = bisen_scores.find(doc) != bisen_scores.end();
                 const int is_in_visen = visen_scores.find(doc) != visen_scores.end();
 
-                if(is_in_bisen && is_in_visen) {
-                    misen_scores.push_back(make_pair(doc, 2 * ((1 / (bisen_scores[doc] * bisen_scores[doc])) + (1 / (visen_scores[doc] * visen_scores[doc])))));
-                } else if(is_in_bisen) {
-                    misen_scores.push_back(make_pair(doc, 1 / (bisen_scores[doc] * bisen_scores[doc])));
-                } else if(is_in_visen) {
-                    misen_scores.push_back(make_pair(doc, 1 / (visen_scores[doc] * visen_scores[doc])));
-                }
-            }
+                double score = 0.0f;
+                if(is_in_bisen && is_in_visen)
+                    score = 2 * ((1 / (bisen_scores[doc] * bisen_scores[doc])) + (1 / (visen_scores[doc] * visen_scores[doc])));
+                else if(is_in_bisen)
+                    score = 1 / (bisen_scores[doc] * bisen_scores[doc]);
+                else if(is_in_visen)
+                    score = 1 / (visen_scores[doc] * visen_scores[doc]);
 
-            auto map_comparator = [](std::pair<unsigned, double> const & a, std::pair<unsigned, double> const & b) {
-                return a.second < b.second;
-            };
-            std::sort(misen_scores.begin(), misen_scores.end(), map_comparator);
+                misen_scores[count].doc_id = doc;
+                misen_scores[count++].score = score;
+            }
+            outside_util::printf("sorting\n");
+            qsort(misen_scores, all_docs.size(), sizeof(response), compare_results_misen);
 
             ///////////////////////////////////////////////////////////////////
             // return to client
-            const int n_docs_misen = min(min(n_docs_bisen, n_docs_visen), 20);
+            const unsigned n_docs_misen = min(min(n_docs_bisen, n_docs_visen), 20);
 
             // return query results
-            size_t output_size = sizeof(unsigned) + n_docs_misen * (sizeof(unsigned) + sizeof(double));
-            *out_len = sizeof(unsigned char) * output_size;
+            *out_len = sizeof(unsigned char) * (sizeof(unsigned) + n_docs_misen * misen_res_len);
             *out = (unsigned char*)malloc(*out_len);
-            memset(*out, 0, output_size);
+            memset(*out, 0, *out_len);
 
             // add nr of elements at beggining
             memcpy(*out, &n_docs_misen, sizeof(unsigned));
 
-            void* write_tmp = *out + sizeof(unsigned);
+            unsigned char* write_tmp = *out + sizeof(unsigned);
 
             outside_util::printf("nr documents %u\n", n_docs_misen);
-            int count = 0;
-            for(auto it = misen_scores.begin(); it != misen_scores.end(); ++it) {
-                memcpy(write_tmp, &it->first, sizeof(unsigned));
-                memcpy(write_tmp + sizeof(unsigned), &it->second, sizeof(double));
+            count = 0;
+            for(unsigned i = 0; i < all_docs.size(); i++) {
+                memcpy(write_tmp, &misen_scores[i].doc_id, sizeof(unsigned));
+                memcpy(write_tmp + sizeof(unsigned), &misen_scores[i].score, sizeof(double));
+                write_tmp += n_docs_misen;
 
-                write_tmp = (char*)write_tmp + sizeof(unsigned) + sizeof(double);
-
-                if(++count > n_docs_misen)
+                if(++count >= n_docs_misen)
                     break;
             }
 
-            ///////////////////////////////////////////////////////////////////
+            free(misen_scores);
 
+            ///////////////////////////////////////////////////////////////////
             break;
         }
         default: {
