@@ -1,11 +1,11 @@
 #ifndef VISEN_BISEN_TESTS_H
 #define VISEN_BISEN_TESTS_H
 
-#include "mbedtls/ssl.h"
 #include "rbisen/SseClient.hpp"
+#include "untrusted_util.h"
 
-void bisen_setup(mbedtls_ssl_context* ssl, SseClient* client);
-void bisen_update(mbedtls_ssl_context* ssl, SseClient* client, char* bisen_doc_type, unsigned nr_docs, std::vector<std::string> doc_paths);
-void bisen_search(mbedtls_ssl_context* ssl, SseClient* client, vector<string> queries);
+void bisen_setup(secure_connection* conn, SseClient* client);
+void bisen_update(secure_connection* conn, SseClient* client, char* bisen_doc_type, unsigned nr_docs, std::vector<std::string> doc_paths);
+void bisen_search(secure_connection* conn, SseClient* client, vector<string> queries);
 
 #endif

@@ -1,7 +1,6 @@
 #include "Client.h"
 
 #include "untrusted_util.h"
-#include "untrusted_util_tls.h"
 #include "definitions.h"
 
 #include <stdio.h>
@@ -18,13 +17,6 @@
 #include <string.h>
 #include <libconfig.h>
 
-#include "mbedtls/net.h"
-#include "mbedtls/ssl.h"
-#include "mbedtls/entropy.h"
-#include "mbedtls/ctr_drbg.h"
-#include "mbedtls/debug.h"
-#include "mbedtls/certs.h"
-
 #include "ImageSearch.h"
 #include "visen_tests.h"
 #include "bisen_tests.h"
@@ -34,12 +26,6 @@
 using namespace cv;
 using namespace cv::xfeatures2d;
 using namespace std;
-
-static void my_debug(void* ctx, int level, const char* file, int line, const char* str) {
-    ((void)level);
-    fprintf((FILE*)ctx, "%s:%04d: %s", file, line, str);
-    fflush((FILE*)ctx);
-}
 
 typedef struct configs {
     int use_text = 0, use_images = 0, use_multimodal = 0;
@@ -55,7 +41,7 @@ typedef struct configs {
     char* misen_text_dir, *misen_img_dir;
 } configs;
 
-void separated_tests(const configs* const settings, mbedtls_ssl_context* ssl) {
+void separated_tests(const configs* const settings, secure_connection* conn) {
     struct timeval start, end;
 
     //////////// BISEN ////////////
@@ -65,17 +51,17 @@ void separated_tests(const configs* const settings, mbedtls_ssl_context* ssl) {
         sort(txt_paths.begin(), txt_paths.end(), greater<string>()); // documents with more articles happen to be at the end for the wikipedia dataset
 
         gettimeofday(&start, NULL);
-        bisen_setup(ssl, &client);
+        bisen_setup(conn, &client);
         gettimeofday(&end, NULL);
         printf("-- BISEN setup: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
 
         gettimeofday(&start, NULL);
-        bisen_update(ssl, &client, settings->bisen_doc_type, settings->bisen_nr_docs, txt_paths);
+        bisen_update(conn, &client, settings->bisen_doc_type, settings->bisen_nr_docs, txt_paths);
         gettimeofday(&end, NULL);
         printf("-- BISEN updates: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
 
         gettimeofday(&start, NULL);
-        bisen_search(ssl, &client, settings->bisen_queries);
+        bisen_search(conn, &client, settings->bisen_queries);
         gettimeofday(&end, NULL);
         printf("-- BISEN searches: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
     }
@@ -88,27 +74,27 @@ void separated_tests(const configs* const settings, mbedtls_ssl_context* ssl) {
 
         // init iee and server
         gettimeofday(&start, NULL);
-        visen_setup(ssl, settings->visen_desc_len, settings->visen_nr_clusters);
+        visen_setup(conn, settings->visen_desc_len, settings->visen_nr_clusters);
         gettimeofday(&end, NULL);
         printf("-- VISEN setup: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
 
         // train
         gettimeofday(&start, NULL);
         if(!strcmp(settings->visen_train_technique, "client_kmeans"))
-            visen_train_client_kmeans(ssl, settings->visen_desc_len, settings->visen_nr_clusters, settings->visen_train_mode, settings->visen_clusters_file, settings->visen_dataset_dir, extractor);
+            visen_train_client_kmeans(conn, settings->visen_desc_len, settings->visen_nr_clusters, settings->visen_train_mode, settings->visen_clusters_file, settings->visen_dataset_dir, extractor);
         else if(!strcmp(settings->visen_train_technique, "iee_kmeans"))
-            visen_train_iee_kmeans(ssl, settings->visen_train_mode, extractor, files);
+            visen_train_iee_kmeans(conn, settings->visen_train_mode, extractor, files);
         gettimeofday(&end, NULL);
         printf("-- VISEN train: %ldms %s--\n", untrusted_util::time_elapsed_ms(start, end), settings->visen_train_technique);
 
         // add images to repository
         gettimeofday(&start, NULL);
         if(!strcmp(settings->visen_add_mode, "normal")) {
-            visen_add_files(ssl, extractor, files);
+            visen_add_files(conn, extractor, files);
         } else if(!strcmp(settings->visen_add_mode, "load")) {
             // tell iee to load images from disc
             unsigned char op = OP_IEE_READ_MAP;
-            iee_comm(ssl, &op, 1);
+            iee_comm(conn, &op, 1);
         } else {
             printf("Add mode error\n");
             exit(1);
@@ -119,12 +105,12 @@ void separated_tests(const configs* const settings, mbedtls_ssl_context* ssl) {
         if(!strcmp(settings->visen_add_mode, "normal")) {
             // send persist storage message to iee, useful for debugging and testing
             unsigned char op = OP_IEE_WRITE_MAP;
-            iee_comm(ssl, &op, 1);
+            iee_comm(conn, &op, 1);
         }
 
         // search
         gettimeofday(&start, NULL);
-        search_test(ssl, extractor);
+        search_test(conn, extractor);
         gettimeofday(&end, NULL);
         printf("-- VISEN searches: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
 
@@ -132,12 +118,12 @@ void separated_tests(const configs* const settings, mbedtls_ssl_context* ssl) {
         size_t in_len;
         uint8_t* in;
         clear(&in, &in_len);
-        iee_comm(ssl, in, in_len);
+        iee_comm(conn, in, in_len);
         free(in);
     }
 }
 
-void multimodal_tests(const configs* const settings, mbedtls_ssl_context* ssl) {
+void multimodal_tests(const configs* const settings, secure_connection* conn) {
     struct timeval start, end;
 
     // image descriptor parameters
@@ -153,29 +139,29 @@ void multimodal_tests(const configs* const settings, mbedtls_ssl_context* ssl) {
 
     // init
     gettimeofday(&start, NULL);
-    visen_setup(ssl, settings->visen_desc_len, settings->visen_nr_clusters);
+    visen_setup(conn, settings->visen_desc_len, settings->visen_nr_clusters);
 
-    bisen_setup(ssl, &client);
+    bisen_setup(conn, &client);
     gettimeofday(&end, NULL);
     printf("-- MISEN setup: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
 
     // train (for images)
     gettimeofday(&start, NULL);
-    visen_train_client_kmeans(ssl, settings->visen_desc_len, settings->visen_nr_clusters, (char*)"load", settings->visen_clusters_file, NULL, extractor);
+    visen_train_client_kmeans(conn, settings->visen_desc_len, settings->visen_nr_clusters, (char*)"load", settings->visen_clusters_file, NULL, extractor);
     gettimeofday(&end, NULL);
     printf("-- MISEN train: %ldms %s--\n", untrusted_util::time_elapsed_ms(start, end), settings->visen_train_technique);
 
     // add documents to iee
     gettimeofday(&start, NULL);
-    bisen_update(ssl, &client, (char*)"normal", settings->misen_nr_docs, txt_paths);
-    visen_add_files(ssl, extractor, img_paths);
+    bisen_update(conn, &client, (char*)"normal", settings->misen_nr_docs, txt_paths);
+    visen_add_files(conn, extractor, img_paths);
     gettimeofday(&end, NULL);
     printf("-- MISEN updates: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
 
     // searches
     gettimeofday(&start, NULL);
     vector<pair<string, string>> multimodal_queries = generate_multimodal_queries(txt_paths, img_paths, settings->misen_nr_queries);
-    misen_search(ssl, &client, extractor, multimodal_queries);
+    misen_search(conn, &client, extractor, multimodal_queries);
     gettimeofday(&end, NULL);
     printf("-- MISEN searches: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
 
@@ -183,7 +169,7 @@ void multimodal_tests(const configs* const settings, mbedtls_ssl_context* ssl) {
     size_t in_len;
     uint8_t* in;
     clear(&in, &in_len);
-    iee_comm(ssl, in, in_len);
+    iee_comm(conn, in, in_len);
     free(in);
 }
 
@@ -275,115 +261,18 @@ int main(int argc, char** argv) {
     }
 
     // init mbedtls
-    // put port in char buf
-    char port[5];
-    sprintf(port, "%d", server_port);
-
-    int ret;
-    mbedtls_net_context server_fd;
-    uint32_t flags;
-
-    mbedtls_entropy_context entropy;
-    mbedtls_ctr_drbg_context ctr_drbg;
-    mbedtls_ssl_context ssl;
-    mbedtls_ssl_config conf;
-    mbedtls_x509_crt cacert;
-
-    // initialise the RNG and the session data
-    mbedtls_net_init(&server_fd);
-    mbedtls_ssl_init(&ssl);
-    mbedtls_ssl_config_init(&conf);
-    mbedtls_x509_crt_init(&cacert);
-    mbedtls_ctr_drbg_init(&ctr_drbg);
-
-    printf("seeding the random number generator...\n");
-    mbedtls_entropy_init(&entropy);
-    const char* pers = "ssl_client1";
-    if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char*)pers,
-                                     strlen(pers))) != 0) {
-        printf(" failed\n  ! mbedtls_ctr_drbg_seed returned %d\n", ret);
-        exit(1);
-    }
-
-    // initialise certificates
-    printf("loading the CA root certificate...\n");
-    ret = mbedtls_x509_crt_parse(&cacert, (const unsigned char*)mbedtls_test_cas_pem, mbedtls_test_cas_pem_len);
-    if (ret < 0) {
-        printf(" failed\n  !  mbedtls_x509_crt_parse returned -0x%x\n\n", -ret);
-        exit(1);
-    }
-
-    printf("ok (%d skipped)\n", ret);
-
-    // start connection
-    printf("connecting to tcp/%s/%s...\n", server_name, port);
-    if ((ret = mbedtls_net_connect(&server_fd, server_name, port, MBEDTLS_NET_PROTO_TCP)) != 0) {
-        printf(" failed\n  ! mbedtls_net_connect returned %d\n\n", ret);
-        exit(1);
-    }
-
-    printf("setting up the SSL/TLS structure...\n");
-    if ((ret = mbedtls_ssl_config_defaults(&conf, MBEDTLS_SSL_IS_CLIENT, MBEDTLS_SSL_TRANSPORT_STREAM,
-                                           MBEDTLS_SSL_PRESET_DEFAULT)) != 0) {
-        printf(" failed\n  ! mbedtls_ssl_config_defaults returned %d\n\n", ret);
-        exit(1);
-    }
-
-    /* OPTIONAL is not optimal for security,
-     * but makes interop easier in this simplified example */
-    mbedtls_ssl_conf_authmode(&conf, MBEDTLS_SSL_VERIFY_OPTIONAL);
-    mbedtls_ssl_conf_ca_chain(&conf, &cacert, NULL);
-    mbedtls_ssl_conf_rng(&conf, mbedtls_ctr_drbg_random, &ctr_drbg);
-    mbedtls_ssl_conf_dbg(&conf, my_debug, stdout);
-
-    if ((ret = mbedtls_ssl_setup(&ssl, &conf)) != 0) {
-        printf("failed\n  ! mbedtls_ssl_setup returned %d\n\n", ret);
-        exit(1);
-    }
-
-    if ((ret = mbedtls_ssl_set_hostname(&ssl, server_name)) != 0) {
-        printf("failed\n  ! mbedtls_ssl_set_hostname returned %d\n\n", ret);
-        exit(1);
-    }
-
-    mbedtls_ssl_set_bio(&ssl, &server_fd, mbedtls_net_send, mbedtls_net_recv, NULL);
-
-    printf("performing the SSL/TLS handshake...\n");
-    while ((ret = mbedtls_ssl_handshake(&ssl)) != 0) {
-        if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
-            printf("failed\n  ! mbedtls_ssl_handshake returned -0x%x\n\n", -ret);
-            exit(1);
-        }
-    }
-
-    // verify the server certificate
-    printf("verifying peer X.509 certificate...\n");
-
-    // in real life, we probably want to bail out when ret != 0
-    if ((flags = mbedtls_ssl_get_verify_result(&ssl)) != 0) {
-        printf("failed\n");
-
-        char vrfy_buf[512];
-        mbedtls_x509_crt_verify_info(vrfy_buf, sizeof(vrfy_buf), "! ", flags);
-        printf("%s\n", vrfy_buf);
-    }
+    secure_connection* conn;
+    untrusted_util::init_secure_connection(&conn, server_name, server_port);
 
     if(program_configs.use_multimodal) {
-        multimodal_tests(&program_configs, &ssl);
+        multimodal_tests(&program_configs, conn);
     } else {
         // do bisen and visen test separately
-        separated_tests(&program_configs, &ssl);
+        separated_tests(&program_configs, conn);
     }
 
     // close ssl connection
-    mbedtls_ssl_close_notify(&ssl);
-
-    // ssl cleanup
-    mbedtls_net_free(&server_fd);
-    mbedtls_ssl_free(&ssl);
-    mbedtls_ssl_config_free(&conf);
-    mbedtls_ctr_drbg_free(&ctr_drbg);
-    mbedtls_entropy_free(&entropy);
+    untrusted_util::close_secure_connection(conn);
 
     return 0;
 }

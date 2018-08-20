@@ -34,7 +34,7 @@ string query_from_file(string path) {
     return query;
 }
 
-void misen_search(mbedtls_ssl_context* ssl, SseClient* client, Ptr<SIFT> extractor, vector<pair<string, string>> queries) {
+void misen_search(secure_connection* conn, SseClient* client, Ptr<SIFT> extractor, vector<pair<string, string>> queries) {
     unsigned count = 0;
     for (pair<string, string> query : queries) {
         string text_file_path = query.first;
@@ -64,11 +64,11 @@ void misen_search(mbedtls_ssl_context* ssl, SseClient* client, Ptr<SIFT> extract
         free(query_bisen);
         free(query_visen);
 
-        iee_send(ssl, multimodal_query, sizeof(unsigned char) + 2 * sizeof(size_t) + query_bisen_len + query_visen_len);
+        iee_send(conn, multimodal_query, sizeof(unsigned char) + 2 * sizeof(size_t) + query_bisen_len + query_visen_len);
 
         uint8_t* res;
         size_t res_len;
-        iee_recv(ssl, &res, &res_len);
+        iee_recv(conn, &res, &res_len);
 
         unsigned nr_docs;
         memcpy(&nr_docs, res, sizeof(unsigned));

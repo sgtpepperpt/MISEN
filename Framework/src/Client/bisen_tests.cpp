@@ -11,17 +11,17 @@ extern "C" {
 #include "rbisen/types.h"
 }
 
-void bisen_setup(mbedtls_ssl_context* ssl, SseClient* client) {
+void bisen_setup(secure_connection* conn, SseClient* client) {
     unsigned char* data_bisen;
     unsigned long long data_size_bisen;
 
     // setup
     data_size_bisen = client->generate_setup_msg(&data_bisen);
-    iee_comm(ssl, data_bisen, data_size_bisen);
+    iee_comm(conn, data_bisen, data_size_bisen);
     free(data_bisen);
 }
 
-void bisen_update(mbedtls_ssl_context* ssl, SseClient* client, char* bisen_doc_type, unsigned nr_docs, std::vector<std::string> doc_paths) {
+void bisen_update(secure_connection* conn, SseClient* client, char* bisen_doc_type, unsigned nr_docs, std::vector<std::string> doc_paths) {
     unsigned char* data_bisen;
     unsigned long long data_size_bisen;
 
@@ -47,7 +47,7 @@ void bisen_update(mbedtls_ssl_context* ssl, SseClient* client, char* bisen_doc_t
         for (const map<string, int> text : docs) {
             // generate the byte* to send to the server
             data_size_bisen = client->add_new_document(text, &data_bisen);
-            iee_comm(ssl, data_bisen, data_size_bisen);
+            iee_comm(conn, data_bisen, data_size_bisen);
             free(data_bisen);
         }
 
@@ -58,7 +58,7 @@ void bisen_update(mbedtls_ssl_context* ssl, SseClient* client, char* bisen_doc_t
     }
 }
 
-void bisen_search(mbedtls_ssl_context* ssl, SseClient* client, vector<string> queries) {
+void bisen_search(secure_connection* conn, SseClient* client, vector<string> queries) {
     unsigned char* data_bisen;
     size_t data_size_bisen;
 
@@ -68,12 +68,12 @@ void bisen_search(mbedtls_ssl_context* ssl, SseClient* client, vector<string> qu
         printf("Query %d: %s\n", k, query.c_str());
 
         data_size_bisen = client->search(query, &data_bisen);
-        iee_send(ssl, data_bisen, data_size_bisen);
+        iee_send(conn, data_bisen, data_size_bisen);
         free(data_bisen);
 
         uint8_t* bisen_out;
         size_t bisen_out_len;
-        iee_recv(ssl, &bisen_out, &bisen_out_len);
+        iee_recv(conn, &bisen_out, &bisen_out_len);
 
         unsigned n_docs;
         memcpy(&n_docs, bisen_out, sizeof(int));

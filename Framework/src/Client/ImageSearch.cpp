@@ -1,7 +1,6 @@
 #include "ImageSearch.h"
 
 #include "definitions.h"
-#include "untrusted_util_tls.h"
 
 #include <stdlib.h>
 #include <dirent.h>
@@ -33,26 +32,27 @@ unsigned long filename_to_id(const char* filename) {
     return strtoul(id, NULL, 0);
 }
 
-void iee_send(mbedtls_ssl_context* ssl, const uint8_t* in, const size_t in_len) {
+// TODO move to util
+void iee_send(secure_connection* conn, const uint8_t* in, const size_t in_len) {
     //printf("will send %lu\n", in_len);
-    untrusted_util_tls::socket_send(ssl, &in_len, sizeof(size_t));
-    untrusted_util_tls::socket_send(ssl, in, in_len);
+    untrusted_util::socket_secure_send(conn, &in_len, sizeof(size_t));
+    untrusted_util::socket_secure_send(conn, in, in_len);
 }
 
-void iee_recv(mbedtls_ssl_context* ssl, uint8_t** out, size_t* out_len) {
-    untrusted_util_tls::socket_receive(ssl, out_len, sizeof(size_t));
+void iee_recv(secure_connection* conn, uint8_t** out, size_t* out_len) {
+    untrusted_util::socket_secure_receive(conn, out_len, sizeof(size_t));
 
     //printf("will receive %lu\n", *out_len);
 
     *out = (uint8_t*)malloc(*out_len);
-    untrusted_util_tls::socket_receive(ssl, *out, *out_len);
+    untrusted_util::socket_secure_receive(conn, *out, *out_len);
 }
 
-void iee_comm(mbedtls_ssl_context* ssl, const void* in, const size_t in_len) {
-    iee_send(ssl, (uint8_t*)in, in_len);
+void iee_comm(secure_connection* conn, const void* in, const size_t in_len) {
+    iee_send(conn, (uint8_t*)in, in_len);
     size_t res_len;
     unsigned char* res;
-    iee_recv(ssl, &res, &res_len);
+    iee_recv(conn, &res, &res_len);
 
     //printf("res: %lu bytes\n", res_len);
     free(res);
@@ -269,7 +269,7 @@ void search(uint8_t** in, size_t* in_len, const Ptr<SIFT> surf, const std::strin
     free(descriptors_buffer);
 }
 
-void search_test_wang(mbedtls_ssl_context* ssl, const Ptr<SIFT> surf) {
+void search_test_wang(secure_connection* conn, const Ptr<SIFT> surf) {
     size_t in_len;
     uint8_t* in;
 
@@ -285,13 +285,13 @@ void search_test_wang(mbedtls_ssl_context* ssl, const Ptr<SIFT> surf) {
 
     for (size_t i = 0; i < files.size(); ++i) {
         search(&in, &in_len, surf, files[i]);
-        iee_send(ssl, in, in_len);
+        iee_send(conn, in, in_len);
         free(in);
 
         // receive response
         size_t res_len;
         uint8_t* res;
-        iee_recv(ssl, &res, &res_len);
+        iee_recv(conn, &res, &res_len);
 
         // get number of response docs
         unsigned nr;
@@ -327,7 +327,7 @@ void search_test_wang(mbedtls_ssl_context* ssl, const Ptr<SIFT> surf) {
 #endif
 }
 
-void search_test(mbedtls_ssl_context* ssl, const Ptr<SIFT> extractor) {
+void search_test(secure_connection* conn, const Ptr<SIFT> extractor) {
     size_t in_len;
     uint8_t* in;
 
@@ -343,13 +343,13 @@ void search_test(mbedtls_ssl_context* ssl, const Ptr<SIFT> extractor) {
 
     for (size_t i = 0; i < files.size(); ++i) {
         search(&in, &in_len, extractor, files[i]);
-        iee_send(ssl, in, in_len);
+        iee_send(conn, in, in_len);
         free(in);
 
         // receive response
         size_t res_len;
         uint8_t* res;
-        iee_recv(ssl, &res, &res_len);
+        iee_recv(conn, &res, &res_len);
 
         // get number of response docs
         unsigned nr;

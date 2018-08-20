@@ -10,7 +10,7 @@ add_custom_command(
 )
 add_custom_target(edger8r_untrusted ALL DEPENDS ${IEE_COMM_DIR}/Enclave_u.h ${IEE_COMM_DIR}/Enclave_u.c)
 
-link_directories(${SGX_LIBRARY_PATH} ${MBEDTLS_SGX_DIR}/lib)
+link_directories(${SGX_LIBRARY_PATH} ${MBEDTLS_SGX_DIR}/lib ${MBEDTLS_DIR}/build/library)
 
 #find_library(URTS sgx_urts PATHS /usr/lib NO_CMAKE_FIND_ROOT_PATH)
 #find_library(UAE_SERVICE sgx_uae_service PATHS /usr/lib NO_CMAKE_FIND_ROOT_PATH)

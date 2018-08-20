@@ -102,16 +102,16 @@ float* client_train(const char* path, const unsigned nr_clusters, const unsigned
 }
 
 
-void visen_setup(mbedtls_ssl_context* ssl, size_t desc_len, unsigned visen_nr_clusters) {
+void visen_setup(secure_connection* conn, size_t desc_len, unsigned visen_nr_clusters) {
     size_t in_len = 0;
     uint8_t* in = NULL;
 
     init(&in, &in_len, visen_nr_clusters, desc_len);
-    iee_comm(ssl, in, in_len);
+    iee_comm(conn, in, in_len);
     free(in);
 }
 
-void visen_train_client_kmeans(mbedtls_ssl_context* ssl, size_t desc_len, unsigned visen_nr_clusters, char* visen_train_mode, char* visen_centroids_file, const char* visen_dataset_dir, Ptr<SIFT> extractor) {
+void visen_train_client_kmeans(secure_connection* conn, size_t desc_len, unsigned visen_nr_clusters, char* visen_train_mode, char* visen_centroids_file, const char* visen_dataset_dir, Ptr<SIFT> extractor) {
     size_t in_len = sizeof(uint8_t) + visen_nr_clusters * desc_len * sizeof(float);
     uint8_t* in = (uint8_t*)malloc(sizeof(uint8_t) + visen_nr_clusters * desc_len * sizeof(float));
     in[0] = OP_IEE_SET_CODEBOOK_CLIENT_KMEANS;
@@ -144,12 +144,12 @@ void visen_train_client_kmeans(mbedtls_ssl_context* ssl, size_t desc_len, unsign
     }
 
     memcpy(in + 1, centroids, visen_nr_clusters * desc_len * sizeof(float));
-    iee_comm(ssl, in, in_len);
+    iee_comm(conn, in, in_len);
     free(in);
     free(centroids);
 }
 
-void visen_train_iee_kmeans(mbedtls_ssl_context* ssl, char* visen_train_mode, Ptr<SIFT> extractor, const vector<string> files) {
+void visen_train_iee_kmeans(secure_connection* conn, char* visen_train_mode, Ptr<SIFT> extractor, const vector<string> files) {
     size_t in_len;
     uint8_t* in;
 
@@ -159,13 +159,13 @@ void visen_train_iee_kmeans(mbedtls_ssl_context* ssl, char* visen_train_mode, Pt
             printf("Train img (%u/%lu) %s\n", i, files.size(), files[i].c_str());
 
         add_train_images(&in, &in_len, extractor, files[i]);
-        iee_comm(ssl, in, in_len);
+        iee_comm(conn, in, in_len);
         free(in);
     }
 
     // train // this was also for lsh vectors generation in enclave
     train(&in, &in_len);
-    iee_comm(ssl, in, in_len);
+    iee_comm(conn, in, in_len);
     free(in);
 }
 /*
@@ -197,7 +197,7 @@ void visen_train_client_lsh(mbedtls_ssl_context ssl, size_t desc_len, unsigned v
     free(in);
 }*/
 
-void visen_add_files(mbedtls_ssl_context* ssl, Ptr<SIFT> extractor, const vector<string> files) {
+void visen_add_files(secure_connection* conn, Ptr<SIFT> extractor, const vector<string> files) {
     size_t in_len;
     uint8_t* in;
 
@@ -205,7 +205,7 @@ void visen_add_files(mbedtls_ssl_context* ssl, Ptr<SIFT> extractor, const vector
         if(i % 100 == 0)
             printf("Add img (%u/%lu)\n", i, files.size());
         add_images(&in, &in_len, extractor, files[i]);
-        iee_comm(ssl, in, in_len);
+        iee_comm(conn, in, in_len);
         free(in);
     }
 }

@@ -5,13 +5,13 @@
 #include <opencv2/opencv.hpp>
 #include <stdlib.h>
 
-#include "mbedtls/net.h"
+#include "untrusted_util.h"
 
 #define SRC_RES_LEN (sizeof(unsigned long) + sizeof(double))
 
-void iee_send(mbedtls_ssl_context* ssl, const uint8_t* in, const size_t in_len);
-void iee_recv(mbedtls_ssl_context* ssl, uint8_t** out, size_t* out_len);
-void iee_comm(mbedtls_ssl_context* ssl, const void* in, const size_t in_len);
+void iee_send(secure_connection* conn, const uint8_t* in, const size_t in_len);
+void iee_recv(secure_connection* conn, uint8_t** out, size_t* out_len);
+void iee_comm(secure_connection* conn, const void* in, const size_t in_len);
 
 void init(uint8_t** in, size_t* in_len, unsigned nr_clusters, size_t row_len);
 void add_train_images(uint8_t** in, size_t* in_len, const cv::Ptr<cv::xfeatures2d::SIFT> surf, std::string file_name);
@@ -22,7 +22,7 @@ void train_lsh(uint8_t** in, size_t* in_len);
 void train_load_clusters(uint8_t** in, size_t* in_len);
 void clear(uint8_t** in, size_t* in_len);
 void search(uint8_t** in, size_t* in_len, const cv::Ptr<cv::xfeatures2d::SIFT> surf, const std::string file_name);
-void search_test_wang(mbedtls_ssl_context* ssl, const cv::Ptr<cv::xfeatures2d::SIFT> surf);
-void search_test(mbedtls_ssl_context* ssl, const cv::Ptr<cv::xfeatures2d::SIFT> extractor);
+void search_test_wang(secure_connection* conn, const cv::Ptr<cv::xfeatures2d::SIFT> surf);
+void search_test(secure_connection* conn, const cv::Ptr<cv::xfeatures2d::SIFT> extractor);
 
 #endif
