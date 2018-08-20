@@ -2,6 +2,8 @@
 
 #include "definitions.h"
 
+#include "util.h"
+
 using namespace std;
 using namespace cv;
 using namespace cv::xfeatures2d;
@@ -89,7 +91,7 @@ void misen_search(secure_connection* conn, SseClient* client, Ptr<SIFT> extracto
 vector<pair<string, string>> generate_multimodal_queries(vector<string> txt_paths, vector<string> img_paths, int nr_queries) {
     vector<pair<string, string>> multimodal_queries;
 
-    for (unsigned i = 0; i < nr_queries; ++i)
+    for (int i = 0; i < nr_queries; ++i)
         multimodal_queries.push_back(make_pair(txt_paths[i], img_paths[i]));
 
     return multimodal_queries;

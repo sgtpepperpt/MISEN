@@ -13,6 +13,7 @@
 #include <opencv2/xfeatures2d.hpp>
 
 #include "ImageSearch.h"
+#include "util.h"
 
 extern "C" {
 #include "rbisen/Utils.h"

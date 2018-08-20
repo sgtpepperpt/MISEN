@@ -24,7 +24,7 @@ unsigned vi_size(vec_int* v) {
 }
 
 int vi_index_of(vec_int v, int e) {
-    for(int i = 0; i < v.counter; i++) {
+    for(unsigned i = 0; i < v.counter; i++) {
         if(v.array[i] == e)
             return i;
     }
@@ -38,13 +38,13 @@ vec_int vi_vec_union(vec_int a, vec_int b, unsigned char* count, unsigned ndocs)
     unsigned ops = a.counter;
 
     // add all elements from a
-    for(int i = 0; i < a.counter; i++) {
+    for(unsigned i = 0; i < a.counter; i++) {
         count[a.array[i]] = 1;
     }
 
     //int nops = 0;
     // add all elements from b, if they're not in the union yet
-    for(int i = 0; i < b.counter; i++) {
+    for(unsigned i = 0; i < b.counter; i++) {
         count[b.array[i]]++;
         if(count[b.array[i]] == 1)
             ops++;
@@ -67,12 +67,12 @@ vec_int vi_vec_intersection(vec_int a, vec_int b, unsigned char* count, unsigned
     unsigned int ops = 0;
 
     // add all elements from a
-    for(int i = 0; i < a.counter; i++) {
+    for(unsigned i = 0; i < a.counter; i++) {
         count[a.array[i]] = 1;
     }
 
     // add all elements from b
-    for(int i = 0; i < b.counter; i++) {
+    for(unsigned i = 0; i < b.counter; i++) {
         count[b.array[i]]++;
         if(count[b.array[i]] == 2)
             ops++;

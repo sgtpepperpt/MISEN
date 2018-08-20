@@ -541,8 +541,8 @@ void search(bytes* out, size* out_len, uint8_t* in, const size in_len) {
         }
         ocall_print_string("--------------\n");*/
         qsort(results_buffer, vi_size(&response_docs), sizeof(int) + sizeof(double), compare_results_rbisen);
-        void* tmp = results_buffer;
-        /*for (int j = 0; j < 15; ++j) {
+        /*void* tmp = results_buffer;
+        for (int j = 0; j < 15; ++j) {
             int a; memcpy(&a, tmp, sizeof(int));
             double b; memcpy(&b, tmp + sizeof(int), sizeof(double));
 

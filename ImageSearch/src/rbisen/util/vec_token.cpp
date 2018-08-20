@@ -11,7 +11,7 @@ void vt_init(vec_token* v, int max_size) {
 void vt_grow(vec_token* v) {
     // allocate a new array and copy the elements
     iee_token* n = (iee_token*) malloc(sizeof(iee_token) * v->max_size * 2);
-    for(int i = 0; i < v->max_size; i++)
+    for(unsigned i = 0; i < v->max_size; i++)
         n[i] = v->array[i];
 
     // free the old array

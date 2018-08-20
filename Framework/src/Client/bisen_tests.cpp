@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "ImageSearch.h"
+#include "util.h"
 
 extern "C" {
 #include "rbisen/Utils.h"

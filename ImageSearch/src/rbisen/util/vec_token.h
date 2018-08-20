@@ -6,7 +6,7 @@
 
 typedef struct vec_token {
     iee_token* array;
-    int max_size;
+    unsigned max_size;
     unsigned counter;
 } vec_token;
 

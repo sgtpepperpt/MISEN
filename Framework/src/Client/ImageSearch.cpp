@@ -7,6 +7,8 @@
 #include <map>
 #include <fstream>
 
+#include "util.h"
+
 using namespace cv;
 using namespace cv::xfeatures2d;
 using namespace std;
@@ -30,32 +32,6 @@ void printHolidayResults(const char* path, std::map<unsigned long, std::vector<u
 unsigned long filename_to_id(const char* filename) {
     const char* id = strrchr(filename, '/') + sizeof(char); // +sizeof(char) excludes the slash
     return strtoul(id, NULL, 0);
-}
-
-// TODO move to util
-void iee_send(secure_connection* conn, const uint8_t* in, const size_t in_len) {
-    //printf("will send %lu\n", in_len);
-    untrusted_util::socket_secure_send(conn, &in_len, sizeof(size_t));
-    untrusted_util::socket_secure_send(conn, in, in_len);
-}
-
-void iee_recv(secure_connection* conn, uint8_t** out, size_t* out_len) {
-    untrusted_util::socket_secure_receive(conn, out_len, sizeof(size_t));
-
-    //printf("will receive %lu\n", *out_len);
-
-    *out = (uint8_t*)malloc(*out_len);
-    untrusted_util::socket_secure_receive(conn, *out, *out_len);
-}
-
-void iee_comm(secure_connection* conn, const void* in, const size_t in_len) {
-    iee_send(conn, (uint8_t*)in, in_len);
-    size_t res_len;
-    unsigned char* res;
-    iee_recv(conn, &res, &res_len);
-
-    //printf("res: %lu bytes\n", res_len);
-    free(res);
 }
 
 void init(uint8_t** in, size_t* in_len, unsigned nr_clusters, size_t row_len) {

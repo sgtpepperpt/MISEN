@@ -27,7 +27,7 @@ std::vector<std::string> list_img_files(int limit, string dataset_path) {
     }
 
     // remove elements in excess
-    if(limit > 0 && filenames.size() > limit)
+    if(limit > 0 && filenames.size() > (unsigned)limit)
         filenames.erase(filenames.begin() + limit, filenames.end());
 
     // sort alphabetically
@@ -58,11 +58,36 @@ std::vector<std::string> list_txt_files(int limit, std::string path) {
     }
 
     // remove elements in excess
-    if(limit > 0 && filenames.size() > limit)
+    if(limit > 0 && filenames.size() > (unsigned)limit)
         filenames.erase(filenames.begin() + limit, filenames.end());
 
     // sort alphabetically
     sort(filenames.begin(), filenames.end());
 
     return filenames;
+}
+
+void iee_send(secure_connection* conn, const uint8_t* in, const size_t in_len) {
+    //printf("will send %lu\n", in_len);
+    untrusted_util::socket_secure_send(conn, &in_len, sizeof(size_t));
+    untrusted_util::socket_secure_send(conn, in, in_len);
+}
+
+void iee_recv(secure_connection* conn, uint8_t** out, size_t* out_len) {
+    untrusted_util::socket_secure_receive(conn, out_len, sizeof(size_t));
+
+    //printf("will receive %lu\n", *out_len);
+
+    *out = (uint8_t*)malloc(*out_len);
+    untrusted_util::socket_secure_receive(conn, *out, *out_len);
+}
+
+void iee_comm(secure_connection* conn, const void* in, const size_t in_len) {
+    iee_send(conn, (uint8_t*)in, in_len);
+    size_t res_len;
+    unsigned char* res;
+    iee_recv(conn, &res, &res_len);
+
+    //printf("res: %lu bytes\n", res_len);
+    free(res);
 }

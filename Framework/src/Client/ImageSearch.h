@@ -9,10 +9,6 @@
 
 #define SRC_RES_LEN (sizeof(unsigned long) + sizeof(double))
 
-void iee_send(secure_connection* conn, const uint8_t* in, const size_t in_len);
-void iee_recv(secure_connection* conn, uint8_t** out, size_t* out_len);
-void iee_comm(secure_connection* conn, const void* in, const size_t in_len);
-
 void init(uint8_t** in, size_t* in_len, unsigned nr_clusters, size_t row_len);
 void add_train_images(uint8_t** in, size_t* in_len, const cv::Ptr<cv::xfeatures2d::SIFT> surf, std::string file_name);
 void add_images(uint8_t** in, size_t* in_len, const cv::Ptr<cv::xfeatures2d::SIFT> surf, std::string file_name);
