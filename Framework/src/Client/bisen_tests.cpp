@@ -21,15 +21,11 @@ void bisen_setup(mbedtls_ssl_context* ssl, SseClient* client) {
     free(data_bisen);
 }
 
-void bisen_update(mbedtls_ssl_context* ssl, SseClient* client, unsigned bisen_nr_docs, char* bisen_doc_type, const char* dataset_dir) {
+void bisen_update(mbedtls_ssl_context* ssl, SseClient* client, char* bisen_doc_type, unsigned nr_docs, std::vector<std::string> doc_paths) {
     unsigned char* data_bisen;
     unsigned long long data_size_bisen;
 
     printf("Update type: %s\n", bisen_doc_type);
-
-    // get list of docs for test
-    vector<string> doc_paths;
-    listTxtFiles(dataset_dir, doc_paths);
 
     size_t nr_updates = 0;
     for (const string doc : doc_paths) {
@@ -37,10 +33,10 @@ void bisen_update(mbedtls_ssl_context* ssl, SseClient* client, unsigned bisen_nr
 
         if(!strcmp(bisen_doc_type, "wiki")) {
             // extract keywords from a 1M, multiple article, file
-            docs = client->extract_keywords_frequency_wiki(dataset_dir + doc);
+            docs = client->extract_keywords_frequency_wiki(doc);
         } else if(!strcmp(bisen_doc_type, "normal")) {
             // one file is one document
-            docs.push_back(client->extract_keywords_frequency(dataset_dir + doc));
+            docs.push_back(client->extract_keywords_frequency(doc));
         } else {
             printf("Document type not recognised\n");
             exit(0);
@@ -55,8 +51,8 @@ void bisen_update(mbedtls_ssl_context* ssl, SseClient* client, unsigned bisen_nr
             free(data_bisen);
         }
 
-        if (nr_updates >= bisen_nr_docs) {
-            printf("breaking\n");
+        if (nr_updates >= nr_docs) {
+            printf("Breaking, done enough updates (%lu/%u)\n", nr_updates, nr_docs);
             break;
         }
     }

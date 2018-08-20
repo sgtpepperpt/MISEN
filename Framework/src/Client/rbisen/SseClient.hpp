@@ -55,6 +55,4 @@ private:
     //string get_random_segment(vector<string> segments);
 };
 
-void listTxtFiles (string path, vector<string>& docs);
-
 #endif /* SseClient_hpp */

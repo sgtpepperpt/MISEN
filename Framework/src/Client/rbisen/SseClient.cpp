@@ -202,26 +202,6 @@ size_t SseClient::search(string query, unsigned char** data) {
     return data_size;
 }
 
-void listTxtFiles (std::string path, std::vector<std::string>& docs) {
-    DIR* dir = opendir(path.c_str());
-    if (dir) {
-        struct dirent* hFile;
-        while ((hFile = readdir (dir))) {
-            if (!strcmp(hFile->d_name, ".") || !strcmp(hFile->d_name, "..") || hFile->d_name[0] == '.') continue;
-            string fname = hFile->d_name;
-            const size_t pos = fname.find(".txt");
-            if (pos != string::npos) {
-                string fullPath = path;
-                path += fname;
-                docs.push_back(fname);
-            }
-        }
-        closedir(dir);
-        sort(docs.begin(), docs.end(), greater<string>()); // documents with more articles happen to be at the end for the wikipedia dataset
-    } else {
-        pee("SseClient::listTxtFiles couldn't open dataset dir.");
-    }
-}
 /*
 string SseClient::get_random_segment(vector<string> segments) {
     return segments[client_c_random_uint_range(0, segments.size())];

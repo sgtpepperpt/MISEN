@@ -29,6 +29,7 @@
 #include "visen_tests.h"
 #include "bisen_tests.h"
 #include "misen_tests.h"
+#include "util.h"
 
 using namespace cv;
 using namespace cv::xfeatures2d;
@@ -49,6 +50,9 @@ typedef struct configs {
 
     char* visen_train_mode, *visen_train_technique, *visen_add_mode, *visen_search_mode, *visen_clusters_file, *visen_dataset_dir;
     unsigned visen_descriptor_threshold, visen_nr_clusters, visen_desc_len;
+
+    unsigned misen_nr_docs = 1000, misen_nr_queries = 10;
+    char* misen_text_dir, *misen_img_dir;
 } configs;
 
 void separated_tests(const configs* const settings, mbedtls_ssl_context* ssl) {
@@ -57,6 +61,8 @@ void separated_tests(const configs* const settings, mbedtls_ssl_context* ssl) {
     //////////// BISEN ////////////
     if(settings->use_text) {
         SseClient client;
+        vector<string> txt_paths = list_txt_files(-1, settings->bisen_dataset_dir); // get all paths and decide nr of docs in update (wiki mode is special)
+        sort(txt_paths.begin(), txt_paths.end(), greater<string>()); // documents with more articles happen to be at the end for the wikipedia dataset
 
         gettimeofday(&start, NULL);
         bisen_setup(ssl, &client);
@@ -64,7 +70,7 @@ void separated_tests(const configs* const settings, mbedtls_ssl_context* ssl) {
         printf("-- BISEN setup: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
 
         gettimeofday(&start, NULL);
-        bisen_update(ssl, &client, settings->bisen_nr_docs, settings->bisen_doc_type, settings->bisen_dataset_dir);
+        bisen_update(ssl, &client, settings->bisen_doc_type, settings->bisen_nr_docs, txt_paths);
         gettimeofday(&end, NULL);
         printf("-- BISEN updates: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
 
@@ -78,7 +84,7 @@ void separated_tests(const configs* const settings, mbedtls_ssl_context* ssl) {
     if(settings->use_images) {
         // image descriptor parameters
         Ptr<SIFT> extractor = SIFT::create(settings->visen_descriptor_threshold);
-        const vector<string> files = get_filenames(-1, "/home/guilherme/Datasets/inria");
+        const vector<string> files = list_img_files(-1, settings->visen_dataset_dir);
 
         // init iee and server
         gettimeofday(&start, NULL);
@@ -136,8 +142,14 @@ void multimodal_tests(const configs* const settings, mbedtls_ssl_context* ssl) {
 
     // image descriptor parameters
     Ptr<SIFT> extractor = SIFT::create(settings->visen_descriptor_threshold);
-    const vector<string> files = get_filenames(settings->bisen_nr_docs, "/home/guilherme/Datasets/mirflickr/");
     SseClient client;
+
+    vector<string> txt_paths = list_txt_files(settings->misen_nr_docs, settings->misen_text_dir);
+    vector<string> img_paths = list_img_files(settings->misen_nr_docs, settings->misen_img_dir);
+
+    // have txt in the same order as imgs
+    sort(txt_paths.begin(), txt_paths.end());
+    sort(img_paths.begin(), img_paths.end());
 
     // init
     gettimeofday(&start, NULL);
@@ -149,25 +161,20 @@ void multimodal_tests(const configs* const settings, mbedtls_ssl_context* ssl) {
 
     // train (for images)
     gettimeofday(&start, NULL);
-    if(!strcmp(settings->visen_train_technique, "client_kmeans")) {
-        visen_train_client_kmeans(ssl, settings->visen_desc_len, settings->visen_nr_clusters, settings->visen_train_mode, settings->visen_clusters_file, settings->visen_dataset_dir, extractor);
-    } else if(!strcmp(settings->visen_train_technique, "iee_kmeans")) {
-        visen_train_iee_kmeans(ssl, settings->visen_train_mode, extractor, files);
-    }
-
+    visen_train_client_kmeans(ssl, settings->visen_desc_len, settings->visen_nr_clusters, (char*)"load", settings->visen_clusters_file, NULL, extractor);
     gettimeofday(&end, NULL);
     printf("-- MISEN train: %ldms %s--\n", untrusted_util::time_elapsed_ms(start, end), settings->visen_train_technique);
 
     // add documents to iee
     gettimeofday(&start, NULL);
-    bisen_update(ssl, &client, settings->bisen_nr_docs, settings->bisen_doc_type, "/home/guilherme/Datasets/mirflickr/meta/tags/");
-    visen_add_files(ssl, extractor, files);
+    bisen_update(ssl, &client, (char*)"normal", settings->misen_nr_docs, txt_paths);
+    visen_add_files(ssl, extractor, img_paths);
     gettimeofday(&end, NULL);
     printf("-- MISEN updates: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
 
     // searches
     gettimeofday(&start, NULL);
-    vector<pair<string, string>> multimodal_queries = generate_multimodal_queries(settings->bisen_nr_docs);
+    vector<pair<string, string>> multimodal_queries = generate_multimodal_queries(txt_paths, img_paths, settings->misen_nr_queries);
     misen_search(ssl, &client, extractor, multimodal_queries);
     gettimeofday(&end, NULL);
     printf("-- MISEN searches: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
@@ -213,6 +220,11 @@ int main(int argc, char** argv) {
     config_lookup_string(&cfg, "visen.dataset_dir", (const char**)&program_configs.visen_dataset_dir);
     config_lookup_int(&cfg, "visen.descriptor_threshold", (int*)&program_configs.visen_descriptor_threshold);
     config_lookup_int(&cfg, "visen.nr_clusters", (int*)&program_configs.visen_nr_clusters);
+
+    config_lookup_string(&cfg, "misen.text_dir", (const char**)&program_configs.misen_text_dir);
+    config_lookup_string(&cfg, "misen.img_dir", (const char**)&program_configs.misen_img_dir);
+    config_lookup_int(&cfg, "misen.nr_docs", (int*)&program_configs.misen_nr_docs);
+    config_lookup_int(&cfg, "misen.nr_queries", (int*)&program_configs.misen_nr_queries);
 
     config_setting_t* queries_setting = config_lookup(&cfg, "bisen.queries");
     const int count = config_setting_length(queries_setting);

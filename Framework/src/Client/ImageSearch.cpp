@@ -33,28 +33,6 @@ unsigned long filename_to_id(const char* filename) {
     return strtoul(id, NULL, 0);
 }
 
-std::vector<std::string> get_filenames(int n, string dataset_path) {
-    vector<string> filenames;
-
-    DIR* dir;
-    struct dirent* ent;
-    int i = 0;
-    if ((dir = opendir(dataset_path.c_str()))) {
-        while ((ent = readdir(dir)) != NULL && (n < 0 || i < n)) {
-            std::string fname = dataset_path + "/" + ent->d_name;
-            if (fname.find(".jpg") == string::npos || !fname.length())
-                continue;
-
-            //printf("%s\n", fname.c_str());
-            filenames.push_back(fname);
-            i++;
-        }
-        closedir(dir);
-    }
-
-    return filenames;
-}
-
 void iee_send(mbedtls_ssl_context* ssl, const uint8_t* in, const size_t in_len) {
     //printf("will send %lu\n", in_len);
     untrusted_util_tls::socket_send(ssl, &in_len, sizeof(size_t));

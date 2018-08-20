@@ -86,19 +86,11 @@ void misen_search(mbedtls_ssl_context* ssl, SseClient* client, Ptr<SIFT> extract
     }
 }
 
-vector<pair<string, string>> generate_multimodal_queries(unsigned nr_docs) {
+vector<pair<string, string>> generate_multimodal_queries(vector<string> txt_paths, vector<string> img_paths, int nr_queries) {
     vector<pair<string, string>> multimodal_queries;
 
-    vector<string> txt_paths;
-    listTxtFiles("/home/guilherme/Datasets/mirflickr/meta/tags/", txt_paths);
-    sort(txt_paths.begin(), txt_paths.end(), greater<string>()); // have txt in the same order as imgs
-
-    vector<string> img_paths = get_filenames(nr_docs, "/home/guilherme/Datasets/mirflickr");
-    sort(img_paths.begin(), img_paths.end(), greater<string>());
-
-    for (unsigned i = 0; i < nr_docs; ++i) {
-        multimodal_queries.push_back(make_pair("/home/guilherme/Datasets/mirflickr/meta/tags/" + txt_paths[i], img_paths[i]));
-    }
+    for (unsigned i = 0; i < nr_queries; ++i)
+        multimodal_queries.push_back(make_pair(txt_paths[i], img_paths[i]));
 
     return multimodal_queries;
 }

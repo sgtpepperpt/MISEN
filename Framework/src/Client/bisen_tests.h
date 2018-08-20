@@ -5,7 +5,7 @@
 #include "rbisen/SseClient.hpp"
 
 void bisen_setup(mbedtls_ssl_context* ssl, SseClient* client);
-void bisen_update(mbedtls_ssl_context* ssl, SseClient* client, unsigned bisen_nr_docs, char* bisen_doc_type, const char* dataset_dir);
+void bisen_update(mbedtls_ssl_context* ssl, SseClient* client, char* bisen_doc_type, unsigned nr_docs, std::vector<std::string> doc_paths);
 void bisen_search(mbedtls_ssl_context* ssl, SseClient* client, vector<string> queries);
 
 #endif
