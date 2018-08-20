@@ -36,7 +36,11 @@ add_library(${EXTERN_LIB_NAME}
         ${EXTERN_DIR}/src/training/util.cpp
         ${UTIL_SRCS} ${KMEANS_SRCS})
 
-target_link_libraries(${EXTERN_LIB_NAME})
+if (SIMULATED_MODE)
+    target_link_libraries(${EXTERN_LIB_NAME} trusted_util)
+else()
+    target_link_libraries(${EXTERN_LIB_NAME})
+endif ()
 
 if (SIMULATED_MODE)
     target_include_directories(${EXTERN_LIB_NAME} PRIVATE ${EXTERN_DIR} ${EXTERN_DIR}/src ${KMEANS_DIR} ${FRAMEWORK_INCLUDE_DIR} ${EXTERN_DIR}/src/rbisen ${EXTERN_DIR}/src/rbisen/util)

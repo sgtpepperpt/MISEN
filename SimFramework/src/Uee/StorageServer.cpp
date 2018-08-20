@@ -32,7 +32,7 @@ void ok_response(uint8_t** out, size_t* out_len) {
 
 // map label and value sizes
 const size_t l_size = 32;
-const size_t d_size = 44+24;
+const size_t d_size = 48;
 
 tbb::concurrent_unordered_map<void*, void*, VoidHash<l_size>, VoidEqual<l_size>> I;
 
@@ -80,37 +80,30 @@ void* process_client(void* args) {
                 struct timeval start, end;
                 gettimeofday(&start, NULL);
 
-                uint8_t* tmp = (in_buffer + sizeof(unsigned char));
+                uint8_t* tmp = in_buffer + sizeof(unsigned char);
 
                 size_t nr_labels;
                 memcpy(&nr_labels, tmp, sizeof(size_t));
                 tmp += sizeof(size_t);
 
-                for (int j = 0; j < in_len - 10; ++j) {
-                    if(j < in_len - 13 && (in_buffer + sizeof(unsigned char))[j] == 0xAE && (in_buffer + sizeof(unsigned char))[j+1] == 0xD8 && (in_buffer + sizeof(unsigned char))[j+2] == 0xD2) {
+                /*for (int j = 0; j < in_len - 10; ++j) {
+                    if(j < in_len - 13 && tmp[j] == 0xAE && tmp[j+1] == 0xD8 && tmp[j+2] == 0xD2) {
                         printf("this has it %d\n", j - 9);
                     }
-                }
+                }*/
 
-                int p = 0;
                 for (size_t i = 0; i < nr_labels; ++i) {
                     uint8_t* label = (uint8_t*)malloc(l_size);
                     memcpy(label, tmp, l_size);
 
-                    if((in_buffer + sizeof(unsigned char))[0] == 0xAE && (in_buffer + sizeof(unsigned char))[1] == 0xD8) {
-                        printf("put label %p\n", I[label]);
-                    }
+                    /*if(tmp[0] == 0x8E && tmp[1] == 0x7F && tmp[1] == 0xD4)
+                        printf("put label %p\n", I[label]);*/
 
                     tmp += l_size;
-                    p += l_size;
-                    printf("p at %d\n", p);
 
                     uint8_t* d = (uint8_t*)malloc(d_size);
                     memcpy(d, tmp, d_size);
                     tmp += d_size;
-
-                    p += d_size;
-                    printf("p at %d\n", p);
 
                     I[label] = d;
                 }
@@ -138,11 +131,11 @@ void* process_client(void* args) {
                     memcpy(label, tmp, l_size);
                     tmp += l_size;
 
-                    if(i == 7) untrusted_util::debug_printbuf(label, l_size);
+                    //untrusted_util::debug_printbuf(label, l_size);
 
                     if(!I[label]) {
+                        printf("Map error: %lu/%lu\n", i, nr_labels);
                         untrusted_util::debug_printbuf(label, l_size);
-                        printf("Map error: %lu/%lu", i, nr_labels);
                         exit(1);
                     }
 
@@ -153,7 +146,7 @@ void* process_client(void* args) {
             }
             case OP_UEE_READ_MAP: {
                 printf("Reading map from disk\n");
-                FILE* map_file = fopen("map_data", "r");
+                FILE* map_file = fopen("map_data", "rb");
                 if(!map_file){
                     printf("Error opening map file\n!");
                     exit(1);
@@ -192,7 +185,7 @@ void* process_client(void* args) {
             }
             case OP_UEE_WRITE_MAP: {
                 printf("Writing map to disk\n");
-                FILE* map_file = fopen("map_data", "w");
+                FILE* map_file = fopen("map_data", "wb");
                 if(!map_file){
                     printf("Error opening map file\n!");
                     exit(1);

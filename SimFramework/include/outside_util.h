@@ -7,6 +7,7 @@
 #ifndef _INC_FCNTL
 #define _INC_FCNTL
 
+
 #define O_RDONLY       0x0000
 #define O_WRONLY       0x0001
 #define O_RDWR         0x0002
@@ -29,6 +30,8 @@ namespace outside_util {
     ssize_t write(const int file, const void *buf, const size_t len);
     void close(int file);
 
+    int open_socket(const char* addr, int port);
+
     // uee communication
     int open_uee_connection();
     void uee_process(const int socket, void **out, size_t *out_len, const void *in, const size_t in_len);
@@ -42,6 +45,10 @@ namespace outside_util {
     void printf(const char *fmt, ...);
     void exit(int status);
     untrusted_time curr_time();
+
+    // DEBUG: for outside kmeans
+    void set(size_t num_elems, float* buffer);
+    float* get(const int pos);
 
     // generic, implementable in extern
     int process(void **out, size_t *out_len, const void *in, const size_t in_len);

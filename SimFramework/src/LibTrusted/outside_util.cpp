@@ -5,6 +5,7 @@
 
 #include "ocall.h" /* ocalls */
 #include "types.h"
+#include "untrusted_util.h"
 
 /****************************************************** FILE I/O ******************************************************/
 int outside_util::open(const char *filename, int mode) {
@@ -24,7 +25,9 @@ void outside_util::close(int file) {
 }
 /**************************************************** END FILE I/O ****************************************************/
 
-
+int outside_util::open_socket(const char* addr, int port) {
+    return untrusted_util::socket_connect(addr, port);
+}
 
 /******************************************************** MISC ********************************************************/
 void outside_util::printf(const char *fmt, ...) {

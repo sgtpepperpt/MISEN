@@ -3,7 +3,7 @@ project(visen)
 
 # process arguments
 if(NOT DEFINED SIMULATED_MODE)
-    set(SIMULATED_MODE 0)
+    set(SIMULATED_MODE 1)
 endif()
 
 if(SIMULATED_MODE)
