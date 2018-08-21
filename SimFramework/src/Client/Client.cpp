@@ -34,6 +34,7 @@ typedef struct configs {
     char* bisen_doc_type, *bisen_dataset_dir;
     vector<string> bisen_queries;
 
+    unsigned visen_nr_docs = 0;
     char* visen_train_mode, *visen_train_technique, *visen_add_mode, *visen_search_mode, *visen_clusters_file, *visen_dataset_dir;
     unsigned visen_descriptor_threshold, visen_nr_clusters, visen_desc_len;
 
@@ -70,7 +71,7 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
     if(settings->use_images) {
         // image descriptor parameters
         Ptr<SIFT> extractor = SIFT::create(settings->visen_descriptor_threshold);
-        const vector<string> files = list_img_files(-1, settings->visen_dataset_dir);
+        const vector<string> files = list_img_files(!settings->visen_nr_docs? -1 : settings->visen_nr_docs, settings->visen_dataset_dir);
 
         // init iee and server
         gettimeofday(&start, NULL);
@@ -198,6 +199,7 @@ int main(int argc, char** argv) {
     config_lookup_string(&cfg, "bisen.doc_type", (const char**)&program_configs.bisen_doc_type);
     config_lookup_string(&cfg, "bisen.dataset_dir", (const char**)&program_configs.bisen_dataset_dir);
 
+    config_lookup_int(&cfg, "visen.nr_docs", (int*)&program_configs.visen_nr_docs);
     config_lookup_string(&cfg, "visen.train_technique", (const char**)&program_configs.visen_train_technique);
     config_lookup_string(&cfg, "visen.train_mode", (const char**)&program_configs.visen_train_mode);
     config_lookup_string(&cfg, "visen.add_mode", (const char**)&program_configs.visen_add_mode);

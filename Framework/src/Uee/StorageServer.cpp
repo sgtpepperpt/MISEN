@@ -96,8 +96,8 @@ void* process_client(void* args) {
                     uint8_t* label = (uint8_t*)malloc(l_size);
                     memcpy(label, tmp, l_size);
 
-                    /*if(tmp[0] == 0x8E && tmp[1] == 0x7F && tmp[1] == 0xD4)
-                        printf("put label %p\n", I[label]);*/
+                    /*if(tmp[0] == 0x5E)
+                        untrusted_util::debug_printbuf(label, l_size);*/
 
                     tmp += l_size;
 

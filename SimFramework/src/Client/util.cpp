@@ -26,12 +26,12 @@ std::vector<std::string> list_img_files(int limit, string dataset_path) {
         exit(1);
     }
 
+    // sort alphabetically
+    sort(filenames.begin(), filenames.end());
+
     // remove elements in excess
     if(limit > 0 && filenames.size() > (unsigned)limit)
         filenames.erase(filenames.begin() + limit, filenames.end());
-
-    // sort alphabetically
-    sort(filenames.begin(), filenames.end());
 
     return filenames;
 }
@@ -57,12 +57,12 @@ std::vector<std::string> list_txt_files(int limit, std::string path) {
         exit(1);
     }
 
+    // sort alphabetically
+    sort(filenames.begin(), filenames.end());
+
     // remove elements in excess
     if(limit > 0 && filenames.size() > (unsigned)limit)
         filenames.erase(filenames.begin() + limit, filenames.end());
-
-    // sort alphabetically
-    sort(filenames.begin(), filenames.end());
 
     return filenames;
 }
