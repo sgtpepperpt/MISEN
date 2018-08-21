@@ -95,7 +95,7 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
     memset(ctr, 0x00, AES_BLOCK_SIZE);
 
 #if CLUSTERING == C_KMEANS
-    const unsigned* frequencies = process_new_image(r->k, nr_desc, descriptors);
+    const unsigned* const frequencies = process_new_image(r->k, nr_desc, descriptors);
 #elif CLUSTERING == C_LSH
     const unsigned* frequencies = calc_freq(r->lsh, descriptors, nr_desc, r->cluster_count);
 #endif
@@ -143,16 +143,15 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
     // prepare request to uee
     size_t max_req_len = sizeof(unsigned char) + sizeof(size_t) + ADD_MAX_BATCH_LEN * PAIR_LEN;
     uint8_t* req_buffer = (uint8_t*)malloc(max_req_len);
-    req_buffer[0] = OP_UEE_ADD;
 
-    // TODO should send r->k->nr_centres()?? hides how many real descs, but also more weight for ocalls
+    // TODO should send r->cluster_count?? hides how many real descs, but also more weight for ocalls
     size_t nr_labels = 0;
-    for (unsigned j = 0; j < r->k->nr_centres(); ++j) {
+    for (unsigned j = 0; j < r->cluster_count; ++j) {
         if(frequencies[j])
             nr_labels++;
     }
 
-    size_t to_send = nr_labels;//r->k->nr_centres();
+    size_t to_send = nr_labels;//r->cluster_count;
     size_t centre_pos = 0;
     while (to_send > 0) {
         memset(req_buffer, 0x00, max_req_len);
@@ -193,8 +192,6 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
             memcpy(value + LABEL_LEN + sizeof(unsigned long), &frequencies[centre_pos], sizeof(unsigned));
 
             // encrypt value
-            uint8_t nonce[crypto_secretbox_NONCEBYTES];
-            memset(nonce, 0x00, crypto_secretbox_NONCEBYTES);
             tcrypto::encrypt(tmp, value, UNENC_VALUE_LEN, r->ke, ctr);
             tmp += ENC_VALUE_LEN;
 
@@ -205,20 +202,14 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
             } while(!frequencies[centre_pos]);
         }
 
-        /*for (int j = 0; j < sizeof(unsigned char) + sizeof(size_t) + batch_len * PAIR_LEN; ++j) {
-            if(j < sizeof(unsigned char) + sizeof(size_t) + batch_len * PAIR_LEN - 2 && req_buffer[j] == 0xAE && req_buffer[j+1] == 0xD8 && req_buffer[j+2] == 0xD2) {
-                outside_util::printf("this has it %d\n", j - sizeof(unsigned char) - sizeof(size_t));
-            }
-        }*/
-
         // send batch to server
         size_t res_len;
         void* res;
         outside_util::uee_process(r->server_socket, &res, &res_len, req_buffer, sizeof(unsigned char) + sizeof(size_t) + batch_len * PAIR_LEN);
         outside_util::outside_free(res); // discard ok response
-    }
 
-    free(req_buffer);
+        free(req_buffer);
+    }
 #endif
 
     r->total_docs++;

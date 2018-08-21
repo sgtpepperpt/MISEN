@@ -22,6 +22,7 @@ static void close_all(int signum) {
     fflush(NULL);
     exit(0);
 }
+
 /****************************************************** NET DATA ******************************************************/
 
 void ok_response(uint8_t** out, size_t* out_len) {
@@ -32,12 +33,12 @@ void ok_response(uint8_t** out, size_t* out_len) {
 
 // map label and value sizes
 const size_t l_size = 32;
-const size_t d_size = 48;
+const size_t d_size = 84;
 
 tbb::concurrent_unordered_map<void*, void*, VoidHash<l_size>, VoidEqual<l_size>> I;
 
 static void repository_clear() {
-    for (tbb::concurrent_unordered_map<void*, void*, VoidHash<l_size>, VoidEqual<l_size>>::iterator it = I.begin(); it != I.end() ; ++it) {
+    for (tbb::concurrent_unordered_map<void*, void*, VoidHash<l_size>, VoidEqual<l_size>>::iterator it = I.begin(); it != I.end(); ++it) {
         free(it->first);
         free(it->second);
     }
@@ -46,7 +47,7 @@ static void repository_clear() {
 }
 
 void* process_client(void* args) {
-    const int socket = ((client_data *) args)->socket;
+    const int socket = ((client_data*)args)->socket;
     free(args);
 
     long total_add_time = 0;
@@ -55,13 +56,11 @@ void* process_client(void* args) {
         size_t in_len;
         untrusted_util::socket_receive(socket, &in_len, sizeof(size_t));
 
-        uint8_t* in_buffer = (uint8_t*)malloc(in_len);
-        untrusted_util::socket_receive(socket, in_buffer, in_len);
-
         uint8_t* out = NULL;
         size_t out_len = 0;
 
-        const unsigned char op = in_buffer[0];
+        unsigned char op;
+        untrusted_util::socket_receive(socket, &op, sizeof(unsigned char));
         switch (op) {
             case OP_UEE_INIT: {
                 // clean previous elements, if any
@@ -75,35 +74,25 @@ void* process_client(void* args) {
                 break;
             }
             case OP_UEE_ADD: {
-                printf("Add image (c. %lu)\n", I.size());
+                //printf("Add image (c. %lu)\n", I.size());
 
                 struct timeval start, end;
                 gettimeofday(&start, NULL);
 
-                uint8_t* tmp = in_buffer + sizeof(unsigned char);
-
                 size_t nr_labels;
-                memcpy(&nr_labels, tmp, sizeof(size_t));
-                tmp += sizeof(size_t);
+                untrusted_util::socket_receive(socket, &nr_labels, sizeof(size_t));
 
-                /*for (int j = 0; j < in_len - 10; ++j) {
-                    if(j < in_len - 13 && tmp[j] == 0xAE && tmp[j+1] == 0xD8 && tmp[j+2] == 0xD2) {
-                        printf("this has it %d\n", j - 9);
-                    }
-                }*/
+                uint8_t* buffer = (uint8_t*)malloc(nr_labels * (l_size + d_size));
+                untrusted_util::socket_receive(socket, buffer, nr_labels * (l_size + d_size));
 
                 for (size_t i = 0; i < nr_labels; ++i) {
-                    uint8_t* label = (uint8_t*)malloc(l_size);
-                    memcpy(label, tmp, l_size);
+                    void* label = buffer + i * (l_size + d_size);
+                    void* d = buffer + i * (l_size + d_size) + l_size;
 
-                    /*if(tmp[0] == 0x8E && tmp[1] == 0x7F && tmp[1] == 0xD4)
-                        printf("put label %p\n", I[label]);*/
-
-                    tmp += l_size;
-
-                    uint8_t* d = (uint8_t*)malloc(d_size);
-                    memcpy(d, tmp, d_size);
-                    tmp += d_size;
+                    /*if (((uint8_t*)label)[0] == 0x5E) {
+                        untrusted_util::debug_printbuf((uint8_t*)label, l_size);
+                        //exit(1);
+                    }*/
 
                     I[label] = d;
                 }
@@ -117,23 +106,21 @@ void* process_client(void* args) {
             case OP_UEE_SEARCH: {
                 //printf("Search\n");
 
-                uint8_t* tmp = in_buffer + sizeof(unsigned char);
-
                 size_t nr_labels;
-                memcpy(&nr_labels, tmp, sizeof(size_t));
-                tmp += sizeof(size_t);
+                untrusted_util::socket_receive(socket, &nr_labels, sizeof(size_t));
 
                 out_len = nr_labels * d_size;
                 out = (uint8_t*)malloc(out_len);
 
+                unsigned char* labels = new unsigned char[l_size * nr_labels];
+                untrusted_util::socket_receive(socket, labels, l_size * nr_labels * sizeof(unsigned char));
+
                 for (size_t i = 0; i < nr_labels; ++i) {
-                    uint8_t label[l_size];
-                    memcpy(label, tmp, l_size);
-                    tmp += l_size;
+                    uint8_t* label = labels + i * l_size;
 
                     //untrusted_util::debug_printbuf(label, l_size);
 
-                    if(!I[label]) {
+                    if (!I[label]) {
                         printf("Map error: %lu/%lu\n", i, nr_labels);
                         untrusted_util::debug_printbuf(label, l_size);
                         exit(1);
@@ -147,7 +134,7 @@ void* process_client(void* args) {
             case OP_UEE_READ_MAP: {
                 printf("Reading map from disk\n");
                 FILE* map_file = fopen("map_data", "rb");
-                if(!map_file){
+                if (!map_file) {
                     printf("Error opening map file\n!");
                     exit(1);
                 }
@@ -157,7 +144,7 @@ void* process_client(void* args) {
                 printf("nr_pairs %lu\n", nr_pairs);
 
                 int count = 0, ccount = 0;
-                for(size_t i = 0; i < nr_pairs; ++i) {
+                for (size_t i = 0; i < nr_pairs; ++i) {
                     void* label = (uint8_t*)malloc(l_size);
 
                     uint8_t tmp_a[l_size]; // TODO this needs to vanish, fread directly into malloc'd buffers was not working
@@ -171,7 +158,7 @@ void* process_client(void* args) {
                     fread(tmp_b, d_size, 1, map_file);
                     memcpy(d, tmp_b, d_size);
 
-                    if(((uint8_t*)label)[0] == 0x56 && ((uint8_t*)label)[1] == 0x97 && ((uint8_t*)label)[5] == 0xfa)
+                    if (((uint8_t*)label)[0] == 0x56 && ((uint8_t*)label)[1] == 0x97 && ((uint8_t*)label)[5] == 0xfa)
                         count++;
                     else ccount++;
 
@@ -186,7 +173,7 @@ void* process_client(void* args) {
             case OP_UEE_WRITE_MAP: {
                 printf("Writing map to disk\n");
                 FILE* map_file = fopen("map_data", "wb");
-                if(!map_file){
+                if (!map_file) {
                     printf("Error opening map file\n!");
                     exit(1);
                 }
@@ -196,8 +183,8 @@ void* process_client(void* args) {
 
                 int count = 0, ccount = 0;
 
-                for (tbb::concurrent_unordered_map<void*, void*, VoidHash<l_size>, VoidEqual<l_size>>::iterator it = I.begin(); it != I.end() ; ++it) {
-                    if(!((uint8_t*)it->first)[0] && !((uint8_t*)it->first)[1] && !((uint8_t*)it->first)[5])
+                for (tbb::concurrent_unordered_map<void*, void*, VoidHash<l_size>, VoidEqual<l_size>>::iterator it = I.begin(); it != I.end(); ++it) {
+                    if (!((uint8_t*)it->first)[0] && !((uint8_t*)it->first)[1] && !((uint8_t*)it->first)[5])
                         count++;
                     else ccount++;
 
@@ -218,7 +205,6 @@ void* process_client(void* args) {
             default:
                 printf("SseServer unkonwn command: %02x\n", op);
         }
-        free(in_buffer);
 
         // send response
         untrusted_util::socket_send(socket, &out_len, sizeof(size_t));
@@ -231,7 +217,7 @@ void* process_client(void* args) {
     close(socket);
 }
 
-int main(int argc, const char ** argv) {
+int main(int argc, const char** argv) {
     const int server_port = UEE_PORT;
 
     // register signal handler
@@ -245,9 +231,9 @@ int main(int argc, const char ** argv) {
 
     printf("Listening for requests...\n");
     while (1) {
-        client_data *data = (client_data *)malloc(sizeof(client_data));
+        client_data* data = (client_data*)malloc(sizeof(client_data));
 
-        if ((data->socket = accept(server_socket, (struct sockaddr *)&client_addr, &client_addr_len)) < 0) {
+        if ((data->socket = accept(server_socket, (struct sockaddr*)&client_addr, &client_addr_len)) < 0) {
             printf("Accept failed!\n");
             break;
         }
