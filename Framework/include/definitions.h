@@ -39,4 +39,9 @@
 #define C_LSH 2
 #define CLUSTERING C_KMEANS
 
+#define OP_IEE_DUMP_BENCH 'v'
+#define OP_UEE_DUMP_BENCH 'x'
+
+#define PRINT_DEBUG 0
+
 #endif

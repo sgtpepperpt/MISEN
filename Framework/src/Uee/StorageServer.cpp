@@ -49,7 +49,8 @@ void* process_client(void* args) {
     const int socket = ((client_data *) args)->socket;
     free(args);
 
-    long total_add_time = 0;
+    struct timeval start, end;
+    double total_add_time = 0, total_search_time = 0;
 
     while (1) {
         size_t in_len;
@@ -75,9 +76,8 @@ void* process_client(void* args) {
                 break;
             }
             case OP_UEE_ADD: {
-                printf("Add image (c. %lu)\n", I.size());
+                //printf("Add image (c. %lu)\n", I.size());
 
-                struct timeval start, end;
                 gettimeofday(&start, NULL);
 
                 uint8_t* tmp = in_buffer + sizeof(unsigned char);
@@ -117,6 +117,8 @@ void* process_client(void* args) {
             case OP_UEE_SEARCH: {
                 //printf("Search\n");
 
+                gettimeofday(&start, NULL);
+
                 uint8_t* tmp = in_buffer + sizeof(unsigned char);
 
                 size_t nr_labels;
@@ -142,11 +144,15 @@ void* process_client(void* args) {
                     memcpy(out + i * d_size, I[label], d_size);
                 }
 
+                gettimeofday(&end, NULL);
+                total_search_time += untrusted_util::time_elapsed_ms(start, end);
+
                 break;
             }
             case OP_UEE_READ_MAP: {
                 printf("Reading map from disk\n");
-                FILE* map_file = fopen("map_data", "rb");
+                printf("functionality disabled\n");
+                /*FILE* map_file = fopen("map_data", "rb");
                 if(!map_file){
                     printf("Error opening map file\n!");
                     exit(1);
@@ -178,14 +184,15 @@ void* process_client(void* args) {
 
                     I[label] = d;
                 }
-                printf("bad count %d; good count %d\n", count, ccount);
+                //printf("bad count %d; good count %d\n", count, ccount);
                 fclose(map_file);
-                printf("done!\n");
+                printf("done!\n");*/
                 break;
             }
             case OP_UEE_WRITE_MAP: {
                 printf("Writing map to disk\n");
-                FILE* map_file = fopen("map_data", "wb");
+                printf("functionality disabled\n");
+                /*FILE* map_file = fopen("map_data", "wb");
                 if(!map_file){
                     printf("Error opening map file\n!");
                     exit(1);
@@ -207,7 +214,14 @@ void* process_client(void* args) {
 
                 printf("bad count %d; good count %d\n", count, ccount);
                 fclose(map_file);
-                printf("done!\n");
+                printf("done!\n");*/
+                break;
+            }
+            case OP_UEE_DUMP_BENCH: {
+                printf("-- STORAGE BENCHMARK --\n");
+
+                printf("-- VISEN add storage: %lfms--\n", total_add_time);
+                printf("-- VISEN search storage: %lfms --\n", total_search_time);
                 break;
             }
             case OP_UEE_CLEAR: {

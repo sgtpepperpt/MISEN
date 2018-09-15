@@ -199,14 +199,30 @@ void visen_train_client_lsh(mbedtls_ssl_context ssl, size_t desc_len, unsigned v
 }*/
 
 void visen_add_files(secure_connection* conn, Ptr<SIFT> extractor, const vector<string> files) {
+    struct timeval start, end;
+    double total_client = 0, total_iee = 0;
+
     size_t in_len;
     uint8_t* in;
 
     for (unsigned i = 0; i < files.size(); i++) {
-        if(i % 100 == 0)
+        if(i % 20 == 0)
             printf("Add img (%u/%lu)\n", i, files.size());
+
+        gettimeofday(&start, NULL);
         add_images(&in, &in_len, extractor, files[i]);
+        gettimeofday(&end, NULL);
+        total_client += untrusted_util::time_elapsed_ms(start, end);
+
+        gettimeofday(&start, NULL);
         iee_comm(conn, in, in_len);
+        gettimeofday(&end, NULL);
+        total_iee += untrusted_util::time_elapsed_ms(start, end);
+
         free(in);
     }
+
+    printf("-- VISEN TOTAL add: %lf ms %lu imgs--\n", total_client + total_iee, files.size());
+    printf("-- VISEN add client: %lf ms --\n", total_client);
+    printf("-- VISEN add iee w/ net: %lf ms --\n", total_iee);
 }

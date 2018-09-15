@@ -6,6 +6,8 @@
 #include <dirent.h>
 #include <map>
 #include <fstream>
+#include <time.h>
+#include <sys/time.h>
 
 #include "util.h"
 
@@ -13,7 +15,7 @@ using namespace cv;
 using namespace cv::xfeatures2d;
 using namespace std;
 
-#define STORE_RESULTS 1
+#define STORE_RESULTS 0
 #if STORE_RESULTS
 void printHolidayResults(const char* path, std::map<unsigned long, std::vector<unsigned long>> results) {
     std::ofstream ofs(path);
@@ -200,10 +202,18 @@ void clear(uint8_t** in, size_t* in_len) {
     *in[0] = OP_IEE_CLEAR;
 }
 
+void dump_bench(uint8_t** in, size_t* in_len) {
+    *in_len = sizeof(unsigned char);
+
+    *in = (uint8_t*)malloc(*in_len);
+    *in[0] = OP_IEE_DUMP_BENCH;
+}
+
 void search(uint8_t** in, size_t* in_len, const Ptr<SIFT> surf, const std::string file_name) {
     const char* id = strrchr(file_name.c_str(), '/') + sizeof(char); // +sizeof(char) excludes the slash
+#if PRINT_DEBUG
     printf(" - Search for %s -\n", id);
-
+#endif
     Mat image = imread(file_name);
     if (!image.data) {
         printf("No image data for %s\n", file_name.c_str());
@@ -225,9 +235,9 @@ void search(uint8_t** in, size_t* in_len, const Ptr<SIFT> surf, const std::strin
         for (size_t j = 0; j < desc_len; ++j)
             descriptors_buffer[i * desc_len + j] = *descriptors.ptr<float>(i, j);
     }
-
+#if PRINT_DEBUG
     printf("nr desc %lu\n", nr_desc);
-
+#endif
     // send
     *in_len = sizeof(unsigned char) + sizeof(size_t) + nr_desc * desc_len * sizeof(float);
 
@@ -294,7 +304,9 @@ void search_test_wang(secure_connection* conn, const Ptr<SIFT> surf) {
         }
 
         free(res);
+#if STORE_RESULTS
         precision_res[filename_to_id(files[i].c_str())] = precision_results;
+#endif
     }
 
 #if STORE_RESULTS
@@ -303,7 +315,9 @@ void search_test_wang(secure_connection* conn, const Ptr<SIFT> surf) {
 #endif
 }
 
-void search_test(secure_connection* conn, const Ptr<SIFT> extractor) {
+void search_test(secure_connection* conn, const Ptr<SIFT> extractor, size_t dbg_limit) {
+    struct timeval start, end;
+    double total_client = 0, total_iee = 0;
     size_t in_len;
     uint8_t* in;
 
@@ -317,8 +331,17 @@ void search_test(secure_connection* conn, const Ptr<SIFT> extractor) {
         files.push_back(img);
     }
 
-    for (size_t i = 0; i < files.size(); ++i) {
+    const size_t query_count = std::min(files.size(), dbg_limit > 0 ? dbg_limit : files.size());
+    for (size_t i = 0; i < query_count; ++i) {
+        if(i % 20 == 0)
+            printf("Search img (%lu/%lu)\n", i, query_count);
+
+        gettimeofday(&start, NULL);
         search(&in, &in_len, extractor, files[i]);
+        gettimeofday(&end, NULL);
+        total_client += untrusted_util::time_elapsed_ms(start, end);
+
+        gettimeofday(&start, NULL);
         iee_send(conn, in, in_len);
         free(in);
 
@@ -326,11 +349,16 @@ void search_test(secure_connection* conn, const Ptr<SIFT> extractor) {
         size_t res_len;
         uint8_t* res;
         iee_recv(conn, &res, &res_len);
+        gettimeofday(&end, NULL);
+        total_iee += untrusted_util::time_elapsed_ms(start, end);
 
         // get number of response docs
+        gettimeofday(&start, NULL);
         unsigned nr;
         memcpy(&nr, res, sizeof(unsigned));
+#if PRINT_DEBUG
         printf("nr of imgs: %u\n", nr);
+#endif
 
 #if STORE_RESULTS
         // store the results in order
@@ -345,18 +373,28 @@ void search_test(secure_connection* conn, const Ptr<SIFT> extractor) {
             double score;
             memcpy(&score, res + sizeof(size_t) + j * SRC_RES_LEN + sizeof(unsigned long), sizeof(double));
 
+#if PRINT_DEBUG
             printf("%lu %f\n", id, score);
+#endif
 #if STORE_RESULTS
             precision_results.push_back(id);
 #endif
         }
 
         free(res);
+        gettimeofday(&end, NULL);
+        total_client += untrusted_util::time_elapsed_ms(start, end);
+#if STORE_RESULTS
         precision_res[filename_to_id(files[i].c_str())] = precision_results;
+#endif
     }
 
 #if STORE_RESULTS
     // write results to file
     printHolidayResults("results.dat", precision_res);
 #endif
+
+    printf("-- VISEN TOTAL search: %lf ms %lu queries--\n", total_client + total_iee, query_count);
+    printf("-- VISEN search client: %lf ms --\n", total_client);
+    printf("-- VISEN search iee w/ net: %lf ms --\n", total_iee);
 }

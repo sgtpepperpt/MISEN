@@ -50,6 +50,14 @@ repository* repository_init(unsigned nr_clusters, size_t desc_len) {
     return r;
 }
 
+benchmark* benchmark_init() {
+    return (benchmark*)malloc(sizeof(benchmark));
+}
+
+void benchmark_clear(benchmark* b) {
+    free(b);
+}
+
 void repository_clear(repository* r) {
     free(r->kf);
     free(r->ke);

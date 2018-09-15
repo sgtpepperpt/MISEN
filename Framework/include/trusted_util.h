@@ -11,7 +11,7 @@ namespace trusted_util {
     void thread_do_work();
 
     // time
-    long time_elapsed_ms(untrusted_time start, untrusted_time end);
+    double time_elapsed_ms(untrusted_time start, untrusted_time end);
 
     // secure file i/o
     void* open_secure(const char* name, const char* mode);

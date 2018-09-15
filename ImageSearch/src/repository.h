@@ -38,6 +38,17 @@ typedef struct repository {
     thread_resource* resource_pool;
 } repository;
 
+typedef struct benchmark {
+    size_t count_adds = 0;
+    size_t count_searches = 0;
+    double total_add_time = 0, total_add_time_server = 0;
+    double total_search_time = 0, total_search_time_server = 0;
+} benchmark;
+
+
+benchmark* benchmark_init();
+void benchmark_clear(benchmark* b);
+
 repository* repository_init(unsigned nr_clusters, size_t desc_len);
 void repository_clear(repository* r);
 

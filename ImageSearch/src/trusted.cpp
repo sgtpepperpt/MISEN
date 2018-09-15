@@ -25,6 +25,7 @@
 using namespace std;
 
 repository* r = NULL;
+benchmark* b = NULL;
 
 #if PARALLEL_ADD_IMG
 void* add_img_parallel(void* args) {
@@ -90,6 +91,10 @@ void* add_img_parallel(void* args) {
 #endif
 
 static void add_image(const unsigned long id, const size_t nr_desc, float* descriptors) {
+    b->count_adds++;
+    untrusted_time start, end;
+    start = outside_util::curr_time();
+
     // used for aes TODO better
     unsigned char ctr[AES_BLOCK_SIZE];
     memset(ctr, 0x00, AES_BLOCK_SIZE);
@@ -153,7 +158,13 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
 
     size_t to_send = nr_labels;//r->cluster_count;
     size_t centre_pos = 0;
+
+    end = outside_util::curr_time();
+    b->total_add_time += trusted_util::time_elapsed_ms(start, end);
+
     while (to_send > 0) {
+        start = outside_util::curr_time();
+
         memset(req_buffer, 0x00, max_req_len);
         req_buffer[0] = OP_UEE_ADD;
 
@@ -202,6 +213,11 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
             } while(!frequencies[centre_pos]);
         }
 
+        end = outside_util::curr_time();
+        b->total_add_time += trusted_util::time_elapsed_ms(start, end);
+
+        start = outside_util::curr_time();
+
         // send batch to server
         size_t res_len;
         void* res;
@@ -209,11 +225,19 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
         outside_util::outside_free(res); // discard ok response
 
         free(req_buffer);
+
+        end = outside_util::curr_time();
+        b->total_add_time_server += trusted_util::time_elapsed_ms(start, end);
     }
 #endif
 
+    start = outside_util::curr_time();
+
     r->total_docs++;
     free((void*)frequencies);
+
+    end = outside_util::curr_time();
+    b->total_add_time += trusted_util::time_elapsed_ms(start, end);
 }
 
 typedef struct img_pair {
@@ -222,6 +246,10 @@ typedef struct img_pair {
 } img_pair;
 
 void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* descriptors) {
+    b->count_searches++;
+    untrusted_time start, end;
+    start = outside_util::curr_time();
+
     using namespace outside_util;
 
 #if CLUSTERING == C_KMEANS
@@ -272,8 +300,13 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
     unsigned centroid_pos = 0;
     unsigned counter_of_centroid_pos = 0;
 
+    end = outside_util::curr_time();
+    b->total_search_time += trusted_util::time_elapsed_ms(start, end);
+
     unsigned batch_counter = 0;
     while (to_send > 0) {
+        start = outside_util::curr_time();
+
         unsigned init_centroid_pos = centroid_pos;
         unsigned init_counter_of_centroid_pos = counter_of_centroid_pos;
 
@@ -316,11 +349,20 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
 
         to_send -= batch_len;
 
+        end = outside_util::curr_time();
+        b->total_search_time += trusted_util::time_elapsed_ms(start, end);
+
+        start = outside_util::curr_time();
         // perform request to uee
         size_t res_len;
         uint8_t* res;
         uee_process(r->server_socket, (void**)&res, &res_len, req_buffer, sizeof(unsigned char) + sizeof(size_t) + batch_len * LABEL_LEN);
         uint8_t* res_tmp = res;
+
+        end = outside_util::curr_time();
+        b->total_search_time_server += trusted_util::time_elapsed_ms(start, end);
+
+        start = outside_util::curr_time();
 
         centroid_pos = init_centroid_pos;
         counter_of_centroid_pos = init_counter_of_centroid_pos;
@@ -380,12 +422,17 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
         }
 
         outside_util::outside_free(res);
+
+        end = outside_util::curr_time();
+        b->total_search_time += trusted_util::time_elapsed_ms(start, end);
     }
 /*
     for(auto x = scores.begin(); x != scores.end(); x++ ) {
         outside_util::printf("%lu %f\n", x->first, x->second);
     }
 */
+    start = outside_util::curr_time();
+
     free(idf);
     free((void*)frequencies);
 
@@ -425,7 +472,7 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
 
         //outside_util::printf("%lu %f\n", a, b);
     }
-    outside_util::printf("\n");
+    //outside_util::printf("\n");
     ////////////////////
 
     // fill response buffer
@@ -437,6 +484,9 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
     memcpy(*out + sizeof(size_t), res, response_imgs * single_res_len);
 
     free(res);
+
+    end = outside_util::curr_time();
+    b->total_search_time += trusted_util::time_elapsed_ms(start, end);
 }
 
 typedef struct response {
@@ -477,6 +527,7 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             outside_util::printf("desc_len %lu %u\n", desc_len, nr_clusters);
 
             r = repository_init(nr_clusters, desc_len);
+            b = benchmark_init();
             // TODO server init
             ok_response(out, out_len);
             break;
@@ -548,10 +599,31 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             search_image(out, out_len, nr_desc, descriptors);
             break;
         }
+        case OP_IEE_DUMP_BENCH: {
+            outside_util::printf("-- IEE BENCHMARK --\n");
+
+            outside_util::printf("-- VISEN add iee: %lfms %lu imgs--\n", b->total_add_time, b->count_adds);
+            outside_util::printf("-- VISEN add uee w/ net: %lfms --\n", b->total_add_time_server);
+
+            outside_util::printf("-- VISEN search iee: %lfms %lu imgs--\n", b->total_search_time, b->count_searches);
+            outside_util::printf("-- VISEN search uee w/ net: %lfms --\n", b->total_search_time_server);
+
+            const unsigned char op = OP_UEE_DUMP_BENCH;
+            size_t res_len;
+            void* res;
+            outside_util::uee_process(r->server_socket, &res, &res_len, &op, 1);
+            outside_util::outside_free(res);
+
+            ok_response(out, out_len);
+            outside_util::printf("-- --------- --\n");
+            break;
+        }
         case OP_IEE_CLEAR: {
             outside_util::printf("Clear repository!\n");
             repository_clear(r);
+            benchmark_clear(b);
             r = NULL;
+            b = NULL;
             ok_response(out, out_len);
             break;
         }

@@ -54,17 +54,14 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
         gettimeofday(&start, NULL);
         bisen_setup(conn, &client);
         gettimeofday(&end, NULL);
-        printf("-- BISEN setup: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+        printf("-- BISEN setup: %lfms --\n", untrusted_util::time_elapsed_ms(start, end));
 
         gettimeofday(&start, NULL);
         bisen_update(conn, &client, settings->bisen_doc_type, settings->bisen_nr_docs, txt_paths);
         gettimeofday(&end, NULL);
-        printf("-- BISEN updates: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+        printf("-- BISEN TOTAL updates: %lf ms %d docs --\n", untrusted_util::time_elapsed_ms(start, end), settings->bisen_nr_docs);
 
-        gettimeofday(&start, NULL);
         bisen_search(conn, &client, settings->bisen_queries);
-        gettimeofday(&end, NULL);
-        printf("-- BISEN searches: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
     }
 
     ///////////////////////////////
@@ -77,7 +74,7 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
         gettimeofday(&start, NULL);
         visen_setup(conn, settings->visen_desc_len, settings->visen_nr_clusters);
         gettimeofday(&end, NULL);
-        printf("-- VISEN setup: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+        printf("-- VISEN setup: %lfms --\n", untrusted_util::time_elapsed_ms(start, end));
 
         // train
         gettimeofday(&start, NULL);
@@ -86,10 +83,9 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
         else if(!strcmp(settings->visen_train_technique, "iee_kmeans"))
             visen_train_iee_kmeans(conn, settings->visen_train_mode, extractor, files);
         gettimeofday(&end, NULL);
-        printf("-- VISEN train: %ldms %s--\n", untrusted_util::time_elapsed_ms(start, end), settings->visen_train_technique);
+        printf("-- VISEN train: %lfms %s--\n", untrusted_util::time_elapsed_ms(start, end), settings->visen_train_technique);
 
         // add images to repository
-        gettimeofday(&start, NULL);
         if(!strcmp(settings->visen_add_mode, "normal")) {
             visen_add_files(conn, extractor, files);
         } else if(!strcmp(settings->visen_add_mode, "load")) {
@@ -100,8 +96,6 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
             printf("Add mode error\n");
             exit(1);
         }
-        gettimeofday(&end, NULL);
-        printf("-- VISEN add imgs: %ldms %lu imgs--\n", untrusted_util::time_elapsed_ms(start, end), files.size());
 
         if(!strcmp(settings->visen_add_mode, "normal")) {
             // send persist storage message to iee, useful for debugging and testing
@@ -110,14 +104,16 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
         }
 
         // search
-        gettimeofday(&start, NULL);
-        search_test(conn, extractor);
-        gettimeofday(&end, NULL);
-        printf("-- VISEN searches: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+        search_test(conn, extractor, 10);
 
-        // clear
+        // dump benchmark results
         size_t in_len;
         uint8_t* in;
+        dump_bench(&in, &in_len);
+        iee_comm(conn, in, in_len);
+        free(in);
+
+        // clear
         clear(&in, &in_len);
         iee_comm(conn, in, in_len);
         free(in);
@@ -144,27 +140,27 @@ void multimodal_tests(const configs* const settings, secure_connection* conn) {
 
     bisen_setup(conn, &client);
     gettimeofday(&end, NULL);
-    printf("-- MISEN setup: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+    printf("-- MISEN setup: %lfms --\n", untrusted_util::time_elapsed_ms(start, end));
 
     // train (for images)
     gettimeofday(&start, NULL);
     visen_train_client_kmeans(conn, settings->visen_desc_len, settings->visen_nr_clusters, (char*)"load", settings->visen_clusters_file, NULL, extractor);
     gettimeofday(&end, NULL);
-    printf("-- MISEN train: %ldms %s--\n", untrusted_util::time_elapsed_ms(start, end), settings->visen_train_technique);
+    printf("-- MISEN train: %lfms %s--\n", untrusted_util::time_elapsed_ms(start, end), settings->visen_train_technique);
 
     // add documents to iee
     gettimeofday(&start, NULL);
     bisen_update(conn, &client, (char*)"normal", settings->misen_nr_docs, txt_paths);
     visen_add_files(conn, extractor, img_paths);
     gettimeofday(&end, NULL);
-    printf("-- MISEN updates: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+    printf("-- MISEN updates: %lfms --\n", untrusted_util::time_elapsed_ms(start, end));
 
     // searches
     gettimeofday(&start, NULL);
     vector<pair<string, string>> multimodal_queries = generate_multimodal_queries(txt_paths, img_paths, settings->misen_nr_queries);
     misen_search(conn, &client, extractor, multimodal_queries);
     gettimeofday(&end, NULL);
-    printf("-- MISEN searches: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+    printf("-- MISEN searches: %lfms --\n", untrusted_util::time_elapsed_ms(start, end));
 
     // cleanup
     size_t in_len;
