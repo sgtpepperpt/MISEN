@@ -696,6 +696,34 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             }
             break;
         }
+        case OP_IEE_BISEN_BULK: {
+            //outside_util::printf("special bisen upd\n");
+
+            size_t nr_upds;
+            memcpy(&nr_upds, input, sizeof(size_t));
+            //outside_util::printf("nr_upds %lu\n", nr_upds);
+
+            uint8_t* tmp = input + sizeof(size_t);
+
+            for (unsigned i = 0; i < nr_upds; ++i) {
+                size_t len;
+                memcpy(&len, tmp, sizeof(size_t));
+                tmp += sizeof(size_t);
+
+                unsigned char* output;
+                unsigned long long output_len;
+                f(&output, &output_len, 0, tmp, len);
+                free(output);
+
+                tmp += len;
+            }
+
+            *out_len = 1;
+            *out = (unsigned char*)malloc(sizeof(unsigned char));
+            (*out)[0] = 0x90;
+
+            break;
+        }
         case OP_RBISEN: {
             unsigned char* output;
             unsigned long long output_len;

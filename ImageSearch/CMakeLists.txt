@@ -27,7 +27,7 @@ set(UTIL_SRCS ${EXTERN_DIR}/src/parallel.cpp ${EXTERN_DIR}/src/scoring.cpp ${EXT
 # define target library
 add_library(${EXTERN_LIB_NAME}
         ${EXTERN_DIR}/src/rbisen/util/IeeUtils.cpp ${EXTERN_DIR}/src/rbisen/util/vec_int.cpp ${EXTERN_DIR}/src/rbisen/util/vec_token.cpp
-        ${EXTERN_DIR}/src/rbisen/IeeCrypt.cpp ${EXTERN_DIR}/src/rbisen/QueryEvaluator.cpp ${EXTERN_DIR}/src/rbisen/SseIee.cpp
+        ${EXTERN_DIR}/src/rbisen/QueryEvaluator.cpp ${EXTERN_DIR}/src/rbisen/SseIee.cpp
         ${EXTERN_DIR}/src/trusted.cpp
         ${EXTERN_DIR}/src/untrusted.cpp
         ${EXTERN_DIR}/src/training.cpp

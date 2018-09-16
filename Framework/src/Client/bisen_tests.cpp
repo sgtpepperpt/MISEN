@@ -27,9 +27,6 @@ void bisen_update(secure_connection* conn, SseClient* client, char* bisen_doc_ty
     struct timeval start, end;
     double total_client = 0, total_iee = 0;
 
-    unsigned char* data_bisen;
-    unsigned long long data_size_bisen;
-
     printf("Update type: %s\n", bisen_doc_type);
 
     size_t nr_updates = 0;
@@ -54,19 +51,49 @@ void bisen_update(secure_connection* conn, SseClient* client, char* bisen_doc_ty
         gettimeofday(&end, NULL);
         total_client += untrusted_util::time_elapsed_ms(start, end);
 
-        for (const map<string, int> text : docs) {
-            gettimeofday(&start, NULL);
+        vector<pair<size_t, uint8_t*>> msgs;
+        size_t total_size = 0;
+        const size_t to_send = docs.size();
+
+        for (int i = 0; i < docs.size(); i++) {
+            const map<string, int> text = docs[i];
+
             // generate the byte* to send to the server
-            data_size_bisen = client->add_new_document(text, &data_bisen);
+            gettimeofday(&start, NULL);
+            unsigned char* data_bisen;
+            unsigned long long data_size_bisen = client->add_new_document(text, &data_bisen);
             gettimeofday(&end, NULL);
             total_client += untrusted_util::time_elapsed_ms(start, end);
 
-            gettimeofday(&start, NULL);
-            iee_comm(conn, data_bisen, data_size_bisen);
-            free(data_bisen);
-            gettimeofday(&end, NULL);
-            total_iee += untrusted_util::time_elapsed_ms(start, end);
+            msgs.push_back(make_pair(data_size_bisen, data_bisen));
+            total_size += data_size_bisen;
         }
+
+        // put messages into bulk buffer
+        const size_t buffer_len = sizeof(uint8_t) + sizeof(size_t) + docs.size() * sizeof(size_t) + total_size;
+        uint8_t* buffer = (uint8_t*)malloc(sizeof(uint8_t) + sizeof(size_t) + docs.size() * sizeof(size_t) + total_size);
+        buffer[0] = OP_IEE_BISEN_BULK;
+        uint8_t* tmp = buffer + sizeof(uint8_t);
+
+        memcpy(tmp, &to_send, sizeof(size_t));
+        tmp += sizeof(size_t);
+
+        for(pair<size_t, uint8_t*> msg : msgs) {
+            memcpy(tmp, &(msg.first), sizeof(size_t));
+            tmp += sizeof(size_t);
+
+            memcpy(tmp, msg.second, msg.first);
+            tmp += msg.first;
+
+            free(msg.second);
+        }
+
+        gettimeofday(&start, NULL);
+        iee_comm(conn, buffer, buffer_len);
+        gettimeofday(&end, NULL);
+        total_iee += untrusted_util::time_elapsed_ms(start, end);
+
+        free(buffer);
 
         if (nr_updates >= nr_docs) {
             printf("Breaking, done enough updates (%lu/%u)\n", nr_updates, nr_docs);

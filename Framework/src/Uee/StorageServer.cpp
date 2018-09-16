@@ -222,6 +222,7 @@ void* process_client(void* args) {
 
                 printf("-- VISEN add storage: %lfms--\n", total_add_time);
                 printf("-- VISEN search storage: %lfms --\n", total_search_time);
+                printf("-- VISEN index size: %lu --\n", I.size());
                 break;
             }
             case OP_UEE_CLEAR: {

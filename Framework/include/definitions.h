@@ -42,6 +42,8 @@
 #define OP_IEE_DUMP_BENCH 'v'
 #define OP_UEE_DUMP_BENCH 'x'
 
+#define OP_IEE_BISEN_BULK 'z'
+
 #define PRINT_DEBUG 0
 
 #endif
