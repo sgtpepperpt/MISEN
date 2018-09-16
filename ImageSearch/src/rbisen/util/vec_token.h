@@ -6,8 +6,8 @@
 
 typedef struct vec_token {
     iee_token* array;
-    unsigned max_size;
-    unsigned counter;
+    unsigned int max_size;
+    unsigned int counter;
 } vec_token;
 
 // initialisers

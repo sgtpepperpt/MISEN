@@ -11,25 +11,26 @@ void vt_init(vec_token* v, int max_size) {
 void vt_grow(vec_token* v) {
     // allocate a new array and copy the elements
     iee_token* n = (iee_token*) malloc(sizeof(iee_token) * v->max_size * 2);
-    for(unsigned i = 0; i < v->max_size; i++)
-        n[i] = v->array[i];
+    memcpy(n, v->array, sizeof(iee_token) * v->max_size);
+    memset(n+v->max_size, 0, sizeof(iee_token) * v->max_size);
 
     // free the old array
     free(v->array);
+    v->array = n;
 
     v->max_size = v->max_size * 2;
-    v->array = n;
 }
 
 void vt_destroy(vec_token* v) {
     free(v->array);
 }
 
-void vt_push_back(vec_token* v, iee_token e) {
+void vt_push_back(vec_token* v, iee_token* e) {
     if(v->counter == v->max_size)
         vt_grow(v);
 
-    v->array[v->counter++] = e;
+    memcpy(&(v->array[v->counter++]), e, sizeof(iee_token));
+    //v->array[v->counter++] = e;
 }
 
 void vt_pop_back(vec_token* v) {

@@ -156,20 +156,20 @@ static void update(bytes *out, size *out_len, uint8_t* in, const size in_len) {
             //get doc_id, counter, frequency, kW from array
             int doc_id;
             memcpy(&doc_id, tmp, sizeof(int));
-            tmp = (char*)tmp + sizeof(int);
+            ((char*)tmp) += sizeof(int);
 
             int counter;
             memcpy(&counter, tmp, sizeof(int));
-            tmp = (char*)tmp + sizeof(int);
+            ((char*)tmp) += sizeof(int);
 
             int frequency;
             memcpy(&frequency, tmp, sizeof(int));
-            tmp = (char*)tmp + sizeof(int);
+            ((char*)tmp) += sizeof(int);
 
             // read kW
-            uint8_t* kW[SHA256_OUTPUT_SIZE];
+            uint8_t kW[SHA256_OUTPUT_SIZE];
             memcpy(kW, tmp, SHA256_OUTPUT_SIZE);
-            tmp = (char*)tmp + SHA256_OUTPUT_SIZE;
+            ((char*)tmp) += SHA256_OUTPUT_SIZE;
 
             // calculate "label" (key) and add to batch_buffer
             tcrypto::hmac_sha256((unsigned char*)label, (unsigned char*)&counter, sizeof(int), kW, SHA256_OUTPUT_SIZE);
@@ -479,7 +479,7 @@ void search(bytes* out, size* out_len, uint8_t* in, const size in_len) {
             continue;
         }
 
-        vt_push_back(&query, tkn);
+        vt_push_back(&query, &tkn);
     }
 
     end = outside_util::curr_time();
