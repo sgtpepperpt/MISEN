@@ -517,7 +517,6 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
     switch (((unsigned char*)in)[0]) {
         case OP_IEE_INIT: {
             outside_util::printf("Init repository!\n");
-
             unsigned nr_clusters;
             size_t desc_len;
 

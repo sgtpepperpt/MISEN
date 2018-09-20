@@ -159,7 +159,7 @@ void bisen_search(secure_connection* conn, SseClient* client, vector<string> que
         total_client += untrusted_util::time_elapsed_ms(start, end);
 
         printf("## BISEN search %u ##\n", k);
-        printf("-- BISEN TOTAL: %lf ms %lu queries --\n", total_client + total_iee, queries.size());
+        printf("-- BISEN TOTAL: %lf ms (res %u docs) --\n", total_client + total_iee, n_docs);
         printf("-- BISEN client: %lf ms --\n", total_client);
         printf("-- BISEN iee w/ net: %lf ms --\n", total_iee);
     }

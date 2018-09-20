@@ -72,7 +72,7 @@ vec_int evaluate(vec_token rpn_expr, int nDocs, unsigned char* count) {
             res.type = 'r';
             res.docs = set_inter;
 
-            vt_push_back(&eval_stack, res);
+            vt_push_back(&eval_stack, &res);
 
             // free memory
             vi_destroy(&and1);
@@ -103,7 +103,7 @@ vec_int evaluate(vec_token rpn_expr, int nDocs, unsigned char* count) {
             res.type = 'r';
             res.docs = set_un;
 
-            vt_push_back(&eval_stack, res);
+            vt_push_back(&eval_stack, &res);
 
             // free memory
             vi_destroy(&or1);
@@ -131,13 +131,13 @@ vec_int evaluate(vec_token rpn_expr, int nDocs, unsigned char* count) {
             res.type = 'r';
             res.docs = set_diff;
 
-            vt_push_back(&eval_stack, res);
+            vt_push_back(&eval_stack, &res);
 
             // free memory
             vi_destroy(&negate);
         } else {
             //vi_print(tkn.docs);
-            vt_push_back(&eval_stack, tkn);
+            vt_push_back(&eval_stack, &tkn);
         }
     }
 

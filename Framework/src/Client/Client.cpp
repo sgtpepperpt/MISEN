@@ -162,9 +162,14 @@ void multimodal_tests(const configs* const settings, secure_connection* conn) {
     gettimeofday(&end, NULL);
     printf("-- MISEN searches: %lfms --\n", untrusted_util::time_elapsed_ms(start, end));
 
-    // cleanup
+    // dump benchmark results
     size_t in_len;
     uint8_t* in;
+    dump_bench(&in, &in_len);
+    iee_comm(conn, in, in_len);
+    free(in);
+
+    // cleanup
     clear(&in, &in_len);
     iee_comm(conn, in, in_len);
     free(in);

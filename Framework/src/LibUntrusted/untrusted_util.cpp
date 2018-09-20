@@ -8,6 +8,8 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <sys/ioctl.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <sys/time.h>
@@ -103,6 +105,12 @@ int untrusted_util::socket_connect(const char* server_name, const int server_por
         printf("Could not create client socket!\n");
         exit(1);
     }
+
+    //int flag = 1;
+    //setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(int));
+
+    //int iMode = 0;
+    //ioctl(sock, FIONBIO, &iMode);
 
     if (connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         printf("Could not connect to server!\n");

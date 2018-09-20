@@ -16,7 +16,7 @@ void vt_grow(vec_token* v);
 void vt_destroy(vec_token* v);
 
 // modifiers
-void vt_push_back(vec_token* v, iee_token e);
+void vt_push_back(vec_token* v, iee_token* e);
 void vt_pop_back(vec_token* v);
 
 // elements access

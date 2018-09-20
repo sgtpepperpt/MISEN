@@ -1,4 +1,8 @@
-# Isolated Image Search
+# Multimodal Isolated Searchable ENcryption (MISEN)
+
+MISEN is a searchable symmetric encryption scheme, allowing for secure multimodal queries over remote datastores by leveraging Intel SX and Isolated Execution Environments for trustworthy computation.
+
+----
 
 The framework exports three utility namespaces (trusted_util, outside_util & tcrypto) that can be used by the external library.
 

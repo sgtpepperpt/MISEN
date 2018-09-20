@@ -89,7 +89,7 @@ unsigned long long SseClient::add_new_document(map<string, int> words, unsigned 
 
 unsigned long long SseClient::generate_add_msg(int doc_id, map<string, int> words, unsigned char **data) {
     // op + all_words * (id + counter + frequency + hmac)
-    unsigned long long data_size = 2 * sizeof(unsigned char) + words.size() * (3 * sizeof(int) + H_BYTES);
+    unsigned long long data_size = 1 * sizeof(unsigned char) + words.size() * (3 * sizeof(int) + H_BYTES);
 
     // allocate data buffer
     // must be freed in calling function
@@ -97,10 +97,10 @@ unsigned long long SseClient::generate_add_msg(int doc_id, map<string, int> word
     void* tmp = *data;
 
     // fill buffer with opcode
-    const unsigned char op1 = OP_RBISEN;
+    //const unsigned char op1 = OP_RBISEN;
     const unsigned char op2 = 0x61;
-    memcpy(tmp, &op1, sizeof(unsigned char));
-    tmp = (char*)tmp + sizeof(unsigned char);
+    //memcpy(tmp, &op1, sizeof(unsigned char));
+    //tmp = (char*)tmp + sizeof(unsigned char);
 
     memcpy(tmp, &op2, sizeof(unsigned char));
     tmp = (char*)tmp + sizeof(unsigned char);
