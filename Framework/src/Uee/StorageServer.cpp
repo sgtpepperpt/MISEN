@@ -32,7 +32,7 @@ void ok_response(uint8_t** out, size_t* out_len) {
 
 // map label and value sizes
 const size_t l_size = 32;
-const size_t d_size = 48;
+const size_t d_size = 44;
 
 tbb::concurrent_unordered_map<void*, void*, VoidHash<l_size>, VoidEqual<l_size>> I;
 
@@ -53,26 +53,21 @@ void* process_client(void* args) {
     double total_add_time = 0, total_search_time = 0;
 
     while (1) {
-        size_t in_len;
-        untrusted_util::socket_receive(socket, &in_len, sizeof(size_t));
-
-        uint8_t* in_buffer = (uint8_t*)malloc(in_len);
-        untrusted_util::socket_receive(socket, in_buffer, in_len);
+        uint8_t op;
+        untrusted_util::socket_receive(socket, &op, sizeof(uint8_t));
 
         uint8_t* out = NULL;
         size_t out_len = 0;
 
-        const unsigned char op = in_buffer[0];
         switch (op) {
             case OP_UEE_INIT: {
                 // clean previous elements, if any
-                repository_clear();
+                //repository_clear();
 
                 printf("Server init\n");
                 //memcpy(&l_size, in_buffer + sizeof(uint8_t), sizeof(size_t));
                 //memcpy(&d_size, in_buffer + sizeof(uint8_t) + sizeof(size_t), sizeof(size_t));
                 //TODO clean previous map data
-                ok_response(&out, &out_len);
                 break;
             }
             case OP_UEE_ADD: {
@@ -80,73 +75,58 @@ void* process_client(void* args) {
 
                 gettimeofday(&start, NULL);
 
-                uint8_t* tmp = in_buffer + sizeof(unsigned char);
-
                 size_t nr_labels;
-                memcpy(&nr_labels, tmp, sizeof(size_t));
-                tmp += sizeof(size_t);
-
+                untrusted_util::socket_receive(socket, &nr_labels, sizeof(size_t));
+                //printf("nr labels %d\n", nr_labels);
                 /*for (int j = 0; j < in_len - 10; ++j) {
                     if(j < in_len - 13 && tmp[j] == 0xAE && tmp[j+1] == 0xD8 && tmp[j+2] == 0xD2) {
                         printf("this has it %d\n", j - 9);
                     }
                 }*/
 
+                uint8_t* buffer = (uint8_t*)malloc(nr_labels * (l_size + d_size));
+                untrusted_util::socket_receive(socket, buffer, nr_labels * (l_size + d_size));
+
                 for (size_t i = 0; i < nr_labels; ++i) {
-                    uint8_t* label = (uint8_t*)malloc(l_size);
-                    memcpy(label, tmp, l_size);
+                    void* l = buffer + i * (l_size + d_size);
+                    void* d = buffer + i * (l_size + d_size) + l_size;
 
-                    /*if(tmp[0] == 0x5E)
-                        untrusted_util::debug_printbuf(label, l_size);*/
-
-                    tmp += l_size;
-
-                    uint8_t* d = (uint8_t*)malloc(d_size);
-                    memcpy(d, tmp, d_size);
-                    tmp += d_size;
-
-                    I[label] = d;
+                    I[l] = d;
                 }
 
-                ok_response(&out, &out_len);
                 gettimeofday(&end, NULL);
                 total_add_time += untrusted_util::time_elapsed_ms(start, end);
 
                 break;
             }
             case OP_UEE_SEARCH: {
-                //printf("Search\n");
-
                 gettimeofday(&start, NULL);
 
-                uint8_t* tmp = in_buffer + sizeof(unsigned char);
-
                 size_t nr_labels;
-                memcpy(&nr_labels, tmp, sizeof(size_t));
-                tmp += sizeof(size_t);
+                untrusted_util::socket_receive(socket, &nr_labels, sizeof(size_t));
 
-                out_len = nr_labels * d_size;
-                out = (uint8_t*)malloc(out_len);
+                unsigned char* label = new unsigned char[l_size * nr_labels];
+                untrusted_util::socket_receive(socket, label, l_size * nr_labels);
+
+                size_t res_len = nr_labels * d_size;
+                uint8_t* buffer = (uint8_t*)malloc(res_len);
 
                 for (size_t i = 0; i < nr_labels; ++i) {
-                    uint8_t label[l_size];
-                    memcpy(label, tmp, l_size);
-                    tmp += l_size;
-
-                    //untrusted_util::debug_printbuf(label, l_size);
-
-                    if(!I[label]) {
+                    if(!I[label + i * l_size]) {
                         printf("Map error: %lu/%lu\n", i, nr_labels);
                         untrusted_util::debug_printbuf(label, l_size);
                         exit(1);
                     }
 
-                    memcpy(out + i * d_size, I[label], d_size);
+                    memcpy(buffer + i * d_size, I[label + i * l_size], d_size);
                 }
 
                 gettimeofday(&end, NULL);
                 total_search_time += untrusted_util::time_elapsed_ms(start, end);
 
+                // send response
+                untrusted_util::socket_send(socket, buffer, res_len);
+                free(buffer);
                 break;
             }
             case OP_UEE_READ_MAP: {
@@ -219,10 +199,9 @@ void* process_client(void* args) {
             }
             case OP_UEE_DUMP_BENCH: {
                 printf("-- STORAGE BENCHMARK --\n");
-
-                printf("-- VISEN add storage: %lfms--\n", total_add_time);
-                printf("-- VISEN search storage: %lfms --\n", total_search_time);
-                printf("-- VISEN index size: %lu --\n", I.size());
+                printf("-- VISEN index size: %lu--\n", I.size());
+                printf("-- VISEN storage TOTAL add : %lfms--\n", total_add_time);
+                printf("-- VISEN storage TOTAL search : %lfms --\n", total_search_time);
                 break;
             }
             case OP_UEE_CLEAR: {
@@ -233,13 +212,6 @@ void* process_client(void* args) {
             default:
                 printf("SseServer unkonwn command: %02x\n", op);
         }
-        free(in_buffer);
-
-        // send response
-        untrusted_util::socket_send(socket, &out_len, sizeof(size_t));
-        untrusted_util::socket_send(socket, out, out_len);
-
-        free(out);
     }
 
     printf("Client closed\n");

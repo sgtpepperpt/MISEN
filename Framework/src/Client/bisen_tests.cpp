@@ -13,6 +13,8 @@ extern "C" {
 #include "rbisen/types.h"
 }
 
+#define DEBUG_PRINT 1
+
 void bisen_setup(secure_connection* conn, SseClient* client) {
     unsigned char* data_bisen;
     unsigned long long data_size_bisen;
@@ -136,23 +138,43 @@ void bisen_search(secure_connection* conn, SseClient* client, vector<string> que
         gettimeofday(&end, NULL);
         total_iee += untrusted_util::time_elapsed_ms(start, end);
 
+        uint8_t has_scoring;
+        memcpy(&has_scoring, bisen_out, sizeof(uint8_t));
+
         gettimeofday(&start, NULL);
-        unsigned n_docs;
-        memcpy(&n_docs, bisen_out, sizeof(int));
+        size_t n_docs;
+        memcpy(&n_docs, bisen_out + sizeof(uint8_t), sizeof(size_t));
+
+        int pair_len = sizeof(int);
+        if(has_scoring)
+            pair_len += sizeof(double);
+
 #if DEBUG_PRINT
         printf("Number of docs: %d\n", n_docs);
 #endif
 
-        for (unsigned i = 0; i < n_docs; ++i) {
-            int d;
-            double s;
-            memcpy(&d, bisen_out + sizeof(unsigned) + i * (sizeof(int) + sizeof(double)), sizeof(int));
-            memcpy(&s, bisen_out + sizeof(unsigned) + i * (sizeof(int) + sizeof(double)) + sizeof(int), sizeof(double));
+        uint8_t* tmp = bisen_out + sizeof(uint8_t) + sizeof(size_t);
+        for (size_t i = 0; i < n_docs; ++i) {
+            if(has_scoring) {
+                int d;
+                double s;
+                memcpy(&d, tmp + i * pair_len, sizeof(int));
+                memcpy(&s, tmp + i * pair_len + sizeof(int), sizeof(double));
 #if DEBUG_PRINT
-            printf("%d %f\n", d, s);
+                printf("%d %f\n", d, s);
 #endif
+            } else {
+                int d;
+                memcpy(&d, tmp + i * pair_len, sizeof(int));
+#if DEBUG_PRINT
+                printf("%d ", d);
+#endif
+            }
         }
-
+#if DEBUG_PRINT
+        if(!has_scoring)
+            printf("\n");
+#endif
         free(bisen_out);
 
         gettimeofday(&end, NULL);

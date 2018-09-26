@@ -20,6 +20,6 @@ void clear(uint8_t** in, size_t* in_len);
 void dump_bench(uint8_t** in, size_t* in_len);
 void search(uint8_t** in, size_t* in_len, const cv::Ptr<cv::xfeatures2d::SIFT> surf, const std::string file_name);
 void search_test_wang(secure_connection* conn, const cv::Ptr<cv::xfeatures2d::SIFT> surf);
-void search_test(secure_connection* conn, const cv::Ptr<cv::xfeatures2d::SIFT> extractor, size_t dbg_limit);
+void search_test(secure_connection* conn, const cv::Ptr<cv::xfeatures2d::SIFT> extractor, int dbg_limit);
 
 #endif

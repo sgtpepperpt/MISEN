@@ -104,7 +104,8 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
         }
 
         // search
-        search_test(conn, extractor, 10);
+        const int dbg_limit = -1;
+        search_test(conn, extractor, dbg_limit);
 
         // dump benchmark results
         size_t in_len;
@@ -137,7 +138,6 @@ void multimodal_tests(const configs* const settings, secure_connection* conn) {
     // init
     gettimeofday(&start, NULL);
     visen_setup(conn, settings->visen_desc_len, settings->visen_nr_clusters);
-
     bisen_setup(conn, &client);
     gettimeofday(&end, NULL);
     printf("-- MISEN setup: %lfms --\n", untrusted_util::time_elapsed_ms(start, end));
@@ -160,7 +160,7 @@ void multimodal_tests(const configs* const settings, secure_connection* conn) {
     vector<pair<string, string>> multimodal_queries = generate_multimodal_queries(txt_paths, img_paths, settings->misen_nr_queries);
     misen_search(conn, &client, extractor, multimodal_queries);
     gettimeofday(&end, NULL);
-    printf("-- MISEN searches: %lfms --\n", untrusted_util::time_elapsed_ms(start, end));
+    printf("-- MISEN searches: %lfms %lu queries --\n", untrusted_util::time_elapsed_ms(start, end), multimodal_queries.size());
 
     // dump benchmark results
     size_t in_len;

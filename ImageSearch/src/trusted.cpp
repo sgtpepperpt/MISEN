@@ -219,11 +219,7 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
         start = outside_util::curr_time();
 
         // send batch to server
-        size_t res_len;
-        void* res;
-        outside_util::uee_process(r->server_socket, &res, &res_len, req_buffer, sizeof(unsigned char) + sizeof(size_t) + batch_len * PAIR_LEN);
-        outside_util::outside_free(res); // discard ok response
-
+        outside_util::socket_send(r->server_socket, req_buffer, sizeof(unsigned char) + sizeof(size_t) + batch_len * PAIR_LEN);
         free(req_buffer);
 
         end = outside_util::curr_time();
@@ -353,10 +349,13 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
         b->total_search_time += trusted_util::time_elapsed_ms(start, end);
 
         start = outside_util::curr_time();
+
         // perform request to uee
-        size_t res_len;
-        uint8_t* res;
-        uee_process(r->server_socket, (void**)&res, &res_len, req_buffer, sizeof(unsigned char) + sizeof(size_t) + batch_len * LABEL_LEN);
+        outside_util::socket_send(r->server_socket, req_buffer, sizeof(unsigned char) + sizeof(size_t) + batch_len * LABEL_LEN);
+
+        size_t res_len = batch_len * ENC_VALUE_LEN;
+        uint8_t* res = (uint8_t*)malloc(res_len);
+        outside_util::socket_receive(r->server_socket, res, res_len);
         uint8_t* res_tmp = res;
 
         end = outside_util::curr_time();
@@ -421,7 +420,7 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
             }
         }
 
-        outside_util::outside_free(res);
+        free(res);
 
         end = outside_util::curr_time();
         b->total_search_time += trusted_util::time_elapsed_ms(start, end);
@@ -526,6 +525,9 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             outside_util::printf("desc_len %lu %u\n", desc_len, nr_clusters);
 
             r = repository_init(nr_clusters, desc_len);
+            const uint8_t op = OP_UEE_INIT;
+            outside_util::socket_send(r->server_socket, &op, sizeof(uint8_t));
+
             b = benchmark_init();
             // TODO server init
             ok_response(out, out_len);
@@ -608,10 +610,7 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             outside_util::printf("-- VISEN search uee w/ net: %lfms --\n", b->total_search_time_server);
 
             const unsigned char op = OP_UEE_DUMP_BENCH;
-            size_t res_len;
-            void* res;
-            outside_util::uee_process(r->server_socket, &res, &res_len, &op, 1);
-            outside_util::outside_free(res);
+            outside_util::socket_send(r->server_socket, &op, 1);
 
             ok_response(out, out_len);
             outside_util::printf("-- --------- --\n");
@@ -635,8 +634,8 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             uint8_t* res;
             const unsigned char op = OP_UEE_READ_MAP;
 
-            outside_util::uee_process(r->server_socket, (void**)&res, &res_len, &op, sizeof(unsigned char));
-            outside_util::outside_free(res);
+            //outside_util::uee_process(r->server_socket, (void**)&res, &res_len, &op, sizeof(unsigned char));
+            //outside_util::outside_free(res);
 
             // read iee-side data securely from disc
             void* file = trusted_util::open_secure("iee_data", "rb");
@@ -657,8 +656,8 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             uint8_t* res;
             const unsigned char op = OP_UEE_WRITE_MAP;
 
-            outside_util::uee_process(r->server_socket, (void**)&res, &res_len, &op, sizeof(unsigned char));
-            outside_util::outside_free(res);
+            //outside_util::uee_process(r->server_socket, (void**)&res, &res_len, &op, sizeof(unsigned char));
+            //outside_util::outside_free(res);
 
             // write iee-side data securely to disc
             void* file = trusted_util::open_secure("iee_data", "wb");

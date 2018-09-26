@@ -56,6 +56,14 @@ int ocall_open_socket(const char* addr, int port) {
     return untrusted_util::socket_connect(addr, port);
 }
 
+void ocall_socket_send(int socket, const void* buff, size_t len) {
+    untrusted_util::socket_send(socket, buff, len);
+}
+
+void ocall_socket_receive(int socket, void* buff, size_t len) {
+    untrusted_util::socket_receive(socket, buff, len);
+}
+
 int ocall_open_uee_connection() {
     const char* host = UEE_HOSTNAME;
     const int port = UEE_PORT;

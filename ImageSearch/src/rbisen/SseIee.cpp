@@ -5,6 +5,7 @@
 #include "outside_util.h"
 #include "trusted_util.h"
 #include "trusted_crypto.h"
+#include "definitions.h"
 
 #include "IeeUtils.h"
 #include "QueryEvaluator.h"
@@ -13,7 +14,7 @@
 #include "vec_token.h"
 
 #define MAX_BATCH_UPDATE 1000
-#define MAX_BATCH_SEARCH 150
+#define MAX_BATCH_SEARCH 1000
 
 static void init_pipes();
 //static void destroy_pipes();
@@ -66,7 +67,7 @@ void benchmarking_print() {
     // this instruction can be safely removed if wanted
     unsigned char* tmp_buff = (unsigned char*)malloc(sizeof(unsigned char));
     tmp_buff[0] = '4';
-    outside_util::write(server_socket, tmp_buff, sizeof(unsigned char));
+    outside_util::socket_send(server_socket, tmp_buff, sizeof(unsigned char));
 }
 
 void init_pipes() {
@@ -97,8 +98,8 @@ static void setup(bytes* out, size* out_len, uint8_t* in, const size in_len) {
     printf("kF size %d\n", kF_size);*/
 
     // tell server to init index I
-    unsigned char op = '1';
-    outside_util::write(server_socket, &op, sizeof(char));
+    unsigned char op = OP_UEE_INIT;
+    outside_util::socket_send(server_socket, &op, sizeof(char));
 
     // init aux_bool buffer
     aux_bool = NULL;
@@ -188,26 +189,6 @@ static void update(bytes *out, size *out_len, uint8_t* in, const size in_len) {
             unsigned char k[AES_KEY_SIZE];
             memset(k, 0x00, AES_KEY_SIZE);
             tcrypto::encrypt(d, unenc_data, d_unenc_len, k, ctr);
-
-            /////////////
-            /*memset(ctr, 0x00, AES_BLOCK_SIZE);
-            memset(k, 0x00, AES_KEY_SIZE);
-            uint8_t* xxx[d_unenc_len];
-
-            tcrypto::decrypt(xxx, (uint8_t*)d, d_enc_len, k, ctr);
-            if(memcmp(xxx, label, SHA256_OUTPUT_SIZE)) {
-                outside_util::printf("shit\n");
-                outside_util::exit(1);
-            }*/
-
-            /*for(unsigned x = 0; x < SHA256_OUTPUT_SIZE; x++)
-                outside_util::printf("%02x", ((uint8_t*)label)[x]);
-            outside_util::printf(" : label\n");
-
-            for(unsigned x = 0; x < d_enc_len; x++)
-                outside_util::printf("%02x", ((uint8_t*)d)[x]);
-            outside_util::printf(" : d\n");*/
-
         }
 
         end = outside_util::curr_time();
@@ -216,10 +197,10 @@ static void update(bytes *out, size *out_len, uint8_t* in, const size in_len) {
         start = outside_util::curr_time();
 
         // send batch to server
-        const unsigned char op = '2';
-        outside_util::write(server_socket, &op, sizeof(unsigned char));
-        outside_util::write(server_socket, &batch_size, sizeof(size_t));
-        outside_util::write(server_socket, batch_buffer, batch_size * pair_size);
+        const unsigned char op = OP_UEE_ADD;
+        outside_util::socket_send(server_socket, &op, sizeof(unsigned char));
+        outside_util::socket_send(server_socket, &batch_size, sizeof(size_t));
+        outside_util::socket_send(server_socket, batch_buffer, batch_size * pair_size);
 
         end = outside_util::curr_time();
         total_server_add += trusted_util::time_elapsed_ms(start, end);
@@ -297,7 +278,7 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
     unsigned char* req_buff = (unsigned char*)malloc(sizeof(unsigned char) * (sizeof(char) + sizeof(unsigned) + req_len * MAX_BATCH_SEARCH));
 
     // put the op code in the buffer
-    const char op = '3';
+    const char op = OP_UEE_SEARCH;
     memcpy(req_buff, &op, sizeof(unsigned char));
 
     // buffer for encrypted server responses
@@ -339,8 +320,8 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
 
         start = outside_util::curr_time();
         // send message to server and receive response
-        outside_util::write(server_socket, req_buff, sizeof(char) + sizeof(unsigned) + req_len * batch_size);
-        outside_util::read(server_socket, res_buff, res_len * batch_size);
+        outside_util::socket_send(server_socket, req_buff, sizeof(char) + sizeof(unsigned) + req_len * batch_size);
+        outside_util::socket_receive(server_socket, res_buff, res_len * batch_size);
 
         end = outside_util::curr_time();
         total_server_search += trusted_util::time_elapsed_ms(start, end);
@@ -363,19 +344,42 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
 
             // aux pointer for req
             unsigned char* tmp_req = req_buff + sizeof(char) + sizeof(unsigned);
+            const uint8_t* label_verification = tmp_req + i * req_len;
+
+            if(label_verification[0] == 0xAD && label_verification[1] == 0xAD && label_verification[2] == 0x26 && label_verification[3] == 0x52){
+                for (unsigned x = 0; x < SHA256_OUTPUT_SIZE; x++)
+                    outside_util::printf("%02x", label_verification[x]);
+                outside_util::printf(" : expect label\n");
+
+                for (unsigned x = 0; x < 40; x++) {
+                    outside_util::printf("%02x", ((uint8_t*)res_buff + (res_len * i))[x]);
+                }
+                outside_util::printf(" : got value\n");
+
+                for (unsigned x = 0; x < 40; x++) {
+                    outside_util::printf("%02x", ((uint8_t*)dec_buff)[x]);
+                }
+                outside_util::printf(" : decrypted value\n");
+
+                for (unsigned x = 0; x < 40; x++) {
+                    outside_util::printf("%02x", ((uint8_t*)dec_buff)[x]);
+                }
+                outside_util::printf(" : decrypted value\n");
+
 
             // verify
-            if(memcmp(dec_buff, tmp_req + i * req_len, SHA256_OUTPUT_SIZE)) {
+            if(memcmp(dec_buff, label_verification, SHA256_OUTPUT_SIZE)) {
                 outside_util::printf("counter %d\n", counter);
                 for(unsigned x = 0; x < SHA256_OUTPUT_SIZE; x++)
-                    outside_util::printf("%02x", (tmp_req + i * req_len)[x]);
-                outside_util::printf(" : \n");
+                    outside_util::printf("%02x", label_verification[x]);
+                outside_util::printf(" : exp\n");
 
                 for(unsigned x = 0; x < SHA256_OUTPUT_SIZE; x++)
                     outside_util::printf("%02x", dec_buff[x]);
-                outside_util::printf(" : \n");
+                outside_util::printf(" : got\n");
                 outside_util::printf("Label verification doesn't match! Exit\n");
                 outside_util::exit(-1);
+                }
             }
 
             counter++;
@@ -408,6 +412,14 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
 #endif
 }
 
+#define SCORING 0
+#if SCORING
+#define PAIR_LEN (sizeof(int) + sizeof(double))
+#else
+#define PAIR_LEN (sizeof(int))
+#endif
+
+#if SCORING
 void calc_idf(vec_token *query, const unsigned total_docs) {
     for(unsigned i = 0; i < vt_size(query); i++) {
         iee_token* t = &query->array[i];
@@ -422,9 +434,9 @@ void calc_idf(vec_token *query, const unsigned total_docs) {
     }
 }
 
+
 void calc_tfidf(vec_token *query, vec_int* response_docs, void* results) {
-    void* tmp = results;
-    double max = 0;
+    uint8_t* tmp = (uint8_t*)results;
 
     //iterate over the response docs
     for(unsigned i = 0; i < vi_size(response_docs); i++) {
@@ -440,16 +452,14 @@ void calc_tfidf(vec_token *query, vec_int* response_docs, void* results) {
 
             int pos = vi_index_of(t->docs, curr_doc);
             //outside_util::printf("pos %d; ", pos);
-            if(pos != -1) {
+            if(pos != -1)
                 tf_idf += t->doc_frequencies.array[pos] * t->idf;
-                max += tf_idf;
-            }
         }
 
         // store tf-idf in result buffer
         memcpy(tmp, &curr_doc, sizeof(int));
         memcpy(tmp + sizeof(int), &tf_idf, sizeof(double));
-        tmp = (char*)tmp + sizeof(int) + sizeof(double);
+        tmp += PAIR_LEN;
     }
 }
 
@@ -462,8 +472,7 @@ int compare_results_rbisen(const void *a, const void *b) {
     else
         return d_a < d_b ? 1 : -1;
 }
-
-#define SCORING 1
+#endif
 
 void search(bytes* out, size* out_len, uint8_t* in, const size in_len) {
     if(!count_search) {
@@ -555,51 +564,45 @@ void search(bytes* out, size* out_len, uint8_t* in, const size in_len) {
 
     void* results_buffer = NULL;
     if(vi_size(&response_docs)) {
-        // calculate idf for each term
-#if SCORING
-        untrusted_time start2 = outside_util::curr_time();
-        calc_idf(&query, nDocs);
-#endif
-        results_buffer = malloc(vi_size(&response_docs) * (sizeof(int) + sizeof(double)));
+        results_buffer = malloc(vi_size(&response_docs) * PAIR_LEN);
 
 #if SCORING
+        untrusted_time start2 = outside_util::curr_time();
+        // calculate idf for each term
+        calc_idf(&query, nDocs);
+
         // calculate tf-idf for each document
         calc_tfidf(&query, &response_docs, results_buffer);
-        qsort(results_buffer, vi_size(&response_docs), sizeof(int) + sizeof(double), compare_results_rbisen);
+        qsort(results_buffer, vi_size(&response_docs), PAIR_LEN, compare_results_rbisen);
         untrusted_time end2 = outside_util::curr_time();
         total_iee_scoring += trusted_util::time_elapsed_ms(start2, end2);
+#else
+        //iterate over the response docs
+        memcpy(results_buffer, response_docs.array, vi_size(&response_docs) * sizeof(int));
 #endif
     }
 
 #if SCORING
-    const unsigned threshold = 10;
+    const size_t threshold = 10;
 #else
-    const unsigned threshold = vi_size(response_docs);
+    const size_t threshold = vi_size(&response_docs);
 #endif
 
     // return query results
-    unsigned long long output_size = sizeof(unsigned) + threshold * (sizeof(int) + sizeof(double));
-    *out_len = sizeof(unsigned char) * output_size;
+    *out_len = sizeof(size_t) + sizeof(uint8_t) + threshold * PAIR_LEN;
     *out = (unsigned char*)malloc(*out_len);
-    memset(*out, 0, output_size);
+    memset(*out, 0, *out_len);
 
-    // add nr of elements at beggining, useful if they are less than threshold
-    const unsigned elements = std::min(threshold, vi_size(&response_docs));
-    memcpy(*out, &elements, sizeof(unsigned));
+    // add nr of elements at beginning, useful if they are less than threshold
+    const size_t elements = std::min(threshold, (size_t)vi_size(&response_docs));
+    memcpy(*out, &elements, sizeof(size_t));
 
-    void* read_tmp = results_buffer;
-    void* write_tmp = *out + sizeof(unsigned);
+    const uint8_t score = SCORING;
+    memcpy(*out, &score, sizeof(uint8_t));
+    memcpy(*out + sizeof(size_t) + sizeof(uint8_t), results_buffer, elements * PAIR_LEN);
 
-    for(unsigned i = 0; i < elements; i++) {
-        //outside_util::printf("%d ", response_docs.array[i]);
-        memcpy(write_tmp, read_tmp, sizeof(int));
-        memcpy(write_tmp + sizeof(int), read_tmp + sizeof(int), sizeof(double));
-
-        read_tmp = (char*)read_tmp + sizeof(int) + sizeof(double);
-        write_tmp = (char*)write_tmp + sizeof(int) + sizeof(double);
-    }
     //outside_util::printf("\n-----------------\n");
-
+    outside_util::printf("f\n");
     // free the buffers in iee_tokens
     for(unsigned i = 0; i < vt_size(&query); i++) {
         iee_token t = query.array[i];

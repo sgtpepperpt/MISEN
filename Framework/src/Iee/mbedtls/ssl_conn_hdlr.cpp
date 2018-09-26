@@ -240,10 +240,17 @@ void TLSConnectionHandler::handle(long thread_id, thread_info_t* thread_info) {
             outside_util::exit(1);
         }
 
-        len = write_ssl(ssl, out, out_len);
-        if (len < 0) {
-            outside_util::printf("error\n");
-            outside_util::exit(1);
+        //outside_util::printf("sent len %lu\n", out_len);
+
+        size_t to_send = out_len;
+        while(to_send) {
+            len = write_ssl(ssl, out, (to_send > 16384? 16384 : to_send));
+            if (len < 0) {
+                outside_util::printf("error\n");
+                outside_util::exit(1);
+            }
+
+            to_send -= len;
         }
 
         free(out);

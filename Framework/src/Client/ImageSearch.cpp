@@ -315,7 +315,7 @@ void search_test_wang(secure_connection* conn, const Ptr<SIFT> surf) {
 #endif
 }
 
-void search_test(secure_connection* conn, const Ptr<SIFT> extractor, size_t dbg_limit) {
+void search_test(secure_connection* conn, const Ptr<SIFT> extractor, int dbg_limit) {
     struct timeval start, end;
     double total_client = 0, total_iee = 0;
     size_t in_len;

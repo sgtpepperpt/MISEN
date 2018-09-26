@@ -28,7 +28,6 @@ ssize_t outside_util::read(int file, void *buf, size_t len) {
 
     return retval;
 }
-
 ssize_t outside_util::write(const int file, const void *buf, const size_t len) {
     ssize_t retval;
     sgx_status_t sgx_ret = ocall_write(&retval, file, buf, len);
@@ -71,6 +70,22 @@ int outside_util::open_socket(const char* addr, int port) {
     }
 
     return retval;
+}
+
+void outside_util::socket_send(int socket, const void* buff, size_t len) {
+    sgx_status_t sgx_ret = ocall_socket_send(socket, buff, len);
+    if(sgx_ret != SGX_SUCCESS) {
+        outside_util::printf("OCALL ERROR ON RETURN: %ld\n", sgx_ret);
+        ocall_exit(-1);
+    }
+}
+
+void outside_util::socket_receive(int socket, void* buff, size_t len) {
+    sgx_status_t sgx_ret = ocall_socket_receive(socket, buff, len);
+    if(sgx_ret != SGX_SUCCESS) {
+        outside_util::printf("OCALL ERROR ON RETURN: %ld\n", sgx_ret);
+        ocall_exit(-1);
+    }
 }
 
 int outside_util::open_uee_connection() {

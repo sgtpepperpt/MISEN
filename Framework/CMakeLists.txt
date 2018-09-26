@@ -47,6 +47,7 @@ set(sgx_cpp_flags "${sgx_c_flags} -nostdinc++")
 set(LIB_UNTRUSTED_DIR ${FRAMEWORK_DIR}/src/LibUntrusted)
 set(LIB_TRUSTED_DIR ${FRAMEWORK_DIR}/src/LibTrusted)
 set(SERVER_DIR ${FRAMEWORK_DIR}/src/Uee)
+set(SERVER_BISEN_DIR ${FRAMEWORK_DIR}/src/UeeBisen)
 set(CLIENT_DIR ${FRAMEWORK_DIR}/src/Client)
 set(IEE_COMM_DIR ${FRAMEWORK_DIR}/src/IeeComm)
 set(IEE_DIR ${FRAMEWORK_DIR}/src/Iee)
@@ -55,18 +56,26 @@ set(IEE_DIR ${FRAMEWORK_DIR}/src/Iee)
 set(LIB_UNTRUSTED untrusted_util)
 add_subdirectory(${LIB_UNTRUSTED_DIR})
 
-# lib trusted
-set(LIB_TRUSTED trusted_util)
-add_subdirectory(${LIB_TRUSTED_DIR})
+if(SERVER_ONLY)
+    # ueebisen module
+    add_subdirectory(${SERVER_BISEN_DIR})
+else()
+    # lib trusted
+    set(LIB_TRUSTED trusted_util)
+    add_subdirectory(${LIB_TRUSTED_DIR})
 
-# uee module
-add_subdirectory(${SERVER_DIR})
+    # uee module
+    add_subdirectory(${SERVER_DIR})
 
-# client module
-add_subdirectory(${CLIENT_DIR})
+    # ueebisen module
+    add_subdirectory(${SERVER_BISEN_DIR})
 
-# iee_comm module
-add_subdirectory(${IEE_COMM_DIR})
+    # client module
+    add_subdirectory(${CLIENT_DIR})
 
-# iee module
-add_subdirectory(${IEE_DIR})
+    # iee_comm module
+    add_subdirectory(${IEE_COMM_DIR})
+
+    # iee module
+    add_subdirectory(${IEE_DIR})
+endif()

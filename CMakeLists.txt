@@ -6,6 +6,10 @@ if(NOT DEFINED SIMULATED_MODE)
     set(SIMULATED_MODE 0)
 endif()
 
+if(NOT DEFINED SERVER_ONLY)
+    set(SERVER_ONLY 0)
+endif()
+
 if(SIMULATED_MODE)
     set(FRAMEWORK_NAME SimFramework)
 else()
@@ -36,5 +40,9 @@ add_definitions(-DSIMULATED_MODE=${SIMULATED_MODE})
 set(FRAMEWORK_INCLUDE_DIR ${FRAMEWORK_DIR}/include)
 set(EXTERN_INCLUDE_DIR ${EXTERN_DIR}/include) # not used
 
-add_subdirectory(${EXTERN_DIR})
-add_subdirectory(${FRAMEWORK_DIR})
+if(SERVER_ONLY)
+    add_subdirectory(${FRAMEWORK_DIR})
+else()
+    add_subdirectory(${EXTERN_DIR})
+    add_subdirectory(${FRAMEWORK_DIR})
+endif()

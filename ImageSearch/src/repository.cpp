@@ -76,7 +76,7 @@ void repository_clear(repository* r) {
     const unsigned char clear_op = OP_UEE_CLEAR;
     size_t res_len;
     void* res;
-    outside_util::uee_process(r->server_socket, &res, &res_len, &clear_op, 1);
+    //outside_util::uee_process(r->server_socket, &res, &res_len, &clear_op, 1); // TODO send with socket_send
     outside_util::outside_free(res);
     outside_util::close_uee_connection(r->server_socket);
 
