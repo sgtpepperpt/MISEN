@@ -30,10 +30,6 @@ void ok_response(uint8_t** out, size_t* out_len) {
     *out[0] = 'x';
 }
 
-// map label and value sizes
-const size_t l_size = 32;
-const size_t d_size = 44;
-
 tbb::concurrent_unordered_map<void*, void*, VoidHash<l_size>, VoidEqual<l_size>> I;
 
 static void repository_clear() {

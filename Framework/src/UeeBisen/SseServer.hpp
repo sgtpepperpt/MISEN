@@ -22,6 +22,7 @@
 #include <sparsepp/spp.h>
 #endif
 
+#define CASSANDRA 0
 
 using namespace std;
 
@@ -30,6 +31,8 @@ const size_t l_size = 32;
 
 // 84 = H_BYTES (32) + C_EXPBYTES (40) + doc_id (4) + frequency (4)
 const size_t d_size = 32 + 2 * sizeof(int);
+
+const size_t pair_len = l_size + d_size;
 
 static unsigned long crc32_tab[] = {
       0x00000000L, 0x77073096L, 0xee0e612cL, 0x990951baL, 0x076dc419L,

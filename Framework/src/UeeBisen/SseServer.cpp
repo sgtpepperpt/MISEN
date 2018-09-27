@@ -16,6 +16,13 @@
 #include "untrusted_util.h"
 #include "definitions.h"
 
+#if CASSANDRA
+#include "cassie.h"
+
+CassSession* session;
+CassCluster* cluster;
+#endif
+
 using namespace std;
 
 typedef struct client_data {
@@ -86,6 +93,9 @@ void* process_client(void* args) {
 
                 gettimeofday(&start, NULL);
 
+#if CASSANDRA
+                const CassPrepared* prepared = NULL;
+#endif
                 for(size_t i = 0; i < nr_labels; i++) {
                     void* l = buffer + i * (l_size + d_size);
                     void* d = buffer + i * (l_size + d_size) + l_size;
@@ -93,8 +103,13 @@ void* process_client(void* args) {
                     /*for(unsigned x = 0; x < d_size; x++)
                         printf("%02x", ((uint8_t*)d)[x]);
                     printf(" : d\n");*/
-
+#if CASSANDRA
+                    if (prepare_insert_into_batch(session, &prepared) == CASS_OK)
+                        insert_into_batch_with_prepared(session, prepared, nr_labels, buffer);
+                    cass_prepared_free(prepared);
+#else
                     I[l] = d;
+#endif
                 }
 
                 gettimeofday(&end, NULL);
@@ -128,6 +143,10 @@ void* process_client(void* args) {
 
                 uint8_t* buffer = (unsigned char*)malloc(d_size * nr_labels);
 
+#if CASSANDRA
+                uint8_t* res = (uint8_t*)malloc(d_size);
+                const CassPrepared* prepared = NULL;
+#endif
                 // send the labels for each word occurence
                 for (unsigned i = 0; i < nr_labels; i++) {
                     if(!I[label + i * l_size]) {
@@ -135,7 +154,20 @@ void* process_client(void* args) {
                         exit(1);
                     }
 
+#if CASSANDRA
+                    if (prepare_select_from_batch(session, &prepared) == CASS_OK)
+                        select_from_batch_with_prepared(session, prepared, label + i * l_size, &res);
+                    cass_prepared_free(prepared);
+
+                    if(memcmp(res, I[label + i * l_size], d_size)) {
+                        printf("not the same!\n");
+                        exit(1);
+                    }
+
+                    memcpy(buffer + i * d_size, res, d_size);
+#else
                     memcpy(buffer + i * d_size, I[label + i * l_size], d_size);
+#endif
                 }
 
                 gettimeofday(&end, NULL);
@@ -182,7 +214,22 @@ void* process_client(void* args) {
 
 SseServer::SseServer() {
     const int server_port = 7899;
+#if CASSANDRA
+    char* hosts = "127.0.0.1";
 
+    session = cass_session_new();
+    cluster = create_cluster(hosts);
+
+    if (connect_session(session, cluster) != CASS_OK) {
+        cass_cluster_free(cluster);
+        cass_session_free(session);
+        exit(1);
+    }
+
+    execute_query(session, "CREATE KEYSPACE IF NOT EXISTS isen WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1};");
+    execute_query(session, "DROP TABLE IF EXISTS isen.pairs;");
+    execute_query(session, "CREATE TABLE isen.pairs (key blob, value blob, PRIMARY KEY (key));");
+#endif
     struct sockaddr_in server_addr;
     memset(&server_addr, 0x00, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
@@ -238,6 +285,14 @@ SseServer::SseServer() {
         pthread_t tid;
         pthread_create(&tid, NULL, process_client, data);
     }
+#if CASSANDRA
+    CassFuture* close_future = cass_session_close(session);
+    cass_future_wait(close_future);
+    cass_future_free(close_future);
+
+    cass_cluster_free(cluster);
+    cass_session_free(session);
+#endif
 }
 
 SseServer::~SseServer() {

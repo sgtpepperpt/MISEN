@@ -18,5 +18,10 @@
 
 using namespace std;
 
+// map label and value sizes
+const size_t l_size = 32;
+const size_t d_size = 44;
+
+const size_t pair_len = l_size + d_size;
 
 #endif
