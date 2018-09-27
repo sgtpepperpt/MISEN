@@ -8,6 +8,7 @@
 #include <fstream>
 #include <time.h>
 #include <sys/time.h>
+#include <string.h>
 
 #include "util.h"
 
@@ -15,7 +16,7 @@ using namespace cv;
 using namespace cv::xfeatures2d;
 using namespace std;
 
-#define STORE_RESULTS 0
+#define STORE_RESULTS 1
 #if STORE_RESULTS
 void printHolidayResults(const char* path, std::map<unsigned long, std::vector<unsigned long>> results) {
     std::ofstream ofs(path);
@@ -36,13 +37,15 @@ unsigned long filename_to_id(const char* filename) {
     return strtoul(id, NULL, 0);
 }
 
-void init(uint8_t** in, size_t* in_len, unsigned nr_clusters, size_t row_len) {
-    *in_len = sizeof(unsigned char) + sizeof(unsigned) + sizeof(size_t);
+void init(uint8_t** in, size_t* in_len, unsigned nr_clusters, size_t row_len, const char* train_technique) {
+    *in_len = sizeof(unsigned char) + sizeof(unsigned) + sizeof(size_t) + strlen(train_technique) + 1;
     *in = (uint8_t*)malloc(*in_len);
 
-    *in[0] = OP_IEE_INIT;
+    (*in)[0] = OP_IEE_INIT;
     memcpy(*in + sizeof(unsigned char), &nr_clusters, sizeof(unsigned));
     memcpy(*in + sizeof(unsigned char) + sizeof(unsigned), &row_len, sizeof(size_t));
+    memcpy(*in + sizeof(unsigned char) + sizeof(unsigned) + sizeof(size_t), train_technique, strlen(train_technique));
+    (*in)[sizeof(unsigned char) + sizeof(unsigned) + sizeof(size_t) + strlen(train_technique)] = '\0';
 }
 
 void add_train_images(uint8_t** in, size_t* in_len, const Ptr<SIFT> surf, std::string file_name) {
@@ -118,49 +121,6 @@ void add_images(uint8_t** in, size_t* in_len, const Ptr<SIFT> surf, std::string 
     uint8_t* tmp = *in;
 
     tmp[0] = OP_IEE_ADD;
-    tmp += sizeof(unsigned char);
-
-    memcpy(tmp, &id, sizeof(unsigned long));
-    tmp += sizeof(unsigned long);
-
-    memcpy(tmp, &nr_desc, sizeof(size_t));
-    tmp += sizeof(size_t);
-
-    memcpy(tmp, descriptors_buffer, nr_desc * desc_len * sizeof(float));
-
-    free(descriptors_buffer);
-}
-
-void add_images_lsh(uint8_t** in, size_t* in_len, const Ptr<SIFT> surf, std::string file_name) {
-    unsigned long id = filename_to_id(file_name.c_str());
-
-    Mat image = imread(file_name);
-    if (!image.data) {
-        printf("No image data for %s\n", file_name.c_str());
-        exit(1);
-    }
-
-    vector<KeyPoint> keypoints;
-    surf->detect(image, keypoints);
-
-    Mat descriptors;
-    surf->compute(image, keypoints, descriptors);
-
-    const size_t desc_len = (size_t)descriptors.size().width;
-    const size_t nr_desc = (size_t)descriptors.size().height;
-
-    float* descriptors_buffer = (float*)malloc(desc_len * nr_desc * sizeof(float));
-    for (unsigned i = 0; i < nr_desc; i++) {
-        for (size_t j = 0; j < desc_len; j++)
-            descriptors_buffer[i * desc_len + j] = *descriptors.ptr<float>(i, j);
-    }
-
-    // send
-    *in_len = sizeof(unsigned char) + sizeof(unsigned long) + sizeof(size_t) + nr_desc * desc_len * sizeof(float);
-    *in = (uint8_t*)malloc(*in_len);
-    uint8_t* tmp = *in;
-
-    tmp[0] = OP_IEE_ADD_LSH;
     tmp += sizeof(unsigned char);
 
     memcpy(tmp, &id, sizeof(unsigned long));

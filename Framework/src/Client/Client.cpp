@@ -72,7 +72,7 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
 
         // init iee and server
         gettimeofday(&start, NULL);
-        visen_setup(conn, settings->visen_desc_len, settings->visen_nr_clusters);
+        visen_setup(conn, settings->visen_desc_len, settings->visen_nr_clusters, settings->visen_train_technique);
         gettimeofday(&end, NULL);
         printf("-- VISEN setup: %lfms --\n", untrusted_util::time_elapsed_ms(start, end));
 
@@ -82,8 +82,11 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
             visen_train_client_kmeans(conn, settings->visen_desc_len, settings->visen_nr_clusters, settings->visen_train_mode, settings->visen_clusters_file, settings->visen_dataset_dir, extractor);
         else if(!strcmp(settings->visen_train_technique, "iee_kmeans"))
             visen_train_iee_kmeans(conn, settings->visen_train_mode, extractor, files);
+        else if(!strcmp(settings->visen_train_technique, "lsh"))
+            visen_train_client_lsh(conn, settings->visen_train_mode, settings->visen_desc_len, settings->visen_nr_clusters);
+
         gettimeofday(&end, NULL);
-        printf("-- VISEN train: %lfms %s--\n", untrusted_util::time_elapsed_ms(start, end), settings->visen_train_technique);
+        printf("-- VISEN train: %lfms %s %s--\n", untrusted_util::time_elapsed_ms(start, end), settings->visen_train_technique, settings->visen_train_mode);
 
         // add images to repository
         if(!strcmp(settings->visen_add_mode, "normal")) {
@@ -137,7 +140,7 @@ void multimodal_tests(const configs* const settings, secure_connection* conn) {
 
     // init
     gettimeofday(&start, NULL);
-    visen_setup(conn, settings->visen_desc_len, settings->visen_nr_clusters);
+    visen_setup(conn, settings->visen_desc_len, settings->visen_nr_clusters, settings->visen_train_technique);
     bisen_setup(conn, &client);
     gettimeofday(&end, NULL);
     printf("-- MISEN setup: %lfms --\n", untrusted_util::time_elapsed_ms(start, end));
@@ -285,10 +288,6 @@ train_load_clusters(&in, &in_len);
 iee_comm(&ssl, in, in_len);
 free(in);
 }*/
-
-#if CLUSTERING == C_LSH
-add_images_lsh(&in, &in_len, surf, files[i]);
-#endif
 
 /*
 //TODO perform a search from args?

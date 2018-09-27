@@ -59,6 +59,9 @@ add_subdirectory(${LIB_UNTRUSTED_DIR})
 if(SERVER_ONLY)
     # ueebisen module
     add_subdirectory(${SERVER_BISEN_DIR})
+
+    # uee module
+    add_subdirectory(${SERVER_DIR})
 else()
     # lib trusted
     set(LIB_TRUSTED trusted_util)

@@ -65,9 +65,8 @@ void f(bytes* out, size* out_len, const unsigned long long pid, uint8_t* in, con
 void benchmarking_print() {
     // BENCHMARK : tell server to print statistics
     // this instruction can be safely removed if wanted
-    unsigned char* tmp_buff = (unsigned char*)malloc(sizeof(unsigned char));
-    tmp_buff[0] = '4';
-    outside_util::socket_send(server_socket, tmp_buff, sizeof(unsigned char));
+    const unsigned char op = '4';
+    outside_util::socket_send(server_socket, &op, sizeof(unsigned char));
 }
 
 void init_pipes() {
@@ -226,7 +225,7 @@ static void update(bytes *out, size *out_len, uint8_t* in, const size in_len) {
     total_iee_add += trusted_util::time_elapsed_ms(start, end);
     count_add++;
 }
-int counter = 0;
+
 void get_docs_from_server(vec_token *query, const unsigned count_words, const unsigned total_labels) {
 #ifdef VERBOSE
     ocall_print_string("Requesting docs from server!\n");
@@ -275,7 +274,7 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
     // (always max_batch_size, may not be filled if not needed)
     // op + batch_size + labels of H_BYTES len
     const size_t req_len = SHA256_OUTPUT_SIZE;
-    unsigned char* req_buff = (unsigned char*)malloc(sizeof(unsigned char) * (sizeof(char) + sizeof(unsigned) + req_len * MAX_BATCH_SEARCH));
+    unsigned char* req_buff = (unsigned char*)malloc(sizeof(char) + sizeof(unsigned) + req_len * MAX_BATCH_SEARCH);
 
     // put the op code in the buffer
     const char op = OP_UEE_SEARCH;
@@ -346,30 +345,8 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
             unsigned char* tmp_req = req_buff + sizeof(char) + sizeof(unsigned);
             const uint8_t* label_verification = tmp_req + i * req_len;
 
-            if(label_verification[0] == 0xAD && label_verification[1] == 0xAD && label_verification[2] == 0x26 && label_verification[3] == 0x52){
-                for (unsigned x = 0; x < SHA256_OUTPUT_SIZE; x++)
-                    outside_util::printf("%02x", label_verification[x]);
-                outside_util::printf(" : expect label\n");
-
-                for (unsigned x = 0; x < 40; x++) {
-                    outside_util::printf("%02x", ((uint8_t*)res_buff + (res_len * i))[x]);
-                }
-                outside_util::printf(" : got value\n");
-
-                for (unsigned x = 0; x < 40; x++) {
-                    outside_util::printf("%02x", ((uint8_t*)dec_buff)[x]);
-                }
-                outside_util::printf(" : decrypted value\n");
-
-                for (unsigned x = 0; x < 40; x++) {
-                    outside_util::printf("%02x", ((uint8_t*)dec_buff)[x]);
-                }
-                outside_util::printf(" : decrypted value\n");
-
-
             // verify
             if(memcmp(dec_buff, label_verification, SHA256_OUTPUT_SIZE)) {
-                outside_util::printf("counter %d\n", counter);
                 for(unsigned x = 0; x < SHA256_OUTPUT_SIZE; x++)
                     outside_util::printf("%02x", label_verification[x]);
                 outside_util::printf(" : exp\n");
@@ -377,12 +354,10 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
                 for(unsigned x = 0; x < SHA256_OUTPUT_SIZE; x++)
                     outside_util::printf("%02x", dec_buff[x]);
                 outside_util::printf(" : got\n");
+
                 outside_util::printf("Label verification doesn't match! Exit\n");
                 outside_util::exit(-1);
-                }
             }
-
-            counter++;
 
             memcpy(&req->tkn->doc_frequencies.array[req->counter_val], dec_buff + SHA256_OUTPUT_SIZE, sizeof(int));
             memcpy(&req->tkn->docs.array[req->counter_val], dec_buff + SHA256_OUTPUT_SIZE + sizeof(int), sizeof(int));
@@ -601,8 +576,6 @@ void search(bytes* out, size* out_len, uint8_t* in, const size in_len) {
     memcpy(*out, &score, sizeof(uint8_t));
     memcpy(*out + sizeof(size_t) + sizeof(uint8_t), results_buffer, elements * PAIR_LEN);
 
-    //outside_util::printf("\n-----------------\n");
-    outside_util::printf("f\n");
     // free the buffers in iee_tokens
     for(unsigned i = 0; i < vt_size(&query); i++) {
         iee_token t = query.array[i];

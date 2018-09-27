@@ -6,11 +6,14 @@
 #include "trusted_util.h"
 #include "trusted_crypto.h"
 
-repository* repository_init(unsigned nr_clusters, size_t desc_len) {
+repository* repository_init(unsigned nr_clusters, size_t desc_len, const char* train_technique) {
     repository* r = (repository*)malloc(sizeof(repository));
 
     r->desc_len = desc_len;
     r->cluster_count = nr_clusters;
+    r->train_technique = (char*)malloc(strlen(train_technique) + 1);
+    memcpy(r->train_technique, train_technique, strlen(train_technique) + 1);
+
     r->k = new BagOfWordsTrainer(nr_clusters, desc_len);
 
     // generate keys
@@ -61,6 +64,7 @@ void benchmark_clear(benchmark* b) {
 void repository_clear(repository* r) {
     free(r->kf);
     free(r->ke);
+    free(r->train_technique);
 
     for (size_t i = 0; i < r->k->nr_centres(); i++)
         free(r->centre_keys[i]);
@@ -73,11 +77,11 @@ void repository_clear(repository* r) {
     delete r->k;
 
     // clear uee and close connection
-    const unsigned char clear_op = OP_UEE_CLEAR;
-    size_t res_len;
+    //const unsigned char clear_op = OP_UEE_CLEAR;
+    //size_t res_len;
     void* res;
     //outside_util::uee_process(r->server_socket, &res, &res_len, &clear_op, 1); // TODO send with socket_send
-    outside_util::outside_free(res);
+    //outside_util::outside_free(res);
     outside_util::close_uee_connection(r->server_socket);
 
     // clean resource pool

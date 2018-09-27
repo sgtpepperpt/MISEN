@@ -9,10 +9,9 @@
 
 #define SRC_RES_LEN (sizeof(unsigned long) + sizeof(double))
 
-void init(uint8_t** in, size_t* in_len, unsigned nr_clusters, size_t row_len);
+void init(uint8_t** in, size_t* in_len, unsigned nr_clusters, size_t row_len, const char* train_technique);
 void add_train_images(uint8_t** in, size_t* in_len, const cv::Ptr<cv::xfeatures2d::SIFT> surf, std::string file_name);
 void add_images(uint8_t** in, size_t* in_len, const cv::Ptr<cv::xfeatures2d::SIFT> surf, std::string file_name);
-void add_images_lsh(uint8_t** in, size_t* in_len, const cv::Ptr<cv::xfeatures2d::SIFT> surf, std::string file_name);
 void train(uint8_t** in, size_t* in_len);
 void train_lsh(uint8_t** in, size_t* in_len);
 void train_load_clusters(uint8_t** in, size_t* in_len);

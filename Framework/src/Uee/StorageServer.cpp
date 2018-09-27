@@ -56,9 +56,6 @@ void* process_client(void* args) {
         uint8_t op;
         untrusted_util::socket_receive(socket, &op, sizeof(uint8_t));
 
-        uint8_t* out = NULL;
-        size_t out_len = 0;
-
         switch (op) {
             case OP_UEE_INIT: {
                 // clean previous elements, if any

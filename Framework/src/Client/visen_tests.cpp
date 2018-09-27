@@ -103,11 +103,11 @@ float* client_train(const char* path, const unsigned nr_clusters, const unsigned
 }
 
 
-void visen_setup(secure_connection* conn, size_t desc_len, unsigned visen_nr_clusters) {
+void visen_setup(secure_connection* conn, size_t desc_len, unsigned visen_nr_clusters, const char* train_technique) {
     size_t in_len = 0;
     uint8_t* in = NULL;
 
-    init(&in, &in_len, visen_nr_clusters, desc_len);
+    init(&in, &in_len, visen_nr_clusters, desc_len, train_technique);
     iee_comm(conn, in, in_len);
     free(in);
 }
@@ -169,10 +169,10 @@ void visen_train_iee_kmeans(secure_connection* conn, char* visen_train_mode, Ptr
     iee_comm(conn, in, in_len);
     free(in);
 }
-/*
-void visen_train_client_lsh(mbedtls_ssl_context ssl, size_t desc_len, unsigned visen_nr_clusters, char* visen_train_mode, Ptr<SIFT> extractor, const vector<string> files) {
-    size_t in_len;
-    uint8_t* in;
+
+void visen_train_client_lsh(secure_connection* conn, char* visen_train_mode, size_t desc_len, unsigned visen_nr_clusters) {
+    size_t in_len = sizeof(uint8_t) + visen_nr_clusters * desc_len * sizeof(float);
+    uint8_t in[in_len];
 
     vector<float*> gaussians(visen_nr_clusters);
     std::default_random_engine generator(time(0));
@@ -194,9 +194,8 @@ void visen_train_client_lsh(mbedtls_ssl_context ssl, size_t desc_len, unsigned v
         p = (unsigned char*)p + desc_len * sizeof(float);
     }
 
-    iee_comm(&ssl, in, in_len);
-    free(in);
-}*/
+    iee_comm(conn, in, in_len);
+}
 
 void visen_add_files(secure_connection* conn, Ptr<SIFT> extractor, const vector<string> files) {
     struct timeval start, end;

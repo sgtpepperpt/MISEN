@@ -99,11 +99,12 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
     unsigned char ctr[AES_BLOCK_SIZE];
     memset(ctr, 0x00, AES_BLOCK_SIZE);
 
-#if CLUSTERING == C_KMEANS
-    const unsigned* const frequencies = process_new_image(r->k, nr_desc, descriptors);
-#elif CLUSTERING == C_LSH
-    const unsigned* frequencies = calc_freq(r->lsh, descriptors, nr_desc, r->cluster_count);
-#endif
+    const unsigned* frequencies;
+    if(!strcmp(r->train_technique, "lsh"))
+        frequencies = calc_freq(r->lsh, descriptors, nr_desc, r->desc_len, r->cluster_count);
+    else
+        frequencies = process_new_image(r->k, nr_desc, descriptors);
+
     /*outside_util::printf("frequencies: ");
     for (size_t i = 0; i < r->k->nr_centres(); i++) {
         if (frequencies[i])
@@ -248,11 +249,12 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
 
     using namespace outside_util;
 
-#if CLUSTERING == C_KMEANS
-    const unsigned* frequencies = process_new_image(r->k, nr_desc, descriptors);
-#elif CLUSTERING == C_LSH
-    const unsigned* frequencies = calc_freq(r->lsh, descriptors, nr_desc, r->cluster_count);
-#endif
+    const unsigned* frequencies;
+    if(!strcmp(r->train_technique, "lsh"))
+        frequencies = calc_freq(r->lsh, descriptors, nr_desc, r->desc_len, r->cluster_count);
+    else
+        frequencies = process_new_image(r->k, nr_desc, descriptors);
+
     /*for (size_t i = 0; i < r->k->nr_centres(); ++i) {
         if(frequencies[i])
             outside_util::printf("%lu -> %u; ", i, frequencies[i]);
@@ -522,9 +524,9 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             memcpy(&nr_clusters, input, sizeof(unsigned));
             memcpy(&desc_len, input + sizeof(unsigned), sizeof(size_t));
 
-            outside_util::printf("desc_len %lu %u\n", desc_len, nr_clusters);
+            outside_util::printf("desc_len %lu %u %s\n", desc_len, nr_clusters, input + sizeof(unsigned) + sizeof(size_t));
 
-            r = repository_init(nr_clusters, desc_len);
+            r = repository_init(nr_clusters, desc_len, (const char*)(input + sizeof(unsigned) + sizeof(size_t)));
             const uint8_t op = OP_UEE_INIT;
             outside_util::socket_send(r->server_socket, &op, sizeof(uint8_t));
 
@@ -550,23 +552,6 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             outside_util::printf("Train lsh!\n");
             r->lsh = init_lsh(r->cluster_count, r->desc_len);
             outside_util::printf("Trained lsh!\n");
-            ok_response(out, out_len);
-            break;
-        }
-        case OP_IEE_ADD_LSH: {
-            outside_util::printf("Add lsh images!\n");
-
-            // get image (id, nr_desc, descriptors) from buffer
-            unsigned long id;
-            memcpy(&id, input, sizeof(unsigned long));
-            outside_util::printf("add, id %lu\n", id);
-
-            size_t nr_desc;
-            memcpy(&nr_desc, input + sizeof(unsigned long), sizeof(size_t));
-
-            float* descriptors = (float*)(input + sizeof(unsigned long) + sizeof(size_t));
-
-            add_image(id, nr_desc, descriptors);
             ok_response(out, out_len);
             break;
         }
@@ -630,12 +615,12 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             break;
         }
         case OP_IEE_READ_MAP: {
-            size_t res_len;
+            /*size_t res_len;
             uint8_t* res;
             const unsigned char op = OP_UEE_READ_MAP;
 
-            //outside_util::uee_process(r->server_socket, (void**)&res, &res_len, &op, sizeof(unsigned char));
-            //outside_util::outside_free(res);
+            outside_util::uee_process(r->server_socket, (void**)&res, &res_len, &op, sizeof(unsigned char));
+            outside_util::outside_free(res);*/
 
             // read iee-side data securely from disc
             void* file = trusted_util::open_secure("iee_data", "rb");
@@ -652,12 +637,12 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             break;
         }
         case OP_IEE_WRITE_MAP: {
-            size_t res_len;
+            /*size_t res_len;
             uint8_t* res;
             const unsigned char op = OP_UEE_WRITE_MAP;
 
-            //outside_util::uee_process(r->server_socket, (void**)&res, &res_len, &op, sizeof(unsigned char));
-            //outside_util::outside_free(res);
+            outside_util::uee_process(r->server_socket, (void**)&res, &res_len, &op, sizeof(unsigned char));
+            outside_util::outside_free(res);*/
 
             // write iee-side data securely to disc
             void* file = trusted_util::open_secure("iee_data", "wb");

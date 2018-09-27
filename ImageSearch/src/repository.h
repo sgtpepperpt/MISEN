@@ -18,6 +18,7 @@ typedef struct repository {
     // repository constants
     size_t cluster_count;
     size_t desc_len;
+    char* train_technique;
 
     BagOfWordsTrainer* k; // TODO deprecate
 
@@ -49,7 +50,7 @@ typedef struct benchmark {
 benchmark* benchmark_init();
 void benchmark_clear(benchmark* b);
 
-repository* repository_init(unsigned nr_clusters, size_t desc_len);
+repository* repository_init(unsigned nr_clusters, size_t desc_len, const char* train_technique);
 void repository_clear(repository* r);
 
 #endif
