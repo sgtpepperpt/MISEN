@@ -23,9 +23,8 @@
 #include "misen_tests.h"
 #include "util.h"
 
-using namespace cv;
-using namespace cv::xfeatures2d;
 using namespace std;
+
 
 typedef struct configs {
     int use_text = 0, use_images = 0, use_multimodal = 0;
@@ -67,7 +66,7 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
     ///////////////////////////////
     if(settings->use_images) {
         // image descriptor parameters
-        Ptr<SIFT> extractor = SIFT::create(settings->visen_descriptor_threshold);
+        descriptor_t descriptor = create_descriptor(settings->visen_descriptor_threshold);
         const vector<string> files = list_img_files(!settings->visen_nr_docs? -1 : settings->visen_nr_docs, settings->visen_dataset_dir);
 
         // init iee and server
@@ -79,9 +78,9 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
         // train
         gettimeofday(&start, NULL);
         if(!strcmp(settings->visen_train_technique, "client_kmeans"))
-            visen_train_client_kmeans(conn, settings->visen_desc_len, settings->visen_nr_clusters, settings->visen_train_mode, settings->visen_clusters_file, settings->visen_dataset_dir, extractor);
+            visen_train_client_kmeans(conn, settings->visen_desc_len, settings->visen_nr_clusters, settings->visen_train_mode, settings->visen_clusters_file, settings->visen_dataset_dir, descriptor);
         else if(!strcmp(settings->visen_train_technique, "iee_kmeans"))
-            visen_train_iee_kmeans(conn, settings->visen_train_mode, extractor, files);
+            visen_train_iee_kmeans(conn, settings->visen_train_mode, descriptor, files);
         else if(!strcmp(settings->visen_train_technique, "lsh"))
             visen_train_client_lsh(conn, settings->visen_train_mode, settings->visen_desc_len, settings->visen_nr_clusters);
 
@@ -90,7 +89,7 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
 
         // add images to repository
         if(!strcmp(settings->visen_add_mode, "normal")) {
-            visen_add_files(conn, extractor, files);
+            visen_add_files(conn, descriptor, files);
         } else if(!strcmp(settings->visen_add_mode, "load")) {
             // tell iee to load images from disc
             unsigned char op = OP_IEE_READ_MAP;
@@ -108,7 +107,7 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
 
         // search
         const int dbg_limit = -1;
-        search_test(conn, extractor, dbg_limit);
+        search_test(conn, descriptor, dbg_limit);
 
         // dump benchmark results
         size_t in_len;
@@ -128,7 +127,7 @@ void multimodal_tests(const configs* const settings, secure_connection* conn) {
     struct timeval start, end;
 
     // image descriptor parameters
-    Ptr<SIFT> extractor = SIFT::create(settings->visen_descriptor_threshold);
+    descriptor_t descriptor = create_descriptor(settings->visen_descriptor_threshold);
     SseClient client;
 
     vector<string> txt_paths = list_txt_files(settings->misen_nr_docs, settings->misen_text_dir);
@@ -147,21 +146,21 @@ void multimodal_tests(const configs* const settings, secure_connection* conn) {
 
     // train (for images)
     gettimeofday(&start, NULL);
-    visen_train_client_kmeans(conn, settings->visen_desc_len, settings->visen_nr_clusters, (char*)"load", settings->visen_clusters_file, NULL, extractor);
+    visen_train_client_kmeans(conn, settings->visen_desc_len, settings->visen_nr_clusters, (char*)"load", settings->visen_clusters_file, NULL, descriptor);
     gettimeofday(&end, NULL);
     printf("-- MISEN train: %lfms %s--\n", untrusted_util::time_elapsed_ms(start, end), settings->visen_train_technique);
 
     // add documents to iee
     gettimeofday(&start, NULL);
     bisen_update(conn, &client, (char*)"normal", settings->misen_nr_docs, txt_paths);
-    visen_add_files(conn, extractor, img_paths);
+    visen_add_files(conn, descriptor, img_paths);
     gettimeofday(&end, NULL);
     printf("-- MISEN updates: %lfms --\n", untrusted_util::time_elapsed_ms(start, end));
 
     // searches
     gettimeofday(&start, NULL);
     vector<pair<string, string>> multimodal_queries = generate_multimodal_queries(txt_paths, img_paths, settings->misen_nr_queries);
-    misen_search(conn, &client, extractor, multimodal_queries);
+    misen_search(conn, &client, descriptor, multimodal_queries);
     gettimeofday(&end, NULL);
     printf("-- MISEN searches: %lfms %lu queries --\n", untrusted_util::time_elapsed_ms(start, end), multimodal_queries.size());
 
@@ -184,7 +183,12 @@ int main(int argc, char** argv) {
     // static params
     const char* server_name = IEE_HOSTNAME;
     const int server_port = IEE_PORT;
+
+#if DESCRIPTOR == DESC_SIFT
     program_configs.visen_desc_len = 128;
+#else
+    program_configs.visen_desc_len = 64;
+#endif
 
     config_t cfg;
     config_init(&cfg);
@@ -235,9 +239,10 @@ int main(int argc, char** argv) {
                 break;
             case 'b':
                 program_configs.bisen_nr_docs = (unsigned)std::stoi(optarg);
+                program_configs.visen_nr_docs = program_configs.bisen_nr_docs;
                 break;
             case 'h':
-                printf("Usage: ./Client nr-imgs\n");
+                printf("Usage: ./Client [-b nr_docs] [-k nr_clusters]\n");
                 exit(0);
             case '?':
                 if (optopt == 'c')
@@ -283,7 +288,7 @@ int main(int argc, char** argv) {
     return 0;
 }
 
-    /*} else {
+/*} else {
 train_load_clusters(&in, &in_len);
 iee_comm(&ssl, in, in_len);
 free(in);
@@ -314,7 +319,6 @@ free(in);
         memcpy(&score, res + sizeof(size_t) + j * SRC_RES_LEN + sizeof(unsigned long), sizeof(double));
 
         printf("%lu %f\n", id, score);
-
     }
 
     gettimeofday(&end, NULL);

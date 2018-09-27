@@ -13,10 +13,16 @@
 #include "util.h"
 
 using namespace cv;
-using namespace cv::xfeatures2d;
 using namespace std;
 
-#define STORE_RESULTS 1
+descriptor_t create_descriptor(int parameter) {
+#if DESCRIPTOR == DESC_SIFT
+    return cv::xfeatures2d::SIFT::create(parameter);
+#else
+    return cv::xfeatures2d::SURF::create(parameter);
+#endif
+}
+
 #if STORE_RESULTS
 void printHolidayResults(const char* path, std::map<unsigned long, std::vector<unsigned long>> results) {
     std::ofstream ofs(path);
@@ -48,7 +54,7 @@ void init(uint8_t** in, size_t* in_len, unsigned nr_clusters, size_t row_len, co
     (*in)[sizeof(unsigned char) + sizeof(unsigned) + sizeof(size_t) + strlen(train_technique)] = '\0';
 }
 
-void add_train_images(uint8_t** in, size_t* in_len, const Ptr<SIFT> surf, std::string file_name) {
+void add_train_images(uint8_t** in, size_t* in_len, const descriptor_t descriptor, std::string file_name) {
     unsigned long id = filename_to_id(file_name.c_str());
 
     Mat image = imread(file_name);
@@ -58,10 +64,10 @@ void add_train_images(uint8_t** in, size_t* in_len, const Ptr<SIFT> surf, std::s
     }
 
     vector<KeyPoint> keypoints;
-    surf->detect(image, keypoints);
+    descriptor->detect(image, keypoints);
 
     Mat descriptors;
-    surf->compute(image, keypoints, descriptors);
+    descriptor->compute(image, keypoints, descriptors);
 
     const size_t desc_len = (size_t)descriptors.size().width;
     const size_t nr_desc = (size_t)descriptors.size().height;
@@ -91,7 +97,7 @@ void add_train_images(uint8_t** in, size_t* in_len, const Ptr<SIFT> surf, std::s
     free(descriptors_buffer);
 }
 
-void add_images(uint8_t** in, size_t* in_len, const Ptr<SIFT> surf, std::string file_name) {
+void add_images(uint8_t** in, size_t* in_len, const descriptor_t descriptor, std::string file_name) {
     unsigned long id = filename_to_id(file_name.c_str());
 
     Mat image = imread(file_name);
@@ -101,10 +107,10 @@ void add_images(uint8_t** in, size_t* in_len, const Ptr<SIFT> surf, std::string 
     }
 
     vector<KeyPoint> keypoints;
-    surf->detect(image, keypoints);
+    descriptor->detect(image, keypoints);
 
     Mat descriptors;
-    surf->compute(image, keypoints, descriptors);
+    descriptor->compute(image, keypoints, descriptors);
 
     const size_t desc_len = (size_t)descriptors.size().width;
     const size_t nr_desc = (size_t)descriptors.size().height;
@@ -169,7 +175,7 @@ void dump_bench(uint8_t** in, size_t* in_len) {
     *in[0] = OP_IEE_DUMP_BENCH;
 }
 
-void search(uint8_t** in, size_t* in_len, const Ptr<SIFT> surf, const std::string file_name) {
+void search(uint8_t** in, size_t* in_len, const descriptor_t descriptor, const std::string file_name) {
     const char* id = strrchr(file_name.c_str(), '/') + sizeof(char); // +sizeof(char) excludes the slash
 #if PRINT_DEBUG
     printf(" - Search for %s -\n", id);
@@ -181,10 +187,10 @@ void search(uint8_t** in, size_t* in_len, const Ptr<SIFT> surf, const std::strin
     }
 
     vector<KeyPoint> keypoints;
-    surf->detect(image, keypoints);
+    descriptor->detect(image, keypoints);
 
     Mat descriptors;
-    surf->compute(image, keypoints, descriptors);
+    descriptor->compute(image, keypoints, descriptors);
 
     const size_t desc_len = (size_t)descriptors.size().width;
     const size_t nr_desc = (size_t)descriptors.size().height;
@@ -215,7 +221,7 @@ void search(uint8_t** in, size_t* in_len, const Ptr<SIFT> surf, const std::strin
     free(descriptors_buffer);
 }
 
-void search_test_wang(secure_connection* conn, const Ptr<SIFT> surf) {
+void search_test_wang(secure_connection* conn, const descriptor_t descriptor) {
     size_t in_len;
     uint8_t* in;
 
@@ -230,7 +236,7 @@ void search_test_wang(secure_connection* conn, const Ptr<SIFT> surf) {
     }
 
     for (size_t i = 0; i < files.size(); ++i) {
-        search(&in, &in_len, surf, files[i]);
+        search(&in, &in_len, descriptor, files[i]);
         iee_send(conn, in, in_len);
         free(in);
 
@@ -275,7 +281,7 @@ void search_test_wang(secure_connection* conn, const Ptr<SIFT> surf) {
 #endif
 }
 
-void search_test(secure_connection* conn, const Ptr<SIFT> extractor, int dbg_limit) {
+void search_test(secure_connection* conn, const descriptor_t descriptor, int dbg_limit) {
     struct timeval start, end;
     double total_client = 0, total_iee = 0;
     size_t in_len;
@@ -297,7 +303,7 @@ void search_test(secure_connection* conn, const Ptr<SIFT> extractor, int dbg_lim
             printf("Search img (%lu/%lu)\n", i, query_count);
 
         gettimeofday(&start, NULL);
-        search(&in, &in_len, extractor, files[i]);
+        search(&in, &in_len, descriptor, files[i]);
         gettimeofday(&end, NULL);
         total_client += untrusted_util::time_elapsed_ms(start, end);
 
