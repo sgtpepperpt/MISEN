@@ -7,6 +7,7 @@
 typedef void* secure_connection;
 
 namespace untrusted_util {
+    struct timeval curr_time();
     double time_elapsed_ms(struct timeval start, struct timeval end);
     void debug_printbuf(uint8_t* buf, size_t len);
 

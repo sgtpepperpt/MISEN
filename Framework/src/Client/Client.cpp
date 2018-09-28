@@ -61,6 +61,12 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
         printf("-- BISEN TOTAL updates: %lf ms %d docs --\n", untrusted_util::time_elapsed_ms(start, end), settings->bisen_nr_docs);
 
         bisen_search(conn, &client, settings->bisen_queries);
+
+        // print benchmark
+        uint8_t bench_op[2];
+        bench_op[0] = OP_RBISEN;
+        bench_op[1] = 0x5;
+        iee_comm(conn, bench_op, 2);
     }
 
     ///////////////////////////////
@@ -163,6 +169,12 @@ void multimodal_tests(const configs* const settings, secure_connection* conn) {
     misen_search(conn, &client, descriptor, multimodal_queries);
     gettimeofday(&end, NULL);
     printf("-- MISEN searches: %lfms %lu queries --\n", untrusted_util::time_elapsed_ms(start, end), multimodal_queries.size());
+
+    // print benchmark bisen
+    uint8_t bench_op[2];
+    bench_op[0] = OP_RBISEN;
+    bench_op[1] = 0x5;
+    iee_comm(conn, bench_op, 2);
 
     // dump benchmark results
     size_t in_len;

@@ -2,6 +2,7 @@
 
 #include <math.h>
 #include <algorithm>
+#include <vector>
 #include "outside_util.h"
 #include "trusted_util.h"
 #include "trusted_crypto.h"
@@ -16,6 +17,8 @@
 #define MAX_BATCH_UPDATE 1000
 #define MAX_BATCH_SEARCH 1000
 
+using namespace std;
+
 static void init_pipes();
 //static void destroy_pipes();
 static void benchmarking_print(); // only for benchmarking, prints stats
@@ -24,6 +27,15 @@ static void update(bytes* out, size* out_len, uint8_t* in, const size in_len);
 static void search(bytes* out, size* out_len, uint8_t* in, const size in_len);
 static void get_docs_from_server(vec_token *query, const unsigned count_words, const unsigned total_labels);
 
+typedef struct search_res {
+    double total_iee = 0;
+    double wait_uee = 0;
+    double boolean_resolution = 0;
+    double scoring = 0;
+    size_t docs_retrieved = 0;
+} search_res;
+static vector<search_res> search_results;
+
 static int server_socket;
 static unsigned last_ndocs;
 static unsigned char* aux_bool;
@@ -31,9 +43,7 @@ static unsigned char* aux_bool;
 static uint8_t* kEnc;
 
 double total_iee_add = 0, total_server_add = 0;
-double total_iee_search = 0, total_server_search = 0;
-double total_iee_scoring = 0;
-size_t count_add = 0, count_search = 0;
+size_t count_add = 0;
 
 // IEE entry point
 void f(bytes* out, size* out_len, const unsigned long long pid, uint8_t* in, const size in_len) {
@@ -63,10 +73,31 @@ void f(bytes* out, size* out_len, const unsigned long long pid, uint8_t* in, con
 }
 
 void benchmarking_print() {
-    // BENCHMARK : tell server to print statistics
     // this instruction can be safely removed if wanted
-    const unsigned char op = '4';
-    outside_util::socket_send(server_socket, &op, sizeof(unsigned char));
+
+    // add stats
+    outside_util::printf("-- BISEN add iee: %lfms %lu imgs--\n", total_iee_add, count_add);
+    outside_util::printf("-- BISEN add uee w/ net: %lfms --\n", total_server_add);
+
+    outside_util::printf("-- BISEN IEE SEARCHES --\n");
+    outside_util::printf("GRAND TOTAL\tTOTAL iee\tTOTAL storage\tSCORING\tBOOLEAN\tDOCS_BEFORE_TRIM\n");
+    for (search_res r : search_results) {
+        outside_util::printf("%lf\t%lf\t%lf\t%lf\t%lf\t%lu\n", r.total_iee + r.wait_uee, r.total_iee, r.wait_uee, r.scoring, r.boolean_resolution, r.docs_retrieved);
+    }
+
+    // BENCHMARK : tell server to print statistics
+    const uint8_t op = '4';
+    outside_util::socket_send(server_socket, &op, sizeof(uint8_t));
+
+    // reset
+    search_results.clear();
+}
+
+void search_start_benchmark_msg() {
+    // this instruction is FOR BENCHMARKING ONLY can be safely removed if wanted
+    // BENCHMARK : tell server to end search
+    const uint8_t op = '5';
+    outside_util::socket_send(server_socket, &op, sizeof(uint8_t));
 }
 
 void init_pipes() {
@@ -119,8 +150,7 @@ static void update(bytes *out, size *out_len, uint8_t* in, const size in_len) {
     //ocall_print_string("IEE: Started add!\n");
 #endif
 
-    untrusted_time start, end;
-    start = outside_util::curr_time();
+    untrusted_time start = outside_util::curr_time();
 
     // read buffer
     void* tmp = in + 1; // exclude op
@@ -141,8 +171,7 @@ static void update(bytes *out, size *out_len, uint8_t* in, const size in_len) {
     const size_t pair_size = SHA256_OUTPUT_SIZE + d_enc_len;
     void* batch_buffer = malloc(MAX_BATCH_UPDATE * pair_size);
 
-    end = outside_util::curr_time();
-    total_iee_add += trusted_util::time_elapsed_ms(start, end);
+    total_iee_add += trusted_util::time_elapsed_ms(start, outside_util::curr_time());
 
     while(to_recv) {
         start = outside_util::curr_time();
@@ -190,8 +219,7 @@ static void update(bytes *out, size *out_len, uint8_t* in, const size in_len) {
             tcrypto::encrypt(d, unenc_data, d_unenc_len, k, ctr);
         }
 
-        end = outside_util::curr_time();
-        total_iee_add += trusted_util::time_elapsed_ms(start, end);
+        total_iee_add += trusted_util::time_elapsed_ms(start, outside_util::curr_time());
 
         start = outside_util::curr_time();
 
@@ -201,8 +229,7 @@ static void update(bytes *out, size *out_len, uint8_t* in, const size in_len) {
         outside_util::socket_send(server_socket, &batch_size, sizeof(size_t));
         outside_util::socket_send(server_socket, batch_buffer, batch_size * pair_size);
 
-        end = outside_util::curr_time();
-        total_server_add += trusted_util::time_elapsed_ms(start, end);
+        total_server_add += trusted_util::time_elapsed_ms(start, outside_util::curr_time());
 
         to_recv -= batch_size;
     }
@@ -221,8 +248,7 @@ static void update(bytes *out, size *out_len, uint8_t* in, const size in_len) {
     *out = (unsigned char*)malloc(sizeof(unsigned char));
     (*out)[0] = 0x90;
 
-    end = outside_util::curr_time();
-    total_iee_add += trusted_util::time_elapsed_ms(start, end);
+    total_iee_add += trusted_util::time_elapsed_ms(start, outside_util::curr_time());
     count_add++;
 }
 
@@ -236,7 +262,7 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
         unsigned counter_val;
     } label_request;
 
-    untrusted_time start, end;
+    untrusted_time start;
     start = outside_util::curr_time();
 
     // used to hold all labels in random order
@@ -290,8 +316,7 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
     unsigned label_pos = 0;
     unsigned batch_size = std::min(total_labels - label_pos, (unsigned)MAX_BATCH_SEARCH);
 
-    end = outside_util::curr_time();
-    total_iee_search += trusted_util::time_elapsed_ms(start, end);
+    search_results.back().total_iee += trusted_util::time_elapsed_ms(start, outside_util::curr_time());
 
     // request labels to server
     while (label_pos < total_labels) {
@@ -314,20 +339,16 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
             printf("%02x", tmp[x]);
         printf(" : \n");*/
 
-        end = outside_util::curr_time();
-        total_iee_search += trusted_util::time_elapsed_ms(start, end);
+        search_results.back().total_iee += trusted_util::time_elapsed_ms(start, outside_util::curr_time());
 
-        start = outside_util::curr_time();
         // send message to server and receive response
+        start = outside_util::curr_time();
         outside_util::socket_send(server_socket, req_buff, sizeof(char) + sizeof(unsigned) + req_len * batch_size);
         outside_util::socket_receive(server_socket, res_buff, res_len * batch_size);
-
-        end = outside_util::curr_time();
-        total_server_search += trusted_util::time_elapsed_ms(start, end);
-
-        start = outside_util::curr_time();
+        search_results.back().wait_uee += trusted_util::time_elapsed_ms(start, outside_util::curr_time());
 
         // decrypt and fill the destination data structs
+        start = outside_util::curr_time();
         for(unsigned i = 0; i < batch_size; i++) {
             uint8_t dec_buff[SHA256_OUTPUT_SIZE + 2 * sizeof(int)];
 
@@ -366,8 +387,7 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
         label_pos += batch_size;
         batch_size = std::min(total_labels - label_pos, (unsigned)MAX_BATCH_SEARCH);
 
-        end = outside_util::curr_time();
-        total_iee_search += trusted_util::time_elapsed_ms(start, end);
+        search_results.back().total_iee += trusted_util::time_elapsed_ms(start, outside_util::curr_time());
     }
 
     start = outside_util::curr_time();
@@ -379,8 +399,7 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
     free(req_buff);
     free(res_buff);
 
-    end = outside_util::curr_time();
-    total_iee_search += trusted_util::time_elapsed_ms(start, end);
+    search_results.back().total_iee += trusted_util::time_elapsed_ms(start, outside_util::curr_time());
 
 #ifdef VERBOSE
     ocall_print_string("Got all docs from server!\n\n");
@@ -450,15 +469,13 @@ int compare_results_rbisen(const void *a, const void *b) {
 #endif
 
 void search(bytes* out, size* out_len, uint8_t* in, const size in_len) {
-    if(!count_search) {
-        // prints only when no more updates
-        outside_util::printf("-- BISEN add iee: %lfms %lu imgs--\n", total_iee_add, count_add);
-        outside_util::printf("-- BISEN add uee w/ net: %lfms --\n", total_server_add);
-    }
+    outside_util::printf("## BISEN Search %lu ##\n", search_results.size());
+    search_start_benchmark_msg();
 
-    outside_util::printf("## BISEN Search %lu ##\n", count_search);
+    search_res current_src;
+    search_results.push_back(current_src);
 
-    untrusted_time start, end;
+    untrusted_time start;
     start = outside_util::curr_time();
 
     vec_token query;
@@ -499,8 +516,7 @@ void search(bytes* out, size* out_len, uint8_t* in, const size in_len) {
         vt_push_back(&query, &tkn);
     }
 
-    end = outside_util::curr_time();
-    total_iee_search += trusted_util::time_elapsed_ms(start, end);
+    search_results.back().total_iee += trusted_util::time_elapsed_ms(start, outside_util::curr_time());
 
     // get documents from uee
     get_docs_from_server(&query, count_words, count_labels);
@@ -534,33 +550,36 @@ void search(bytes* out, size* out_len, uint8_t* in, const size in_len) {
     }
 
     //calculate boolean formula
+    untrusted_time startb = outside_util::curr_time();
     vec_int response_docs = evaluate(query, nDocs, aux_bool);
+    search_results.back().boolean_resolution += trusted_util::time_elapsed_ms(startb, outside_util::curr_time());
+
     const size_t original_res_size = vi_size(&response_docs);
+    search_results.back().docs_retrieved = original_res_size;
 
     void* results_buffer = NULL;
-    if(vi_size(&response_docs)) {
-        results_buffer = malloc(vi_size(&response_docs) * PAIR_LEN);
+    if(original_res_size) {
+        results_buffer = malloc(original_res_size * PAIR_LEN);
 
 #if SCORING
-        untrusted_time start2 = outside_util::curr_time();
+        untrusted_time starts = outside_util::curr_time();
         // calculate idf for each term
         calc_idf(&query, nDocs);
 
         // calculate tf-idf for each document
         calc_tfidf(&query, &response_docs, results_buffer);
-        qsort(results_buffer, vi_size(&response_docs), PAIR_LEN, compare_results_rbisen);
-        untrusted_time end2 = outside_util::curr_time();
-        total_iee_scoring += trusted_util::time_elapsed_ms(start2, end2);
+        qsort(results_buffer, original_res_size, PAIR_LEN, compare_results_rbisen);
+        search_results.back().scoring += trusted_util::time_elapsed_ms(starts, outside_util::curr_time());
 #else
-        //iterate over the response docs
-        memcpy(results_buffer, response_docs.array, vi_size(&response_docs) * sizeof(int));
+        // iterate over the response docs
+        memcpy(results_buffer, response_docs.array, original_res_size * sizeof(int));
 #endif
     }
 
 #if SCORING
     const size_t threshold = 10;
 #else
-    const size_t threshold = vi_size(&response_docs);
+    const size_t threshold = original_res_size;
 #endif
 
     // return query results
@@ -569,7 +588,7 @@ void search(bytes* out, size* out_len, uint8_t* in, const size in_len) {
     memset(*out, 0, *out_len);
 
     // add nr of elements at beginning, useful if they are less than threshold
-    const size_t elements = std::min(threshold, (size_t)vi_size(&response_docs));
+    const size_t elements = std::min(threshold, original_res_size);
     memcpy(*out, &elements, sizeof(size_t));
 
     const uint8_t score = SCORING;
@@ -591,20 +610,7 @@ void search(bytes* out, size* out_len, uint8_t* in, const size in_len) {
     if(results_buffer)
         free(results_buffer);
 
-    end = outside_util::curr_time();
-    total_iee_search += trusted_util::time_elapsed_ms(start, end);
-
-    outside_util::printf("-- BISEN IEE: TOTAL search %lfms (%lu docs)--\n", total_iee_search + total_server_search, original_res_size);
-    outside_util::printf("-- BISEN IEE: search process %lfms --\n", total_iee_search);
-    outside_util::printf("-- BISEN IEE: search scoring %lfms --\n", total_iee_scoring);
-    outside_util::printf("-- BISEN IEE: search uee w/ net: %lfms --\n", total_server_search);
-
-    total_iee_search = 0;
-    total_server_search = 0;
-    total_iee_scoring = 0;
-    count_search++;
+    search_results.back().total_iee += trusted_util::time_elapsed_ms(start, outside_util::curr_time());
 
     //outside_util::printf("Finished Search!\n-----------------\n");
-
-    benchmarking_print();
 }

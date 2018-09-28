@@ -25,9 +25,20 @@ CassCluster* cluster;
 
 using namespace std;
 
+/*****************************************************************************/
+typedef struct search_res {
+    double processing = 0;
+    double network = 0;
+    size_t batches = 0;
+    size_t nr_labels = 0;
+} search_res;
+
+/*****************************************************************************/
 typedef struct client_data {
     int socket;
 } client_data;
+/*****************************************************************************/
+
 int c = 0;
 void* process_client(void* args) {
     client_data* data = (client_data*)args;
@@ -35,12 +46,12 @@ void* process_client(void* args) {
     free(data);
 
     uee_map I;
+    vector<search_res> search_results;
 
-    struct timeval start, end;
-    double total_add_time = 0, total_search_time = 0;
-    double total_add_time_network = 0, total_search_time_network = 0;
-    size_t nr_search_batches = 0;
-    size_t count_searches = 0, count_adds = 0;
+    struct timeval start;
+    double total_add_time = 0;
+    double total_add_time_network = 0;
+    size_t count_adds = 0;
 
     while (1) {
         unsigned char op;
@@ -80,40 +91,32 @@ void* process_client(void* args) {
                 /*if(count_adds++ % 1000 == 0)
                     printf("add %lu\n", count_adds);*/
 
-                gettimeofday(&start, NULL);
-
+                // receive data from iee
+                start = untrusted_util::curr_time();
                 size_t nr_labels;
                 untrusted_util::socket_receive(client_socket, &nr_labels, sizeof(size_t));
 
-                uint8_t* buffer = (uint8_t*)malloc(nr_labels * (l_size + d_size));
-                untrusted_util::socket_receive(client_socket, buffer, nr_labels * (l_size + d_size));
+                uint8_t* buffer = (uint8_t*)malloc(nr_labels * pair_len);
+                untrusted_util::socket_receive(client_socket, buffer, nr_labels * pair_len);
+                total_add_time_network += untrusted_util::time_elapsed_ms(start, untrusted_util::curr_time());
 
-                gettimeofday(&end, NULL);
-                total_add_time_network += untrusted_util::time_elapsed_ms(start, end);
-
-                gettimeofday(&start, NULL);
+                start = untrusted_util::curr_time();
 
 #if CASSANDRA
                 const CassPrepared* prepared = NULL;
-#endif
-                for(size_t i = 0; i < nr_labels; i++) {
-                    void* l = buffer + i * (l_size + d_size);
-                    void* d = buffer + i * (l_size + d_size) + l_size;
-
-                    /*for(unsigned x = 0; x < d_size; x++)
-                        printf("%02x", ((uint8_t*)d)[x]);
-                    printf(" : d\n");*/
-#if CASSANDRA
-                    if (prepare_insert_into_batch(session, &prepared) == CASS_OK)
-                        insert_into_batch_with_prepared(session, prepared, nr_labels, buffer);
-                    cass_prepared_free(prepared);
+                if (prepare_insert_into_batch(session, &prepared) == CASS_OK)
+                    insert_into_batch_with_prepared(session, prepared, nr_labels, buffer);
+                cass_prepared_free(prepared);
 #else
+                for(size_t i = 0; i < nr_labels; i++) {
+                    void* l = buffer + i * pair_len;
+                    void* d = buffer + i * pair_len + l_size;
                     I[l] = d;
-#endif
                 }
+#endif
 
-                gettimeofday(&end, NULL);
-                total_add_time += untrusted_util::time_elapsed_ms(start, end);
+                total_add_time += untrusted_util::time_elapsed_ms(start, untrusted_util::curr_time());
+                count_adds++;
 
                 #ifdef VERBOSE
                 printf("Finished Add!\n");
@@ -126,21 +129,18 @@ void* process_client(void* args) {
                 printf("Started Search!\n");
                 #endif
 
-                gettimeofday(&start, NULL);
-
+                // receive information from iee
+                start = untrusted_util::curr_time();
                 unsigned nr_labels;
                 untrusted_util::socket_receive(client_socket, &nr_labels, sizeof(unsigned));
 
-                //cout << "batch_size " << batch_size << endl;
+                //cout << "batch_size " << nr_labels << endl;
 
-                unsigned char* label = new unsigned char[l_size * nr_labels];
+                uint8_t* label = new uint8_t[l_size * nr_labels];
                 untrusted_util::socket_receive(client_socket, label, l_size * nr_labels);
+                search_results.back().network += untrusted_util::time_elapsed_ms(start, untrusted_util::curr_time());
 
-                gettimeofday(&end, NULL);
-                total_search_time_network += untrusted_util::time_elapsed_ms(start, end);
-
-                gettimeofday(&start, NULL);
-
+                start = untrusted_util::curr_time();
                 uint8_t* buffer = (unsigned char*)malloc(d_size * nr_labels);
 
 #if CASSANDRA
@@ -149,65 +149,75 @@ void* process_client(void* args) {
 #endif
                 // send the labels for each word occurence
                 for (unsigned i = 0; i < nr_labels; i++) {
-                    if(!I[label + i * l_size]) {
-                        printf("Label not found! Exit\n");
-                        exit(1);
-                    }
-
 #if CASSANDRA
                     if (prepare_select_from_batch(session, &prepared) == CASS_OK)
                         select_from_batch_with_prepared(session, prepared, label + i * l_size, &res);
                     cass_prepared_free(prepared);
 
-                    if(memcmp(res, I[label + i * l_size], d_size)) {
+                    /*if(memcmp(res, I[label + i * l_size], d_size)) {
                         printf("not the same!\n");
                         exit(1);
-                    }
+                    }*/
 
                     memcpy(buffer + i * d_size, res, d_size);
 #else
+                    if(!(I[label + i * l_size])) {
+                        printf("Label not found! Exit\n");
+                        exit(1);
+                    }
+
                     memcpy(buffer + i * d_size, I[label + i * l_size], d_size);
 #endif
                 }
 
-                gettimeofday(&end, NULL);
-                total_search_time += untrusted_util::time_elapsed_ms(start, end);
+                delete[] label;
 
-                gettimeofday(&start, NULL);
+                search_results.back().processing += untrusted_util::time_elapsed_ms(start, untrusted_util::curr_time());
 
+                // answer back to iee
+                start = untrusted_util::curr_time();
                 untrusted_util::socket_send(client_socket, buffer, d_size * nr_labels);
                 free(buffer);
+                search_results.back().network += untrusted_util::time_elapsed_ms(start, untrusted_util::curr_time());
 
-                gettimeofday(&end, NULL);
-                total_search_time_network += untrusted_util::time_elapsed_ms(start, end);
-
-                nr_search_batches++;
-
-                #ifdef VERBOSE
-                printf("Finished Search!\n");
-                #endif
+                search_results.back().batches++;
+                search_results.back().nr_labels += nr_labels;
                 break;
             }
             case '4': {
                 // this instruction is for benchmarking only and can be safely
                 // removed if wanted
-                if(!count_searches) {
-                    printf("BISEN SERVER: total add = %6.3lf ms\n", total_add_time);
-                    printf("BISEN SERVER: total add network = %6.3lf ms\n", total_add_time_network);
-                    printf("BISEN SERVER: size index: %lu\n", I.size());
+
+                printf("BISEN SERVER: total add = %6.3lf ms\n", total_add_time);
+                printf("BISEN SERVER: total add network = %6.3lf ms\n", total_add_time_network);
+                printf("BISEN SERVER: total add batches = %lu\n", count_adds);
+                printf("BISEN SERVER: size index: %lu\n", I.size());
+
+                printf("-- BISEN STORAGE SEARCHES --\n");
+                printf("TOTAL\tPROCESSING\tNETWORK\tBATCHES\tLABELS\n");
+                for (search_res r : search_results) {
+                    printf("%lf\t%lf\t%lf\t%lu\t%lu\n", r.network + r.processing, r.processing, r.network, r.batches, r.nr_labels);
                 }
 
-                printf("## STATS %lu ##\n", count_searches++);
-                printf("BISEN SERVER: seen search batches: %lu\n", nr_search_batches);
-                printf("BISEN SERVER: TOTAL search = %6.3lf ms\n", total_search_time + total_search_time_network);
-                printf("BISEN SERVER: search process = %6.3lf ms\n", total_search_time);
-                printf("BISEN SERVER: search network = %6.3lf ms\n", total_search_time_network);
-                total_search_time = 0;
-                total_search_time_network = 0;
+                // reset
+                search_results.clear();
+
                 break;
             }
-            default:
+            case '5': {
+                // this instruction is for benchmarking only and can be safely
+                // removed if wanted
+
+                // adds a new search benchmarking record
+                search_res r;
+                search_results.push_back(r);
+
+                break;
+            }
+            default: {
                 printf("SseServer unkonwn command: %02x\n", op);
+                exit(1);
+            }
         }
     }
 }
