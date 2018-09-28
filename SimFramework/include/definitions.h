@@ -12,7 +12,6 @@
 #define OP_IEE_TRAIN_ADD 'b'
 
 #define OP_IEE_TRAIN_LSH 'c'
-#define OP_IEE_ADD_LSH 'd'
 
 #define OP_IEE_TRAIN 'e'
 #define OP_IEE_ADD 'f'
@@ -34,9 +33,20 @@
 #define OP_RBISEN '1'
 #define OP_MISEN_QUERY '2'
 
-// TODO as arguments, not preprocessor
-#define C_KMEANS 1
-#define C_LSH 2
-#define CLUSTERING C_KMEANS
+#define OP_IEE_DUMP_BENCH 'v'
+#define OP_UEE_DUMP_BENCH 'x'
+
+#define OP_IEE_BISEN_BULK 'z'
+
+// visen params
+#define DESC_SIFT 0
+#define DESC_SURF 1
+
+#define PRINT_DEBUG 1
+#define STORE_RESULTS 1
+#define TRAIN_MAIN_ONLY 1
+
+#define DESCRIPTOR DESC_SURF
+// end visen params
 
 #endif

@@ -6,7 +6,6 @@
 
 using namespace std;
 using namespace cv;
-using namespace cv::xfeatures2d;
 
 string query_from_file(string path) {
     string query;
@@ -36,14 +35,14 @@ string query_from_file(string path) {
     return query;
 }
 
-void misen_search(secure_connection* conn, SseClient* client, Ptr<SIFT> extractor, vector<pair<string, string>> queries) {
+void misen_search(secure_connection* conn, SseClient* client, descriptor_t descriptor, vector<pair<string, string>> queries) {
     unsigned count = 0;
     for (pair<string, string> query : queries) {
         string text_file_path = query.first;
         string img_file_path = query.second;
 
-        printf("\n----------------------------\n");
-        printf("Query %d: %s %s\n", count++, text_file_path.c_str(), img_file_path.c_str());
+        //printf("\n----------------------------\n");
+        //printf("Query %d: %s %s\n", count++, text_file_path.c_str(), img_file_path.c_str());
 
         size_t query_bisen_len, query_visen_len;
         uint8_t* query_bisen, *query_visen;
@@ -53,7 +52,7 @@ void misen_search(secure_connection* conn, SseClient* client, Ptr<SIFT> extracto
             bool_query = "empty";
 
         query_bisen_len = client->search(bool_query, &query_bisen);
-        search(&query_visen, &query_visen_len, extractor, img_file_path);
+        search(&query_visen, &query_visen_len, descriptor, img_file_path);
 
         uint8_t multimodal_query[sizeof(unsigned char) + 2 * sizeof(size_t) + query_bisen_len + query_visen_len];
         multimodal_query[0] = OP_MISEN_QUERY;
@@ -74,14 +73,14 @@ void misen_search(secure_connection* conn, SseClient* client, Ptr<SIFT> extracto
 
         unsigned nr_docs;
         memcpy(&nr_docs, res, sizeof(unsigned));
-        printf("Number of docs: %u\n", nr_docs);
+        //printf("Number of docs: %u\n", nr_docs);
 
         for (unsigned i = 0; i < nr_docs; ++i) {
             unsigned d;
             double s;
             memcpy(&d, res + sizeof(unsigned) + i * (sizeof(unsigned) + sizeof(double)), sizeof(unsigned));
             memcpy(&s, res + sizeof(unsigned) + i * (sizeof(unsigned) + sizeof(double)) + sizeof(unsigned), sizeof(double));
-            printf("%u %f\n", d, s);
+            //printf("%u %f\n", d, s);
         }
 
         free(res);

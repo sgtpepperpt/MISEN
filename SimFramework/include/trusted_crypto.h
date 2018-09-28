@@ -13,9 +13,11 @@
 
 #define SODIUM_EXPBYTES (crypto_secretbox_NONCEBYTES+crypto_secretbox_MACBYTES)
 
-// to be "public"
-#define SYMM_KEY_SIZE (crypto_secretbox_KEYBYTES)
-#define SYMM_ENC_SIZE(unenc_size) ((unenc_size)+SODIUM_EXPBYTES)
+// size of symmetric key
+#define SYMM_KEY_SIZE (AES_KEY_SIZE)
+
+// returns the encrypted size padded to the block size of the cipher
+#define SYMM_ENC_SIZE(unenc_size) ((unenc_size) + (!((unenc_size) % AES_BLOCK_SIZE) ? 0 : (AES_BLOCK_SIZE - ((unenc_size) % AES_BLOCK_SIZE))))
 
 namespace tcrypto {
     void random(void* out, size_t len);
@@ -27,9 +29,6 @@ namespace tcrypto {
 
     int encrypt(void* out, const uint8_t* in, const size_t in_len, const void* key, uint8_t* ctr);
     int decrypt(void* out, const uint8_t* in, const size_t in_len, const void* key, uint8_t* ctr);
-
-    int sodium_encrypt(unsigned char *ciphertext,const unsigned char *message, unsigned long long message_len, const unsigned char *nonce, const unsigned char *key);
-    int sodium_decrypt(unsigned char *ciphertext,const unsigned char *message, unsigned long long message_len, const unsigned char *nonce, const unsigned char *key);
 }
 
 #endif

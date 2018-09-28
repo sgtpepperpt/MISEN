@@ -21,71 +21,44 @@ extern "C" {
 }
 
 using namespace std;
-using namespace cv;
-using namespace cv::xfeatures2d;
 
-void extractHolidayFileNames(const char* base_path, int nImgs, std::map<int, std::string> &imgs) {
-    DIR* dir;
-    struct dirent* ent;
-    int i = 0;
-    if ((dir = opendir(base_path)) != NULL) {
-        while ((ent = readdir(dir)) != NULL && i < nImgs) {
-            std::string fname = ent->d_name;
-            const size_t pos = fname.find(".jpg");
-            if (pos != std::string::npos) {
-                std::string idString = fname.substr(0, pos);
-                const int id = atoi(idString.c_str());
-                std::string path = base_path;
-                path += fname;
-                imgs[id] = path;
-                i++;
-            }
-        }
-        closedir(dir);
-    } else {
-        printf("Util::processHolidayDataset couldn't open dir");
-        exit(1);
-    }
-}
-
-float* client_train(const char* path, const unsigned nr_clusters, const unsigned desc_len, Ptr<SIFT> descriptor) {
-    map<int, string> imgs;
-    extractHolidayFileNames(path, 50000, imgs);
+float* client_train(const char* path, const unsigned nr_clusters, const unsigned desc_len, descriptor_t descriptor) {
+    const vector<string> imgs = list_img_files(5000, path);
 
     //Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create("BruteForce");
     //BOWImgDescriptorExtractor* bowExtractor = new BOWImgDescriptorExtractor(surf, matcher);
 
-    //timespec start = getTime();                         //getTime
-    TermCriteria terminate_criterion;
+    cv::TermCriteria terminate_criterion;
     terminate_criterion.epsilon = FLT_EPSILON;
-    BOWKMeansTrainer bowTrainer(nr_clusters, terminate_criterion, 3, KMEANS_PP_CENTERS);
+    cv::BOWKMeansTrainer bowTrainer(nr_clusters, terminate_criterion, 3, cv::KMEANS_PP_CENTERS);
 
-    //std::srand(std::time(nullptr)); // use current time as seed for random generator
-    //int random_variable = std::rand();
-    for (map<int, string>::iterator it = imgs.begin(); it != imgs.end(); ++it) {
-        const char* str = it->second.c_str();
-        //const size_t len = strlen(str);
+    for (const string p : imgs) {
+#if TRAIN_MAIN_ONLY
+        const char* str = p.c_str();
+        const size_t len = strlen(str);
+        if(!(str[len-5] == '0' && str[len-6] == '0'))
+            continue;
+#endif
 
-        /*if(!(str[len-5] == '0' && str[len-6] == '0'))
-            continue;*/
+        //printf("train %s\n", p.c_str());
+        cv::Mat image = cv::imread(p);
 
-        printf("train %s\n", str);
-        Mat image = imread(it->second);
-
-        vector<KeyPoint> keypoints;
+        vector<cv::KeyPoint> keypoints;
         descriptor->detect(image, keypoints);
 
-        Mat descriptors;
+        cv::Mat descriptors;
         descriptor->compute(image, keypoints, descriptors);
 
-        bowTrainer.add(descriptors);
+        //cout << "nr_desc " << descriptors.size().height << endl;
+
+        if(descriptors.size().height)
+            bowTrainer.add(descriptors);
     }
-    printf("build codebook with %d descriptors!\n", bowTrainer.descriptorsCount());
-    Mat codebook = bowTrainer.cluster();
+
+    printf("Built codebook with %d descriptors (avg. %lu)\n", bowTrainer.descriptorsCount(), bowTrainer.descriptorsCount()/imgs.size());
+    cv::Mat codebook = bowTrainer.cluster();
     //bowExtractor->setVocabulary(codebook);
     //bowExtractor->compute()
-    //trainTime += diffSec(start, getTime());         //getTime
-    //printf("Training Time: %f\n",trainTime);
 
     //const size_t desc_len = (size_t)codebook.size().width;
     const size_t nr_desc = (size_t)codebook.size().height;
@@ -102,24 +75,23 @@ float* client_train(const char* path, const unsigned nr_clusters, const unsigned
     return centroids;
 }
 
-
-void visen_setup(secure_connection* conn, size_t desc_len, unsigned visen_nr_clusters) {
+void visen_setup(secure_connection* conn, size_t desc_len, unsigned visen_nr_clusters, const char* train_technique) {
     size_t in_len = 0;
     uint8_t* in = NULL;
 
-    init(&in, &in_len, visen_nr_clusters, desc_len);
+    init(&in, &in_len, visen_nr_clusters, desc_len, train_technique);
     iee_comm(conn, in, in_len);
     free(in);
 }
 
-void visen_train_client_kmeans(secure_connection* conn, size_t desc_len, unsigned visen_nr_clusters, char* visen_train_mode, char* visen_centroids_file, const char* visen_dataset_dir, Ptr<SIFT> extractor) {
+void visen_train_client_kmeans(secure_connection* conn, size_t desc_len, unsigned visen_nr_clusters, char* visen_train_mode, char* visen_centroids_file, const char* visen_dataset_dir, descriptor_t descriptor) {
     size_t in_len = sizeof(uint8_t) + visen_nr_clusters * desc_len * sizeof(float);
     uint8_t* in = (uint8_t*)malloc(sizeof(uint8_t) + visen_nr_clusters * desc_len * sizeof(float));
     in[0] = OP_IEE_SET_CODEBOOK_CLIENT_KMEANS;
 
     float* centroids;
     if(!strcmp(visen_train_mode, "train")) {
-        centroids = client_train(visen_dataset_dir, visen_nr_clusters, desc_len, extractor);
+        centroids = client_train(visen_dataset_dir, visen_nr_clusters, desc_len, descriptor);
 
         FILE* file = fopen(visen_centroids_file, "wb");
         if (!file) {
@@ -150,16 +122,24 @@ void visen_train_client_kmeans(secure_connection* conn, size_t desc_len, unsigne
     free(centroids);
 }
 
-void visen_train_iee_kmeans(secure_connection* conn, char* visen_train_mode, Ptr<SIFT> extractor, const vector<string> files) {
+void visen_train_iee_kmeans(secure_connection* conn, char* visen_train_mode, descriptor_t descriptor, const vector<string> files) {
     size_t in_len;
     uint8_t* in;
 
     // adding
-    for (unsigned i = 0; i < files.size(); i++) {
-        if(i % 100 == 0)
-            printf("Train img (%u/%lu) %s\n", i, files.size(), files[i].c_str());
+    size_t counter = 0;
+    for (const string p : files) {
+        if(counter % 100 == 0)
+            printf("Train img (%lu/%lu) %s\n", counter++, files.size(), p.c_str());
 
-        add_train_images(&in, &in_len, extractor, files[i]);
+#if TRAIN_MAIN_ONLY
+        const char* str = p.c_str();
+        const size_t len = strlen(str);
+        if(!(str[len-5] == '0' && str[len-6] == '0'))
+            continue;
+#endif
+
+        add_train_images(&in, &in_len, descriptor, p);
         iee_comm(conn, in, in_len);
         free(in);
     }
@@ -169,10 +149,10 @@ void visen_train_iee_kmeans(secure_connection* conn, char* visen_train_mode, Ptr
     iee_comm(conn, in, in_len);
     free(in);
 }
-/*
-void visen_train_client_lsh(mbedtls_ssl_context ssl, size_t desc_len, unsigned visen_nr_clusters, char* visen_train_mode, Ptr<SIFT> extractor, const vector<string> files) {
-    size_t in_len;
-    uint8_t* in;
+
+void visen_train_client_lsh(secure_connection* conn, char* visen_train_mode, size_t desc_len, unsigned visen_nr_clusters) {
+    size_t in_len = sizeof(uint8_t) + visen_nr_clusters * desc_len * sizeof(float);
+    uint8_t in[in_len];
 
     vector<float*> gaussians(visen_nr_clusters);
     std::default_random_engine generator(time(0));
@@ -194,19 +174,34 @@ void visen_train_client_lsh(mbedtls_ssl_context ssl, size_t desc_len, unsigned v
         p = (unsigned char*)p + desc_len * sizeof(float);
     }
 
-    iee_comm(&ssl, in, in_len);
-    free(in);
-}*/
+    iee_comm(conn, in, in_len);
+}
 
-void visen_add_files(secure_connection* conn, Ptr<SIFT> extractor, const vector<string> files) {
+void visen_add_files(secure_connection* conn, descriptor_t descriptor, const vector<string> files) {
+    struct timeval start, end;
+    double total_client = 0, total_iee = 0;
+
     size_t in_len;
     uint8_t* in;
 
     for (unsigned i = 0; i < files.size(); i++) {
-        if(i % 100 == 0)
+        if(i % 50 == 0)
             printf("Add img (%u/%lu)\n", i, files.size());
-        add_images(&in, &in_len, extractor, files[i]);
+
+        gettimeofday(&start, NULL);
+        add_images(&in, &in_len, descriptor, files[i]);
+        gettimeofday(&end, NULL);
+        total_client += untrusted_util::time_elapsed_ms(start, end);
+
+        gettimeofday(&start, NULL);
         iee_comm(conn, in, in_len);
+        gettimeofday(&end, NULL);
+        total_iee += untrusted_util::time_elapsed_ms(start, end);
+
         free(in);
     }
+
+    printf("-- VISEN TOTAL add: %lf ms %lu imgs--\n", total_client + total_iee, files.size());
+    printf("-- VISEN add client: %lf ms --\n", total_client);
+    printf("-- VISEN add iee w/ net: %lf ms --\n", total_iee);
 }

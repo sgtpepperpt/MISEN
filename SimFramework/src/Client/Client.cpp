@@ -23,9 +23,8 @@
 #include "misen_tests.h"
 #include "util.h"
 
-using namespace cv;
-using namespace cv::xfeatures2d;
 using namespace std;
+
 
 typedef struct configs {
     int use_text = 0, use_images = 0, use_multimodal = 0;
@@ -35,7 +34,7 @@ typedef struct configs {
     vector<string> bisen_queries;
 
     unsigned visen_nr_docs = 0;
-    char* visen_train_mode, *visen_train_technique, *visen_add_mode, *visen_search_mode, *visen_clusters_file, *visen_dataset_dir;
+    char* visen_train_mode, *visen_train_technique, *visen_add_mode, *visen_search_mode, *visen_clusters_file, *visen_dataset_dir, *visen_results_file;
     unsigned visen_descriptor_threshold, visen_nr_clusters, visen_desc_len;
 
     unsigned misen_nr_docs = 1000, misen_nr_queries = 10;
@@ -54,44 +53,49 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
         gettimeofday(&start, NULL);
         bisen_setup(conn, &client);
         gettimeofday(&end, NULL);
-        printf("-- BISEN setup: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+        printf("-- BISEN setup: %lfms --\n", untrusted_util::time_elapsed_ms(start, end));
 
         gettimeofday(&start, NULL);
         bisen_update(conn, &client, settings->bisen_doc_type, settings->bisen_nr_docs, txt_paths);
         gettimeofday(&end, NULL);
-        printf("-- BISEN updates: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+        printf("-- BISEN TOTAL updates: %lf ms %d docs --\n", untrusted_util::time_elapsed_ms(start, end), settings->bisen_nr_docs);
 
-        gettimeofday(&start, NULL);
         bisen_search(conn, &client, settings->bisen_queries);
-        gettimeofday(&end, NULL);
-        printf("-- BISEN searches: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+
+        // print benchmark
+        uint8_t bench_op[2];
+        bench_op[0] = OP_RBISEN;
+        bench_op[1] = 0x5;
+        iee_comm(conn, bench_op, 2);
     }
 
     ///////////////////////////////
     if(settings->use_images) {
         // image descriptor parameters
-        Ptr<SIFT> extractor = SIFT::create(settings->visen_descriptor_threshold);
+        descriptor_t descriptor = create_descriptor(settings->visen_descriptor_threshold);
         const vector<string> files = list_img_files(!settings->visen_nr_docs? -1 : settings->visen_nr_docs, settings->visen_dataset_dir);
 
         // init iee and server
         gettimeofday(&start, NULL);
-        visen_setup(conn, settings->visen_desc_len, settings->visen_nr_clusters);
+        visen_setup(conn, settings->visen_desc_len, settings->visen_nr_clusters, settings->visen_train_technique);
         gettimeofday(&end, NULL);
-        printf("-- VISEN setup: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+        printf("-- VISEN setup: %lfms --\n", untrusted_util::time_elapsed_ms(start, end));
 
         // train
         gettimeofday(&start, NULL);
         if(!strcmp(settings->visen_train_technique, "client_kmeans"))
-            visen_train_client_kmeans(conn, settings->visen_desc_len, settings->visen_nr_clusters, settings->visen_train_mode, settings->visen_clusters_file, settings->visen_dataset_dir, extractor);
+            visen_train_client_kmeans(conn, settings->visen_desc_len, settings->visen_nr_clusters, settings->visen_train_mode, settings->visen_clusters_file, settings->visen_dataset_dir, descriptor);
         else if(!strcmp(settings->visen_train_technique, "iee_kmeans"))
-            visen_train_iee_kmeans(conn, settings->visen_train_mode, extractor, files);
+            visen_train_iee_kmeans(conn, settings->visen_train_mode, descriptor, files);
+        else if(!strcmp(settings->visen_train_technique, "lsh"))
+            visen_train_client_lsh(conn, settings->visen_train_mode, settings->visen_desc_len, settings->visen_nr_clusters);
+
         gettimeofday(&end, NULL);
-        printf("-- VISEN train: %ldms %s--\n", untrusted_util::time_elapsed_ms(start, end), settings->visen_train_technique);
+        printf("-- VISEN train: %lfms %s %s--\n", untrusted_util::time_elapsed_ms(start, end), settings->visen_train_technique, settings->visen_train_mode);
 
         // add images to repository
-        gettimeofday(&start, NULL);
         if(!strcmp(settings->visen_add_mode, "normal")) {
-            visen_add_files(conn, extractor, files);
+            visen_add_files(conn, descriptor, files);
         } else if(!strcmp(settings->visen_add_mode, "load")) {
             // tell iee to load images from disc
             unsigned char op = OP_IEE_READ_MAP;
@@ -100,8 +104,6 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
             printf("Add mode error\n");
             exit(1);
         }
-        gettimeofday(&end, NULL);
-        printf("-- VISEN add imgs: %ldms %lu imgs--\n", untrusted_util::time_elapsed_ms(start, end), files.size());
 
         if(!strcmp(settings->visen_add_mode, "normal")) {
             // send persist storage message to iee, useful for debugging and testing
@@ -110,14 +112,17 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
         }
 
         // search
-        gettimeofday(&start, NULL);
-        search_test(conn, extractor);
-        gettimeofday(&end, NULL);
-        printf("-- VISEN searches: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+        const int dbg_limit = -1;
+        search_test(conn, descriptor, settings->visen_results_file, dbg_limit);
 
-        // clear
+        // dump benchmark results
         size_t in_len;
         uint8_t* in;
+        dump_bench(&in, &in_len);
+        iee_comm(conn, in, in_len);
+        free(in);
+
+        // clear
         clear(&in, &in_len);
         iee_comm(conn, in, in_len);
         free(in);
@@ -128,7 +133,7 @@ void multimodal_tests(const configs* const settings, secure_connection* conn) {
     struct timeval start, end;
 
     // image descriptor parameters
-    Ptr<SIFT> extractor = SIFT::create(settings->visen_descriptor_threshold);
+    descriptor_t descriptor = create_descriptor(settings->visen_descriptor_threshold);
     SseClient client;
 
     vector<string> txt_paths = list_txt_files(settings->misen_nr_docs, settings->misen_text_dir);
@@ -140,35 +145,45 @@ void multimodal_tests(const configs* const settings, secure_connection* conn) {
 
     // init
     gettimeofday(&start, NULL);
-    visen_setup(conn, settings->visen_desc_len, settings->visen_nr_clusters);
-
+    visen_setup(conn, settings->visen_desc_len, settings->visen_nr_clusters, settings->visen_train_technique);
     bisen_setup(conn, &client);
     gettimeofday(&end, NULL);
-    printf("-- MISEN setup: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+    printf("-- MISEN setup: %lfms --\n", untrusted_util::time_elapsed_ms(start, end));
 
     // train (for images)
     gettimeofday(&start, NULL);
-    visen_train_client_kmeans(conn, settings->visen_desc_len, settings->visen_nr_clusters, (char*)"load", settings->visen_clusters_file, NULL, extractor);
+    visen_train_client_kmeans(conn, settings->visen_desc_len, settings->visen_nr_clusters, (char*)"load", settings->visen_clusters_file, NULL, descriptor);
     gettimeofday(&end, NULL);
-    printf("-- MISEN train: %ldms %s--\n", untrusted_util::time_elapsed_ms(start, end), settings->visen_train_technique);
+    printf("-- MISEN train: %lfms %s--\n", untrusted_util::time_elapsed_ms(start, end), settings->visen_train_technique);
 
     // add documents to iee
     gettimeofday(&start, NULL);
     bisen_update(conn, &client, (char*)"normal", settings->misen_nr_docs, txt_paths);
-    visen_add_files(conn, extractor, img_paths);
+    visen_add_files(conn, descriptor, img_paths);
     gettimeofday(&end, NULL);
-    printf("-- MISEN updates: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+    printf("-- MISEN updates: %lfms --\n", untrusted_util::time_elapsed_ms(start, end));
 
     // searches
     gettimeofday(&start, NULL);
     vector<pair<string, string>> multimodal_queries = generate_multimodal_queries(txt_paths, img_paths, settings->misen_nr_queries);
-    misen_search(conn, &client, extractor, multimodal_queries);
+    misen_search(conn, &client, descriptor, multimodal_queries);
     gettimeofday(&end, NULL);
-    printf("-- MISEN searches: %ldms --\n", untrusted_util::time_elapsed_ms(start, end));
+    printf("-- MISEN searches: %lfms %lu queries --\n", untrusted_util::time_elapsed_ms(start, end), multimodal_queries.size());
 
-    // cleanup
+    // print benchmark bisen
+    uint8_t bench_op[2];
+    bench_op[0] = OP_RBISEN;
+    bench_op[1] = 0x5;
+    iee_comm(conn, bench_op, 2);
+
+    // dump benchmark results
     size_t in_len;
     uint8_t* in;
+    dump_bench(&in, &in_len);
+    iee_comm(conn, in, in_len);
+    free(in);
+
+    // cleanup
     clear(&in, &in_len);
     iee_comm(conn, in, in_len);
     free(in);
@@ -180,7 +195,12 @@ int main(int argc, char** argv) {
     // static params
     const char* server_name = IEE_HOSTNAME;
     const int server_port = IEE_PORT;
+
+#if DESCRIPTOR == DESC_SIFT
     program_configs.visen_desc_len = 128;
+#else
+    program_configs.visen_desc_len = 64;
+#endif
 
     config_t cfg;
     config_init(&cfg);
@@ -206,6 +226,7 @@ int main(int argc, char** argv) {
     config_lookup_string(&cfg, "visen.search_mode", (const char**)&program_configs.visen_search_mode);
     config_lookup_string(&cfg, "visen.clusters_file", (const char**)&program_configs.visen_clusters_file);
     config_lookup_string(&cfg, "visen.dataset_dir", (const char**)&program_configs.visen_dataset_dir);
+    config_lookup_string(&cfg, "visen.results_file", (const char**)&program_configs.visen_results_file);
     config_lookup_int(&cfg, "visen.descriptor_threshold", (int*)&program_configs.visen_descriptor_threshold);
     config_lookup_int(&cfg, "visen.nr_clusters", (int*)&program_configs.visen_nr_clusters);
 
@@ -231,9 +252,10 @@ int main(int argc, char** argv) {
                 break;
             case 'b':
                 program_configs.bisen_nr_docs = (unsigned)std::stoi(optarg);
+                program_configs.visen_nr_docs = program_configs.bisen_nr_docs;
                 break;
             case 'h':
-                printf("Usage: ./Client nr-imgs\n");
+                printf("Usage: ./Client [-b nr_docs] [-k nr_clusters]\n");
                 exit(0);
             case '?':
                 if (optopt == 'c')
@@ -279,15 +301,11 @@ int main(int argc, char** argv) {
     return 0;
 }
 
-    /*} else {
+/*} else {
 train_load_clusters(&in, &in_len);
 iee_comm(&ssl, in, in_len);
 free(in);
 }*/
-
-#if CLUSTERING == C_LSH
-add_images_lsh(&in, &in_len, surf, files[i]);
-#endif
 
 /*
 //TODO perform a search from args?
@@ -314,7 +332,6 @@ add_images_lsh(&in, &in_len, surf, files[i]);
         memcpy(&score, res + sizeof(size_t) + j * SRC_RES_LEN + sizeof(unsigned long), sizeof(double));
 
         printf("%lu %f\n", id, score);
-
     }
 
     gettimeofday(&end, NULL);

@@ -31,6 +31,8 @@ namespace outside_util {
     void close(int file);
 
     int open_socket(const char* addr, int port);
+    void socket_send(int socket, const void* buff, size_t len);
+    void socket_receive(int socket, void* buff, size_t len);
 
     // uee communication
     int open_uee_connection();

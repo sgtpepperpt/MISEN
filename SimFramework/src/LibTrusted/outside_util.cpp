@@ -29,6 +29,14 @@ int outside_util::open_socket(const char* addr, int port) {
     return untrusted_util::socket_connect(addr, port);
 }
 
+void outside_util::socket_send(int socket, const void* buff, size_t len) {
+    untrusted_util::socket_send(socket, buff, len);
+}
+
+void outside_util::socket_receive(int socket, void* buff, size_t len) {
+    untrusted_util::socket_receive(socket, buff, len);
+}
+
 /******************************************************** MISC ********************************************************/
 void outside_util::printf(const char *fmt, ...) {
     //ocall_string_print("Enclave printf\n");

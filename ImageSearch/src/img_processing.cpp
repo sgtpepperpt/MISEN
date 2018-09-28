@@ -37,7 +37,7 @@ static void* parallel_process(void* args) {
 #endif
 
 const unsigned* process_new_image(BagOfWordsTrainer* k, const size_t nr_desc, float* descriptors) {
-    untrusted_time start = outside_util::curr_time();
+    //untrusted_time start = outside_util::curr_time();
 
     unsigned* frequencies = (unsigned*)malloc(k->nr_centres() * sizeof(unsigned));
     memset(frequencies, 0x00, k->nr_centres() * sizeof(unsigned));
@@ -94,8 +94,7 @@ const unsigned* process_new_image(BagOfWordsTrainer* k, const size_t nr_desc, fl
     }
 #endif
 
-    untrusted_time end = outside_util::curr_time();
-    //outside_util::printf("elapsed %ld\n", trusted_util::time_elapsed_ms(start, end));
+    //outside_util::printf("elapsed %ld\n", trusted_util::time_elapsed_ms(start, outside_util::curr_time()));
 
     return frequencies;
 }

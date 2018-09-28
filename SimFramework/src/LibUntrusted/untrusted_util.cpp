@@ -118,7 +118,13 @@ void untrusted_util::debug_printbuf(uint8_t* buf, size_t len) {
     printf("\n");
 }
 
-long untrusted_util::time_elapsed_ms(struct timeval start, struct timeval end) {
+struct timeval untrusted_util::curr_time() {
+    struct timeval curr;
+    gettimeofday(&curr, NULL);
+    return curr;
+}
+
+double untrusted_util::time_elapsed_ms(struct timeval start, struct timeval end) {
     long secs_used, micros_used;
 
     secs_used = (end.tv_sec - start.tv_sec); //avoid overflow by subtracting first
