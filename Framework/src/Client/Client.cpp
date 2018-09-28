@@ -34,7 +34,7 @@ typedef struct configs {
     vector<string> bisen_queries;
 
     unsigned visen_nr_docs = 0;
-    char* visen_train_mode, *visen_train_technique, *visen_add_mode, *visen_search_mode, *visen_clusters_file, *visen_dataset_dir;
+    char* visen_train_mode, *visen_train_technique, *visen_add_mode, *visen_search_mode, *visen_clusters_file, *visen_dataset_dir, *visen_results_file;
     unsigned visen_descriptor_threshold, visen_nr_clusters, visen_desc_len;
 
     unsigned misen_nr_docs = 1000, misen_nr_queries = 10;
@@ -107,7 +107,7 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
 
         // search
         const int dbg_limit = -1;
-        search_test(conn, descriptor, dbg_limit);
+        search_test(conn, descriptor, settings->visen_results_file, dbg_limit);
 
         // dump benchmark results
         size_t in_len;
@@ -214,6 +214,7 @@ int main(int argc, char** argv) {
     config_lookup_string(&cfg, "visen.search_mode", (const char**)&program_configs.visen_search_mode);
     config_lookup_string(&cfg, "visen.clusters_file", (const char**)&program_configs.visen_clusters_file);
     config_lookup_string(&cfg, "visen.dataset_dir", (const char**)&program_configs.visen_dataset_dir);
+    config_lookup_string(&cfg, "visen.results_file", (const char**)&program_configs.visen_results_file);
     config_lookup_int(&cfg, "visen.descriptor_threshold", (int*)&program_configs.visen_descriptor_threshold);
     config_lookup_int(&cfg, "visen.nr_clusters", (int*)&program_configs.visen_nr_clusters);
 

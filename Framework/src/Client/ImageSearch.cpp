@@ -281,7 +281,7 @@ void search_test_wang(secure_connection* conn, const descriptor_t descriptor) {
 #endif
 }
 
-void search_test(secure_connection* conn, const descriptor_t descriptor, int dbg_limit) {
+void search_test(secure_connection* conn, const descriptor_t descriptor, const char* results_file, int dbg_limit) {
     struct timeval start, end;
     double total_client = 0, total_iee = 0;
     size_t in_len;
@@ -357,7 +357,7 @@ void search_test(secure_connection* conn, const descriptor_t descriptor, int dbg
 
 #if STORE_RESULTS
     // write results to file
-    printHolidayResults("results.dat", precision_res);
+    printHolidayResults(results_file, precision_res);
 #endif
 
     printf("-- VISEN TOTAL search: %lf ms %lu queries--\n", total_client + total_iee, query_count);

@@ -40,7 +40,7 @@ float* client_train(const char* path, const unsigned nr_clusters, const unsigned
             continue;
 #endif
 
-        printf("train %s\n", p.c_str());
+        //printf("train %s\n", p.c_str());
         cv::Mat image = cv::imread(p);
 
         vector<cv::KeyPoint> keypoints;
@@ -49,7 +49,7 @@ float* client_train(const char* path, const unsigned nr_clusters, const unsigned
         cv::Mat descriptors;
         descriptor->compute(image, keypoints, descriptors);
 
-        cout << "nr_desc " << descriptors.size().height << endl;
+        //cout << "nr_desc " << descriptors.size().height << endl;
 
         if(descriptors.size().height)
             bowTrainer.add(descriptors);

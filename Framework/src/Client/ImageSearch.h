@@ -28,6 +28,6 @@ void clear(uint8_t** in, size_t* in_len);
 void dump_bench(uint8_t** in, size_t* in_len);
 void search(uint8_t** in, size_t* in_len, const descriptor_t descriptor, const std::string file_name);
 void search_test_wang(secure_connection* conn, const descriptor_t descriptor);
-void search_test(secure_connection* conn, const descriptor_t descriptor, int dbg_limit);
+void search_test(secure_connection* conn, const descriptor_t descriptor, const char* results_file, int dbg_limit);
 
 #endif
