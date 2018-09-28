@@ -16,11 +16,13 @@
 #include "untrusted_util.h"
 #include "definitions.h"
 
-#if CASSANDRA
+#if STORAGE == STORAGE_CASSANDRA
 #include "cassie.h"
 
 CassSession* session;
 CassCluster* cluster;
+#elif STORAGE == STORAGE_REDIS
+#include <hiredis/hiredis.h>
 #endif
 
 using namespace std;
@@ -45,7 +47,20 @@ void* process_client(void* args) {
     int client_socket = data->socket;
     free(data);
 
+#if STORAGE == STORAGE_REDIS
+    redisContext *c = redisConnect("127.0.0.1", 6379);
+    if (c == NULL || c->err) {
+        if (c) {
+            printf("Error: %s\n", c->errstr);
+            // handle error
+        } else {
+            printf("Can't allocate redis context\n");
+        }
+    }
+#elif STORAGE == STORAGE_MAP
     uee_map I;
+#endif
+
     vector<search_res> search_results;
 
     struct timeval start;
@@ -62,6 +77,14 @@ void* process_client(void* args) {
             case OP_UEE_INIT: {
                 // delete existing map, only useful for reruns while debugging
 
+#if STORAGE == STORAGE_CASSANDRA
+
+#elif STORAGE == STORAGE_REDIS
+                redisReply* reply = (redisReply*)redisCommand(c, "FLUSHALL");
+                if (!reply) {
+                    printf("error redis flushall!\n");
+                }
+#elif STORAGE == STORAGE_MAP
                 /*if(!I.empty()) {
                     //#ifdef VERBOSE
                     printf("Size before: %lu\n", I.size());
@@ -75,6 +98,7 @@ void* process_client(void* args) {
 
                     I.clear();
                 }*/
+#endif
 
                 #ifdef VERBOSE
                 printf("Finished Setup!\n");
@@ -102,12 +126,18 @@ void* process_client(void* args) {
 
                 start = untrusted_util::curr_time();
 
-#if CASSANDRA
+#if STORAGE == STORAGE_CASSANDRA
                 const CassPrepared* prepared = NULL;
                 if (prepare_insert_into_batch(session, &prepared) == CASS_OK)
                     insert_into_batch_with_prepared(session, prepared, nr_labels, buffer);
                 cass_prepared_free(prepared);
-#else
+#elif STORAGE == STORAGE_REDIS
+                for(size_t i = 0; i < nr_labels; i++) {
+                    void* l = buffer + i * pair_len;
+                    void* d = buffer + i * pair_len + l_size;
+                    redisAppendCommand(c, "SET %b %b", l, (size_t)l_size, d, (size_t)d_size);
+                }
+#elif STORAGE == STORAGE_MAP
                 for(size_t i = 0; i < nr_labels; i++) {
                     void* l = buffer + i * pair_len;
                     void* d = buffer + i * pair_len + l_size;
@@ -115,6 +145,14 @@ void* process_client(void* args) {
                 }
 #endif
 
+#if STORAGE == STORAGE_REDIS
+                for (size_t i = 0; i < nr_labels; i++) {
+                    redisReply* reply;
+                    redisGetReply(c,(void**)&reply);
+
+                    freeReplyObject(reply);
+                }
+#endif
                 total_add_time += untrusted_util::time_elapsed_ms(start, untrusted_util::curr_time());
                 count_adds++;
 
@@ -143,13 +181,12 @@ void* process_client(void* args) {
                 start = untrusted_util::curr_time();
                 uint8_t* buffer = (unsigned char*)malloc(d_size * nr_labels);
 
-#if CASSANDRA
+#if STORAGE == STORAGE_CASSANDRA
                 uint8_t* res = (uint8_t*)malloc(d_size);
                 const CassPrepared* prepared = NULL;
-#endif
+
                 // send the labels for each word occurence
                 for (unsigned i = 0; i < nr_labels; i++) {
-#if CASSANDRA
                     if (prepare_select_from_batch(session, &prepared) == CASS_OK)
                         select_from_batch_with_prepared(session, prepared, label + i * l_size, &res);
                     cass_prepared_free(prepared);
@@ -160,16 +197,30 @@ void* process_client(void* args) {
                     }*/
 
                     memcpy(buffer + i * d_size, res, d_size);
-#else
+
+                }
+#elif STORAGE == STORAGE_REDIS
+                // send the labels for each word occurence
+                for (unsigned i = 0; i < nr_labels; i++) {
+                    redisReply* reply = (redisReply*)redisCommand(c, "GET %b", label + i * l_size, l_size);
+                    if (!reply) {
+                         printf("error redis get!\n");
+                    }
+
+                    memcpy(buffer + i * d_size, reply->str, d_size);
+                    freeReplyObject(reply);
+                }
+#elif STORAGE == STORAGE_MAP
+                // send the labels for each word occurence
+                for (unsigned i = 0; i < nr_labels; i++) {
                     if(!(I[label + i * l_size])) {
                         printf("Label not found! Exit\n");
                         exit(1);
                     }
 
                     memcpy(buffer + i * d_size, I[label + i * l_size], d_size);
-#endif
                 }
-
+#endif
                 delete[] label;
 
                 search_results.back().processing += untrusted_util::time_elapsed_ms(start, untrusted_util::curr_time());
@@ -187,11 +238,24 @@ void* process_client(void* args) {
             case '4': {
                 // this instruction is for benchmarking only and can be safely
                 // removed if wanted
+                size_t db_size = 0;
 
+#if STORAGE == STORAGE_CASSANDRA
+                db_size = get_size(session);
+#elif STORAGE == STORAGE_REDIS
+                redisReply* reply = (redisReply*)redisCommand(c, "DBSIZE");
+                if (!reply) {
+                    printf("error redis getdbsize!\n");
+                }
+
+                memcpy(&db_size, (size_t*)&(reply->integer), sizeof(size_t));
+#elif STORAGE == STORAGE_MAP
+                db_size = I.size();
+#endif
                 printf("BISEN SERVER: total add = %6.3lf ms\n", total_add_time);
                 printf("BISEN SERVER: total add network = %6.3lf ms\n", total_add_time_network);
                 printf("BISEN SERVER: total add batches = %lu\n", count_adds);
-                printf("BISEN SERVER: size index: %lu\n", I.size());
+                printf("BISEN SERVER: size index: %lu\n", db_size);
 
                 printf("-- BISEN STORAGE SEARCHES --\n");
                 printf("TOTAL\tPROCESSING\tNETWORK\tBATCHES\tLABELS\n");
@@ -224,7 +288,8 @@ void* process_client(void* args) {
 
 SseServer::SseServer() {
     const int server_port = 7899;
-#if CASSANDRA
+#if STORAGE == STORAGE_CASSANDRA
+    // only cassandra has a global session
     char* hosts = "127.0.0.1";
 
     session = cass_session_new();
@@ -295,7 +360,7 @@ SseServer::SseServer() {
         pthread_t tid;
         pthread_create(&tid, NULL, process_client, data);
     }
-#if CASSANDRA
+#if STORAGE == STORAGE_CASSANDRA
     CassFuture* close_future = cass_session_close(session);
     cass_future_wait(close_future);
     cass_future_free(close_future);

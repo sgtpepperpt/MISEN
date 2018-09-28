@@ -12,4 +12,4 @@ link_directories(${MBEDTLS_DIR}/build/library /usr/local/lib)
 
 add_executable(StorageBisen ${SERVER_BISEN_DIR}/main.cpp ${SERVER_BISEN_DIR}/SseServer.cpp ${SERVER_BISEN_DIR}/cassie.cpp)
 target_include_directories(StorageBisen PRIVATE ${FRAMEWORK_INCLUDE_DIR} ${SERVER_BISEN_DIR} ${SPARSEPP_DIR} /usr/local/include)
-target_link_libraries(StorageBisen ${LIB_UNTRUSTED} pthread cassandra)
+target_link_libraries(StorageBisen ${LIB_UNTRUSTED} pthread cassandra hiredis)

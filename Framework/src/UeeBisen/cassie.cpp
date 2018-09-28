@@ -51,6 +51,37 @@ CassError execute_query(CassSession* session, const char* query) {
     return rc;
 }
 
+size_t get_size(CassSession* session) {
+    size_t size = 0;
+
+    CassFuture* future = NULL;
+    CassStatement* statement = cass_statement_new("SELECT count(*) FROM isen.pairs;", 0);
+
+    future = cass_session_execute(session, statement);
+    cass_future_wait(future);
+
+    CassError rc = cass_future_error_code(future);
+    if (rc != CASS_OK) {
+        print_error(future);
+    } else {
+        const CassResult* result = cass_future_get_result(future);
+        CassIterator* iterator = cass_iterator_from_result(result);
+
+        if (cass_iterator_next(iterator)) {
+            const CassRow* row = cass_iterator_get_row(iterator);
+            cass_value_get_int64(cass_row_get_column(row, 0), (cass_int64_t*)&size);
+        }
+
+        cass_result_free(result);
+        cass_iterator_free(iterator);
+    }
+
+    cass_future_free(future);
+    cass_statement_free(statement);
+
+    return size;
+}
+
 CassError prepare_insert_into_batch(CassSession* session, const CassPrepared** prepared) {
     const char* query = "INSERT INTO isen.pairs (key, value) VALUES (?, ?)";
 

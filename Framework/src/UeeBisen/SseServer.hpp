@@ -22,7 +22,11 @@
 #include <sparsepp/spp.h>
 #endif
 
-#define CASSANDRA 0
+#define STORAGE_MAP 0
+#define STORAGE_CASSANDRA 1
+#define STORAGE_REDIS 2
+
+#define STORAGE STORAGE_MAP
 
 using namespace std;
 
