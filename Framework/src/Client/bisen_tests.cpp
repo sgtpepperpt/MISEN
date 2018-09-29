@@ -97,13 +97,13 @@ void bisen_update(secure_connection* conn, SseClient* client, char* bisen_doc_ty
 
         free(buffer);
 
-        if (nr_updates >= nr_docs) {
+        if (nr_docs > 0 && nr_updates >= nr_docs) {
             printf("Breaking, done enough updates (%lu/%u)\n", nr_updates, nr_docs);
             break;
         }
     }
 
-    printf("-- BISEN TOTAL add: %lf ms %lu docs--\n", total_client + total_iee, nr_updates);
+    printf("-- BISEN TOTAL add: %lf ms (%lu docs)--\n", total_client + total_iee, nr_updates);
     printf("-- BISEN add client: %lf ms --\n", total_client);
     printf("-- BISEN add iee w/ net: %lf ms --\n", total_iee);
 }
@@ -114,6 +114,8 @@ void bisen_search(secure_connection* conn, SseClient* client, vector<string> que
     unsigned char* data_bisen;
     size_t data_size_bisen;
 
+    printf("-- BISEN CLIENT SEARCHES --\n");
+    printf("NR\tTOTAL_client\tTOTAL_iee_w_net\tDOCS_RETURNED\n");
     for (unsigned k = 0; k < queries.size(); k++) {
         double total_client = 0, total_iee = 0;
 
@@ -138,12 +140,12 @@ void bisen_search(secure_connection* conn, SseClient* client, vector<string> que
         gettimeofday(&end, NULL);
         total_iee += untrusted_util::time_elapsed_ms(start, end);
 
-        uint8_t has_scoring;
-        memcpy(&has_scoring, bisen_out, sizeof(uint8_t));
-
         gettimeofday(&start, NULL);
         size_t n_docs;
-        memcpy(&n_docs, bisen_out + sizeof(uint8_t), sizeof(size_t));
+        memcpy(&n_docs, bisen_out, sizeof(size_t));
+
+        uint8_t has_scoring;
+        memcpy(&has_scoring, bisen_out + sizeof(size_t), sizeof(uint8_t));
 
         int pair_len = sizeof(int);
         if(has_scoring)
@@ -180,9 +182,6 @@ void bisen_search(secure_connection* conn, SseClient* client, vector<string> que
         gettimeofday(&end, NULL);
         total_client += untrusted_util::time_elapsed_ms(start, end);
 
-        printf("## BISEN search %u ##\n", k);
-        printf("-- BISEN TOTAL: %lf ms (res %lu docs) --\n", total_client + total_iee, n_docs);
-        printf("-- BISEN client: %lf ms --\n", total_client);
-        printf("-- BISEN iee w/ net: %lf ms --\n", total_iee);
+        printf("%u\t%lf\t%lf\t%lu\n", k, total_client, total_iee, n_docs);
     }
 }

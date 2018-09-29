@@ -7,6 +7,7 @@
 #include "trusted_util.h"
 #include "trusted_crypto.h"
 #include "definitions.h"
+#include "outside_util.h"
 
 #include "IeeUtils.h"
 #include "QueryEvaluator.h"
@@ -80,9 +81,11 @@ void benchmarking_print() {
     outside_util::printf("-- BISEN add uee w/ net: %lfms --\n", total_server_add);
 
     outside_util::printf("-- BISEN IEE SEARCHES --\n");
-    outside_util::printf("GRAND TOTAL\tTOTAL iee\tTOTAL storage\tSCORING\tBOOLEAN\tDOCS_BEFORE_TRIM\n");
+    outside_util::printf("NR\tTOTAL_iee\tTOTAL_storage_w_net\tSCORING\tBOOLEAN\tDOCS_BEFORE_TRIM\n");
+
+    unsigned count = 0;
     for (search_res r : search_results) {
-        outside_util::printf("%lf\t%lf\t%lf\t%lf\t%lf\t%lu\n", r.total_iee + r.wait_uee, r.total_iee, r.wait_uee, r.scoring, r.boolean_resolution, r.docs_retrieved);
+        outside_util::printf("%u\t%lf\t%lf\t%lf\t%lf\t%lu\n", count++, r.total_iee, r.wait_uee, r.scoring, r.boolean_resolution, r.docs_retrieved);
     }
 
     // BENCHMARK : tell server to print statistics
@@ -382,6 +385,8 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
 
             memcpy(&req->tkn->doc_frequencies.array[req->counter_val], dec_buff + SHA256_OUTPUT_SIZE, sizeof(int));
             memcpy(&req->tkn->docs.array[req->counter_val], dec_buff + SHA256_OUTPUT_SIZE + sizeof(int), sizeof(int));
+
+            //outside_util::printf("doc %d\n", req->tkn->docs.array[req->counter_val]);
         }
 
         label_pos += batch_size;
@@ -592,7 +597,7 @@ void search(bytes* out, size* out_len, uint8_t* in, const size in_len) {
     memcpy(*out, &elements, sizeof(size_t));
 
     const uint8_t score = SCORING;
-    memcpy(*out, &score, sizeof(uint8_t));
+    memcpy(*out + sizeof(size_t), &score, sizeof(uint8_t));
     memcpy(*out + sizeof(size_t) + sizeof(uint8_t), results_buffer, elements * PAIR_LEN);
 
     // free the buffers in iee_tokens

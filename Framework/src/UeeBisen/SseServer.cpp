@@ -258,9 +258,10 @@ void* process_client(void* args) {
                 printf("BISEN SERVER: size index: %lu\n", db_size);
 
                 printf("-- BISEN STORAGE SEARCHES --\n");
-                printf("TOTAL\tPROCESSING\tNETWORK\tBATCHES\tLABELS\n");
+                printf("NR\tPROCESSING\tNETWORK\tBATCHES\tLABELS\n");
+                unsigned count = 0;
                 for (search_res r : search_results) {
-                    printf("%lf\t%lf\t%lf\t%lu\t%lu\n", r.network + r.processing, r.processing, r.network, r.batches, r.nr_labels);
+                    printf("%u\t%lf\t%lf\t%lu\t%lu\n", count++, r.processing, r.network, r.batches, r.nr_labels);
                 }
 
                 // reset
