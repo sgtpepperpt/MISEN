@@ -77,7 +77,7 @@ void benchmarking_print() {
     // this instruction can be safely removed if wanted
 
     // add stats
-    outside_util::printf("-- BISEN add iee: %lfms %lu imgs--\n", total_iee_add, count_add);
+    outside_util::printf("-- BISEN add iee: %lfms (%lu docs)--\n", total_iee_add, count_add);
     outside_util::printf("-- BISEN add uee w/ net: %lfms --\n", total_server_add);
 
     outside_util::printf("-- BISEN IEE SEARCHES --\n");
@@ -104,7 +104,7 @@ void search_start_benchmark_msg() {
 }
 
 void init_pipes() {
-    server_socket = outside_util::open_socket("localhost", 7899);
+    server_socket = outside_util::open_socket("localhost", UEE_BISEN_PORT);
     outside_util::printf("Finished IEE init! Gonna start listening for client requests through bridge!\n");
 }
 
@@ -411,14 +411,13 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
 #endif
 }
 
-#define SCORING 0
-#if SCORING
+#if BISEN_SCORING
 #define PAIR_LEN (sizeof(int) + sizeof(double))
 #else
 #define PAIR_LEN (sizeof(int))
 #endif
 
-#if SCORING
+#if BISEN_SCORING
 void calc_idf(vec_token *query, const unsigned total_docs) {
     for(unsigned i = 0; i < vt_size(query); i++) {
         iee_token* t = &query->array[i];
@@ -566,7 +565,7 @@ void search(bytes* out, size* out_len, uint8_t* in, const size in_len) {
     if(original_res_size) {
         results_buffer = malloc(original_res_size * PAIR_LEN);
 
-#if SCORING
+#if BISEN_SCORING
         untrusted_time starts = outside_util::curr_time();
         // calculate idf for each term
         calc_idf(&query, nDocs);
@@ -581,7 +580,7 @@ void search(bytes* out, size* out_len, uint8_t* in, const size in_len) {
 #endif
     }
 
-#if SCORING
+#if BISEN_SCORING
     const size_t threshold = 10;
 #else
     const size_t threshold = original_res_size;
@@ -596,7 +595,7 @@ void search(bytes* out, size* out_len, uint8_t* in, const size in_len) {
     const size_t elements = std::min(threshold, original_res_size);
     memcpy(*out, &elements, sizeof(size_t));
 
-    const uint8_t score = SCORING;
+    const uint8_t score = BISEN_SCORING;
     memcpy(*out + sizeof(size_t), &score, sizeof(uint8_t));
     memcpy(*out + sizeof(size_t) + sizeof(uint8_t), results_buffer, elements * PAIR_LEN);
 

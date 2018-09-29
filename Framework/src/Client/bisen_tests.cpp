@@ -55,9 +55,7 @@ void bisen_update(secure_connection* conn, SseClient* client, char* bisen_doc_ty
         size_t total_size = 0;
         const size_t to_send = docs.size();
 
-        for (int i = 0; i < docs.size(); i++) {
-            const map<string, int> text = docs[i];
-
+        for (const map<string, int> text : docs) {
             // generate the byte* to send to the server
             gettimeofday(&start, NULL);
             unsigned char* data_bisen;
@@ -71,7 +69,7 @@ void bisen_update(secure_connection* conn, SseClient* client, char* bisen_doc_ty
 
         // put messages into bulk buffer
         const size_t buffer_len = sizeof(uint8_t) + sizeof(size_t) + docs.size() * sizeof(size_t) + total_size;
-        uint8_t* buffer = (uint8_t*)malloc(sizeof(uint8_t) + sizeof(size_t) + docs.size() * sizeof(size_t) + total_size);
+        uint8_t* buffer = (uint8_t*)malloc(buffer_len);
         buffer[0] = OP_IEE_BISEN_BULK;
         uint8_t* tmp = buffer + sizeof(uint8_t);
 

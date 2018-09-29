@@ -6,6 +6,7 @@
 
 #define UEE_HOSTNAME "localhost"
 #define UEE_PORT 7911
+#define UEE_BISEN_PORT 7899
 
 // op codes
 #define OP_IEE_INIT 'a'
@@ -39,7 +40,10 @@
 #define OP_IEE_BISEN_BULK 'z'
 
 // debug
-#define DEBUG_PRINT_BISEN_CLIENT 1
+#define DEBUG_PRINT_BISEN_CLIENT 0
+
+// bisen params
+#define BISEN_SCORING 0
 
 // visen params
 #define DESC_SIFT 0

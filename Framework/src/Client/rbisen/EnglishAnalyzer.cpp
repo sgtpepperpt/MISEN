@@ -29,7 +29,7 @@ char* EnglishAnalyzer::stemWord(string word) {
     string response;
 
     for(int i = 0; original[i] != '\0'; i++)
-        original[i] = tolower(original[i]); /* forces lower case */
+        original[i] = (char)tolower(original[i]); /* forces lower case */
 
     original[stem(original,0,strlen(original)-1)+1]  = 0; /* calls the stemmer and uses its result to zero-terminate the string in s */
 
@@ -37,9 +37,6 @@ char* EnglishAnalyzer::stemWord(string word) {
 }
 
 void EnglishAnalyzer::stemWord_wiki(char* word) {
-    //for(int i = 0; word[i] != '\0'; i++)
-     //   word[i] = tolower(word[i]); /* forces lower case */
-
     word[stem(word,0,strlen(word)-1)+1]  = 0; /* calls the stemmer and uses its result to zero-terminate the string in s */
 }
 
@@ -79,12 +76,11 @@ map<string, int> EnglishAnalyzer::extractUniqueKeywords(string file) {
     }
 }
 
-#define REGISTER_ARTICLES 1
+#define REGISTER_ARTICLES 0
 #if REGISTER_ARTICLES
 size_t overall_id = 0;
 #endif
 vector<map<string, int>> EnglishAnalyzer::extractUniqueKeywords_wiki(string fname) {
-    //seen_pt = 0;
     vector<map<string, int>> word_map;
     map<string, int> newmap;
     word_map.push_back(newmap);
@@ -120,19 +116,10 @@ vector<map<string, int>> EnglishAnalyzer::extractUniqueKeywords_wiki(string fnam
 
             fprintf(f, "%lu %s\n", overall_id++, tmp);
 #endif
-
-            char m[128];
-            sprintf(m, "aaaa%lu", overall_id);
-
-            string n(tmp);
-            replace(n.begin(), n.end(), ' ', '_');
-            word_map[curr_article][n] = 1;
-            word_map[curr_article][m] = 1;
             continue;
         }
 
         if(!memcmp(l, "</doc>", 5)) {
-            //seen_pt = 0;
             curr_article++;
             map<string, int> newmap;
             word_map.push_back(newmap);
@@ -161,16 +148,6 @@ vector<map<string, int>> EnglishAnalyzer::extractUniqueKeywords_wiki(string fnam
             }
         }
     }
-
-    /*for(set<string> a : docs) {
-        set<string>::iterator iter;
-        for(iter=a.begin(); iter!=a.end();++iter){
-            cout<<(*iter)<< " ";
-        }
-
-        cout << endl;
-    }*/
-    //printf("seen %lu words (pt %lu)\n", seen, portugal);
 #if REGISTER_ARTICLES
     fclose(f);
 #endif

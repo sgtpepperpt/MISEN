@@ -1,11 +1,3 @@
-//
-//  MainUEE.cpp
-//  BooleanSSE
-//
-//  Created by Bernardo Ferreira on 16/11/16.
-//  Copyright © 2016 Bernardo Ferreira. All rights reserved.
-//
-
 #include "SseServer.hpp"
 
 #include <sys/socket.h>
@@ -15,6 +7,21 @@
 #include <sys/ioctl.h>
 #include "untrusted_util.h"
 #include "definitions.h"
+
+#if STORAGE == STORAGE_MAP
+    #if MAP_TYPE == MAP_TYPE_UNORDERED
+#include <map>
+#include <unordered_map>
+typedef unordered_map<void*, void*, VoidHash, VoidEqual> storage_map;
+    #elif MAP_TYPE == MAP_TYPE_SPARSE
+#include <sparsepp/spp.h>
+typedef spp::sparse_hash_map<void*, void*, VoidHash, VoidEqual> storage_map;
+    #elif MAP_TYPE == MAP_TYPE_TBB
+#include "tbb/concurrent_unordered_map.h"
+typedef tbb::concurrent_unordered_map<void*, void*, VoidHash, VoidEqual> storage_map;
+    #endif
+
+#endif
 
 #if STORAGE == STORAGE_CASSANDRA
 #include "cassie.h"
@@ -58,7 +65,7 @@ void* process_client(void* args) {
         }
     }
 #elif STORAGE == STORAGE_MAP
-    uee_map I;
+    storage_map I;
 #endif
 
     vector<search_res> search_results;
@@ -288,7 +295,7 @@ void* process_client(void* args) {
 }
 
 SseServer::SseServer() {
-    const int server_port = 7899;
+    const int server_port = UEE_BISEN_PORT;
 #if STORAGE == STORAGE_CASSANDRA
     // only cassandra has a global session
     char* hosts = "127.0.0.1";
