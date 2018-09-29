@@ -474,7 +474,7 @@ int compare_results_rbisen(const void *a, const void *b) {
 #endif
 
 void search(bytes* out, size* out_len, uint8_t* in, const size in_len) {
-    outside_util::printf("## BISEN Search %lu ##\n", search_results.size());
+    //outside_util::printf("## BISEN Search %lu ##\n", search_results.size());
     search_start_benchmark_msg();
 
     search_res current_src;

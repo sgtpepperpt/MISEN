@@ -13,8 +13,6 @@ extern "C" {
 #include "rbisen/types.h"
 }
 
-#define DEBUG_PRINT 1
-
 void bisen_setup(secure_connection* conn, SseClient* client) {
     unsigned char* data_bisen;
     unsigned long long data_size_bisen;
@@ -121,7 +119,7 @@ void bisen_search(secure_connection* conn, SseClient* client, vector<string> que
 
         gettimeofday(&start, NULL);
         string query = queries[k];
-#if DEBUG_PRINT
+#if DEBUG_PRINT_BISEN_CLIENT
         printf("\n----------------------------\n");
         printf("Query %d: %s\n", k, query.c_str());
 #endif
@@ -151,7 +149,7 @@ void bisen_search(secure_connection* conn, SseClient* client, vector<string> que
         if(has_scoring)
             pair_len += sizeof(double);
 
-#if DEBUG_PRINT
+#if DEBUG_PRINT_BISEN_CLIENT
         printf("Number of docs: %lu\n", n_docs);
 #endif
 
@@ -162,18 +160,18 @@ void bisen_search(secure_connection* conn, SseClient* client, vector<string> que
                 double s;
                 memcpy(&d, tmp + i * pair_len, sizeof(int));
                 memcpy(&s, tmp + i * pair_len + sizeof(int), sizeof(double));
-#if DEBUG_PRINT
+#if DEBUG_PRINT_BISEN_CLIENT
                 printf("%d %f\n", d, s);
 #endif
             } else {
                 int d;
                 memcpy(&d, tmp + i * pair_len, sizeof(int));
-#if DEBUG_PRINT
+#if DEBUG_PRINT_BISEN_CLIENT
                 printf("%d ", d);
 #endif
             }
         }
-#if DEBUG_PRINT
+#if DEBUG_PRINT_BISEN_CLIENT
         if(!has_scoring)
             printf("\n");
 #endif

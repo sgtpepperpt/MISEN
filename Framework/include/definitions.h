@@ -38,6 +38,9 @@
 
 #define OP_IEE_BISEN_BULK 'z'
 
+// debug
+#define DEBUG_PRINT_BISEN_CLIENT 1
+
 // visen params
 #define DESC_SIFT 0
 #define DESC_SURF 1
