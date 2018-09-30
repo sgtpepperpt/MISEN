@@ -1,53 +1,4 @@
-#include "StorageServer.h"
-
-#include <sys/time.h>
-#include <time.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-
-#include "definitions.h"
-#include "untrusted_util.h"
-
-using namespace std;
-
-/****************************************************** NET DATA ******************************************************/
-static int server_socket;
-
-typedef struct client_data {
-    int socket;
-} client_data;
-
-static void close_all(int signum) {
-    close(server_socket);
-    fflush(NULL);
-    exit(0);
-}
-/****************************************************** NET DATA ******************************************************/
-
-void ok_response(uint8_t** out, size_t* out_len) {
-    *out_len = 1;
-    *out = (uint8_t*)malloc(sizeof(unsigned char));
-    *out[0] = 'x';
-}
-
-tbb::concurrent_unordered_map<void*, void*, VoidHash<l_size>, VoidEqual<l_size>> I;
-
-static void repository_clear() {
-    for (tbb::concurrent_unordered_map<void*, void*, VoidHash<l_size>, VoidEqual<l_size>>::iterator it = I.begin(); it != I.end() ; ++it) {
-        free(it->first);
-        free(it->second);
-    }
-
-    I.clear();
-}
-
-void* process_client(void* args) {
-    const int socket = ((client_data *) args)->socket;
-    free(args);
-
-    struct timeval start, end;
-    double total_add_time = 0, total_search_time = 0;
-
+#if 0
     while (1) {
         uint8_t op;
         untrusted_util::socket_receive(socket, &op, sizeof(uint8_t));
@@ -206,37 +157,4 @@ void* process_client(void* args) {
                 printf("SseServer unkonwn command: %02x\n", op);
         }
     }
-
-    printf("Client closed\n");
-    close(socket);
-}
-
-int main(int argc, const char ** argv) {
-    const int server_port = UEE_PORT;
-
-    // register signal handler
-    signal(SIGINT, close_all);
-
-    // initialise listener socket
-    int server_socket = untrusted_util::init_server(server_port);
-
-    struct sockaddr_in client_addr;
-    socklen_t client_addr_len = 0;
-
-    printf("Listening for requests...\n");
-    while (1) {
-        client_data *data = (client_data *)malloc(sizeof(client_data));
-
-        if ((data->socket = accept(server_socket, (struct sockaddr *)&client_addr, &client_addr_len)) < 0) {
-            printf("Accept failed!\n");
-            break;
-        }
-
-        printf("Client connected (%s)\n", inet_ntoa(client_addr.sin_addr));
-
-        pthread_t tid;
-        pthread_create(&tid, NULL, process_client, data);
-    }
-
-    close(server_socket);
-}
+#fi

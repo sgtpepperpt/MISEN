@@ -161,14 +161,14 @@ static void update(bytes *out, size *out_len, uint8_t* in, const size in_len) {
 
     // size of single buffers
     const size_t recv_len = SHA256_OUTPUT_SIZE + 3 * sizeof(int);
-    const size_t d_unenc_len = SHA256_OUTPUT_SIZE + 2 * sizeof(int);
+    const size_t d_unenc_len = SHA256_OUTPUT_SIZE + sizeof(size_t) + sizeof(int);
     const size_t d_enc_len = d_unenc_len;
 
     // size of batch requests to server
     size_t to_recv = to_recv_len / recv_len;
 
     // buffers for reuse while receiving
-    unsigned char* unenc_data = (unsigned char*)malloc(sizeof(unsigned char) * d_unenc_len);
+    unsigned char* unenc_data = (unsigned char*)malloc(d_unenc_len);
 
     // will contain at most max_batch_size (l,id*) pairs
     const size_t pair_size = SHA256_OUTPUT_SIZE + d_enc_len;
@@ -190,6 +190,7 @@ static void update(bytes *out, size *out_len, uint8_t* in, const size in_len) {
             int doc_id;
             memcpy(&doc_id, tmp, sizeof(int));
             tmp = ((char*)tmp) + sizeof(int);
+            size_t id = (size_t)doc_id; // TODO should already come from the client as size_t
 
             int counter;
             memcpy(&counter, tmp, sizeof(int));
@@ -211,7 +212,7 @@ static void update(bytes *out, size *out_len, uint8_t* in, const size in_len) {
             // hmac + frequency + doc_id
             memcpy(unenc_data, label, SHA256_OUTPUT_SIZE);
             memcpy(unenc_data + SHA256_OUTPUT_SIZE, &frequency, sizeof(int));
-            memcpy(unenc_data + SHA256_OUTPUT_SIZE + sizeof(int), &doc_id, sizeof(int));
+            memcpy(unenc_data + SHA256_OUTPUT_SIZE + sizeof(int), &id, sizeof(size_t));
 
             // store in batch_buffer
             unsigned char ctr[AES_BLOCK_SIZE];
@@ -311,7 +312,7 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
 
     // buffer for encrypted server responses
     // contains the hmac for verif, the doc id, and the encryption's exp
-    const size_t res_len = SHA256_OUTPUT_SIZE + 2 * sizeof(int); // 44 + H_BYTES (32)
+    const size_t res_len = SHA256_OUTPUT_SIZE + sizeof(size_t) + sizeof(int); // 44 + H_BYTES (32)
     unsigned char* res_buff = (unsigned char*)malloc(res_len * MAX_BATCH_SEARCH);
 
     /********************** END ALLOCATE DATA STRUCTURES **********************/
@@ -353,7 +354,7 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
         // decrypt and fill the destination data structs
         start = outside_util::curr_time();
         for(unsigned i = 0; i < batch_size; i++) {
-            uint8_t dec_buff[SHA256_OUTPUT_SIZE + 2 * sizeof(int)];
+            uint8_t dec_buff[SHA256_OUTPUT_SIZE + sizeof(size_t) + sizeof(int)];
 
             label_request* req = &labels[label_pos + i];
 
@@ -383,8 +384,12 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
                 outside_util::exit(-1);
             }
 
+            size_t doc_id;
+
             memcpy(&req->tkn->doc_frequencies.array[req->counter_val], dec_buff + SHA256_OUTPUT_SIZE, sizeof(int));
-            memcpy(&req->tkn->docs.array[req->counter_val], dec_buff + SHA256_OUTPUT_SIZE + sizeof(int), sizeof(int));
+            memcpy(&doc_id, dec_buff + SHA256_OUTPUT_SIZE + sizeof(int), sizeof(size_t));
+
+            req->tkn->docs.array[req->counter_val] = (int)doc_id; // TODO should also be size_t, this converts it to the iee representation as int
 
             //outside_util::printf("doc %d\n", req->tkn->docs.array[req->counter_val]);
         }
