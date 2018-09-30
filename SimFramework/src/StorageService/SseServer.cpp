@@ -1,11 +1,3 @@
-//
-//  MainUEE.cpp
-//  BooleanSSE
-//
-//  Created by Bernardo Ferreira on 16/11/16.
-//  Copyright © 2016 Bernardo Ferreira. All rights reserved.
-//
-
 #include "SseServer.hpp"
 
 #include <sys/socket.h>
@@ -16,13 +8,29 @@
 #include "untrusted_util.h"
 #include "definitions.h"
 
+#if STORAGE == STORAGE_MAP
+    #if MAP_TYPE == MAP_TYPE_UNORDERED
+#include <map>
+#include <unordered_map>
+typedef unordered_map<void*, void*, VoidHash, VoidEqual> storage_map;
+    #elif MAP_TYPE == MAP_TYPE_SPARSE
+#include <sparsepp/spp.h>
+typedef spp::sparse_hash_map<void*, void*, VoidHash, VoidEqual> storage_map;
+    #elif MAP_TYPE == MAP_TYPE_TBB
+#include "tbb/concurrent_unordered_map.h"
+typedef tbb::concurrent_unordered_map<void*, void*, VoidHash, VoidEqual> storage_map;
+    #endif
+#endif
+
 #if STORAGE == STORAGE_CASSANDRA
 #include "cassie.h"
-
 CassSession* session;
 CassCluster* cluster;
 #elif STORAGE == STORAGE_REDIS
 #include <hiredis/hiredis.h>
+redisContext* c;
+#elif STORAGE == STORAGE_MAP
+storage_map I;
 #endif
 
 using namespace std;
@@ -34,6 +42,7 @@ typedef struct search_res {
     size_t batches = 0;
     size_t nr_labels = 0;
 } search_res;
+vector<search_res> search_results;
 
 /*****************************************************************************/
 typedef struct client_data {
@@ -41,27 +50,10 @@ typedef struct client_data {
 } client_data;
 /*****************************************************************************/
 
-int c = 0;
 void* process_client(void* args) {
     client_data* data = (client_data*)args;
     int client_socket = data->socket;
     free(data);
-
-#if STORAGE == STORAGE_REDIS
-    redisContext *c = redisConnect("127.0.0.1", 6379);
-    if (c == NULL || c->err) {
-        if (c) {
-            printf("Error: %s\n", c->errstr);
-            // handle error
-        } else {
-            printf("Can't allocate redis context\n");
-        }
-    }
-#elif STORAGE == STORAGE_MAP
-    uee_map I;
-#endif
-
-    vector<search_res> search_results;
 
     struct timeval start;
     double total_add_time = 0;
@@ -69,22 +61,22 @@ void* process_client(void* args) {
     size_t count_adds = 0;
 
     while (1) {
-        unsigned char op;
-        untrusted_util::socket_receive(client_socket, &op, sizeof(unsigned char));
+        uint8_t op;
+        untrusted_util::socket_receive(client_socket, &op, sizeof(uint8_t));
 
         switch (op) {
-            //generate_setup_msg
             case OP_UEE_INIT: {
-                // delete existing map, only useful for reruns while debugging
-
 #if STORAGE == STORAGE_CASSANDRA
-
+                execute_query(session, "CREATE KEYSPACE IF NOT EXISTS isen WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1};");
+                execute_query(session, "DROP TABLE IF EXISTS isen.pairs;");
+                execute_query(session, "CREATE TABLE isen.pairs (key blob, value blob, PRIMARY KEY (key));");
 #elif STORAGE == STORAGE_REDIS
                 redisReply* reply = (redisReply*)redisCommand(c, "FLUSHALL");
                 if (!reply) {
                     printf("error redis flushall!\n");
                 }
 #elif STORAGE == STORAGE_MAP
+                // TODO fix, must deallocate "big" buffers instead, of which we must keep references to
                 /*if(!I.empty()) {
                     //#ifdef VERBOSE
                     printf("Size before: %lu\n", I.size());
@@ -99,13 +91,11 @@ void* process_client(void* args) {
                     I.clear();
                 }*/
 #endif
-
                 #ifdef VERBOSE
                 printf("Finished Setup!\n");
                 #endif
                 break;
             }
-            // add
             case OP_UEE_ADD: {
 
                 #ifdef VERBOSE
@@ -161,7 +151,6 @@ void* process_client(void* args) {
                 #endif
                 break;
             }
-            // search - get index positions
             case OP_UEE_SEARCH: {
                 #ifdef VERBOSE
                 printf("Started Search!\n");
@@ -169,8 +158,8 @@ void* process_client(void* args) {
 
                 // receive information from iee
                 start = untrusted_util::curr_time();
-                unsigned nr_labels;
-                untrusted_util::socket_receive(client_socket, &nr_labels, sizeof(unsigned));
+                size_t nr_labels;
+                untrusted_util::socket_receive(client_socket, &nr_labels, sizeof(size_t));
 
                 //cout << "batch_size " << nr_labels << endl;
 
@@ -235,7 +224,7 @@ void* process_client(void* args) {
                 search_results.back().nr_labels += nr_labels;
                 break;
             }
-            case '4': {
+            case OP_UEE_DUMP_BENCH: {
                 // this instruction is for benchmarking only and can be safely
                 // removed if wanted
                 size_t db_size = 0;
@@ -258,9 +247,10 @@ void* process_client(void* args) {
                 printf("BISEN SERVER: size index: %lu\n", db_size);
 
                 printf("-- BISEN STORAGE SEARCHES --\n");
-                printf("TOTAL\tPROCESSING\tNETWORK\tBATCHES\tLABELS\n");
+                printf("NR\tPROCESSING\tNETWORK\tBATCHES\tLABELS\n");
+                unsigned count = 0;
                 for (search_res r : search_results) {
-                    printf("%lf\t%lf\t%lf\t%lu\t%lu\n", r.network + r.processing, r.processing, r.network, r.batches, r.nr_labels);
+                    printf("%u\t%lf\t%lf\t%lu\t%lu\n", count++, r.processing, r.network, r.batches, r.nr_labels);
                 }
 
                 // reset
@@ -286,10 +276,15 @@ void* process_client(void* args) {
     }
 }
 
-SseServer::SseServer() {
-    const int server_port = 7899;
+int main(int argc, const char * argv[]) {
+    if(argc != 2) {
+        printf("Usage: ./Storage port\n");
+        exit(1);
+    }
+
+    const int server_port = atoi(argv[1]);
+
 #if STORAGE == STORAGE_CASSANDRA
-    // only cassandra has a global session
     char* hosts = "127.0.0.1";
 
     session = cass_session_new();
@@ -300,10 +295,16 @@ SseServer::SseServer() {
         cass_session_free(session);
         exit(1);
     }
-
-    execute_query(session, "CREATE KEYSPACE IF NOT EXISTS isen WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1};");
-    execute_query(session, "DROP TABLE IF EXISTS isen.pairs;");
-    execute_query(session, "CREATE TABLE isen.pairs (key blob, value blob, PRIMARY KEY (key));");
+#elif STORAGE == STORAGE_REDIS
+    c = redisConnect("127.0.0.1", 6379);
+    if (c == NULL || c->err) {
+        if (c) {
+            printf("Error: %s\n", c->errstr);
+            // handle error
+        } else {
+            printf("Can't allocate redis context\n");
+        }
+    }
 #endif
     struct sockaddr_in server_addr;
     memset(&server_addr, 0x00, sizeof(server_addr));
@@ -369,9 +370,3 @@ SseServer::SseServer() {
     cass_session_free(session);
 #endif
 }
-
-SseServer::~SseServer() {
-    //delete[] I;
-    //close(clientSock);
-}
-

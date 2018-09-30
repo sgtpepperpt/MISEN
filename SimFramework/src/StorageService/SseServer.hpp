@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -13,14 +14,12 @@
 #include <err.h>
 #include <assert.h>
 #include <vector>
-#include <unordered_map>
-#include <map>
 #include <pthread.h>
 
-#define SPARSE_MAP 1
-#if SPARSE_MAP
-#include <sparsepp/spp.h>
-#endif
+#define MAP_TYPE_UNORDERED 0
+#define MAP_TYPE_SPARSE 1
+#define MAP_TYPE_TBB 2
+#define MAP_TYPE MAP_TYPE_TBB
 
 #define STORAGE_MAP 0
 #define STORAGE_CASSANDRA 1
@@ -30,12 +29,8 @@
 
 using namespace std;
 
-// 32 = H_BYTES
-const size_t l_size = 32;
-
-// 84 = H_BYTES (32) + C_EXPBYTES (40) + doc_id (4) + frequency (4)
-const size_t d_size = 32 + 2 * sizeof(int);
-
+const size_t l_size = 32; // 32 = H_BYTES
+const size_t d_size = 44; // 40 bisen, 44 visen
 const size_t pair_len = l_size + d_size;
 
 static unsigned long crc32_tab[] = {
@@ -94,7 +89,6 @@ static unsigned long crc32_tab[] = {
    };
 
 /* Return a 32-bit CRC of the contents of the buffer. */
-
 static unsigned long tcrc32(const unsigned char *s, unsigned int len) {
     unsigned long crc32val = 0;
 
@@ -129,16 +123,6 @@ public:
     bool operator() (const void* p1, const void* p2) const {
         return !memcmp(p1, p2, l_size);
     }
-};
-
-#if SPARSE_MAP
-typedef unordered_map<void*, void*, VoidHash, VoidEqual> uee_map;
-#endif
-
-class SseServer {
-public:
-    SseServer();
-    ~SseServer();
 };
 
 #endif

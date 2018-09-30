@@ -22,8 +22,7 @@ set(sgx_cpp_flags "${sgx_c_flags}")
 # directories for modules
 set(LIB_UNTRUSTED_DIR ${FRAMEWORK_DIR}/src/LibUntrusted)
 set(LIB_TRUSTED_DIR ${FRAMEWORK_DIR}/src/LibTrusted)
-set(LIB_TRUSTED_SIM_DIR ${FRAMEWORK_DIR}/src/LibTrustedSim)
-set(SERVER_DIR ${FRAMEWORK_DIR}/src/Uee)
+set(STORAGE_DIR ${FRAMEWORK_DIR}/src/StorageService)
 set(CLIENT_DIR ${FRAMEWORK_DIR}/src/Client)
 set(IEE_COMM_DIR ${FRAMEWORK_DIR}/src/IeeComm)
 set(IEE_DIR ${FRAMEWORK_DIR}/src/Iee)
@@ -37,7 +36,7 @@ set(LIB_TRUSTED trusted_util)
 add_subdirectory(${LIB_TRUSTED_DIR})
 
 # uee module
-add_subdirectory(${SERVER_DIR})
+add_subdirectory(${STORAGE_DIR})
 
 # client module
 add_subdirectory(${CLIENT_DIR})
