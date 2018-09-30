@@ -89,7 +89,7 @@ void benchmarking_print() {
     }
 
     // BENCHMARK : tell server to print statistics
-    const uint8_t op = '4';
+    const uint8_t op = OP_UEE_DUMP_BENCH;
     outside_util::socket_send(server_socket, &op, sizeof(uint8_t));
 
     // reset
@@ -303,21 +303,21 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
     // (always max_batch_size, may not be filled if not needed)
     // op + batch_size + labels of H_BYTES len
     const size_t req_len = SHA256_OUTPUT_SIZE;
-    unsigned char* req_buff = (unsigned char*)malloc(sizeof(char) + sizeof(unsigned) + req_len * MAX_BATCH_SEARCH);
+    unsigned char* req_buff = (unsigned char*)malloc(sizeof(char) + sizeof(size_t) + req_len * MAX_BATCH_SEARCH);
 
     // put the op code in the buffer
-    const char op = OP_UEE_SEARCH;
-    memcpy(req_buff, &op, sizeof(unsigned char));
+    const uint8_t op = OP_UEE_SEARCH;
+    memcpy(req_buff, &op, sizeof(uint8_t));
 
     // buffer for encrypted server responses
     // contains the hmac for verif, the doc id, and the encryption's exp
     const size_t res_len = SHA256_OUTPUT_SIZE + 2 * sizeof(int); // 44 + H_BYTES (32)
-    unsigned char* res_buff = (unsigned char*)malloc(sizeof(unsigned char) * (res_len * MAX_BATCH_SEARCH));
+    unsigned char* res_buff = (unsigned char*)malloc(res_len * MAX_BATCH_SEARCH);
 
     /********************** END ALLOCATE DATA STRUCTURES **********************/
 
     unsigned label_pos = 0;
-    unsigned batch_size = std::min(total_labels - label_pos, (unsigned)MAX_BATCH_SEARCH);
+    size_t batch_size = std::min((size_t)(total_labels - label_pos), (size_t)MAX_BATCH_SEARCH);
 
     search_results.back().total_iee += trusted_util::time_elapsed_ms(start, outside_util::curr_time());
 
@@ -326,10 +326,10 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
         start = outside_util::curr_time();
 
         // put batch_size in buffer
-        memcpy(req_buff + sizeof(char), &batch_size, sizeof(unsigned));
+        memcpy(req_buff + sizeof(uint8_t), &batch_size, sizeof(size_t));
 
         // aux pointer
-        unsigned char* tmp = req_buff + sizeof(char) + sizeof(unsigned);
+        unsigned char* tmp = req_buff + sizeof(uint8_t) + sizeof(size_t);
 
         // fill the buffer with labels
         for(unsigned i = 0; i < batch_size; i++) {
@@ -346,7 +346,7 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
 
         // send message to server and receive response
         start = outside_util::curr_time();
-        outside_util::socket_send(server_socket, req_buff, sizeof(char) + sizeof(unsigned) + req_len * batch_size);
+        outside_util::socket_send(server_socket, req_buff, sizeof(uint8_t) + sizeof(size_t) + req_len * batch_size);
         outside_util::socket_receive(server_socket, res_buff, res_len * batch_size);
         search_results.back().wait_uee += trusted_util::time_elapsed_ms(start, outside_util::curr_time());
 
@@ -366,7 +366,7 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
             tcrypto::decrypt(dec_buff, res_buff + (res_len * i), res_len, k, ctr);
 
             // aux pointer for req
-            unsigned char* tmp_req = req_buff + sizeof(char) + sizeof(unsigned);
+            unsigned char* tmp_req = req_buff + sizeof(uint8_t) + sizeof(size_t);
             const uint8_t* label_verification = tmp_req + i * req_len;
 
             // verify

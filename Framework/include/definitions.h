@@ -53,7 +53,7 @@
 #define STORE_RESULTS 1
 #define TRAIN_MAIN_ONLY 1
 
-#define DESCRIPTOR DESC_SURF
+#define DESCRIPTOR DESC_SIFT
 // end visen params
 
 #endif

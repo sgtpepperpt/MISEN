@@ -224,9 +224,7 @@ int main(int argc, char** argv) {
     config_lookup_string(&cfg, "visen.train_mode", (const char**)&program_configs.visen_train_mode);
     config_lookup_string(&cfg, "visen.add_mode", (const char**)&program_configs.visen_add_mode);
     config_lookup_string(&cfg, "visen.search_mode", (const char**)&program_configs.visen_search_mode);
-    config_lookup_string(&cfg, "visen.clusters_file", (const char**)&program_configs.visen_clusters_file);
     config_lookup_string(&cfg, "visen.dataset_dir", (const char**)&program_configs.visen_dataset_dir);
-    config_lookup_string(&cfg, "visen.results_file", (const char**)&program_configs.visen_results_file);
     config_lookup_int(&cfg, "visen.descriptor_threshold", (int*)&program_configs.visen_descriptor_threshold);
     config_lookup_int(&cfg, "visen.nr_clusters", (int*)&program_configs.visen_nr_clusters);
 
@@ -242,6 +240,21 @@ int main(int argc, char** argv) {
         config_setting_t* q = config_setting_get_elem(queries_setting, i);
         program_configs.bisen_queries.push_back(string(config_setting_get_string(q)));
     }
+
+    char* clusters_file_dir, *results_file_dir;
+    config_lookup_string(&cfg, "visen.clusters_file_dir", (const char**)&clusters_file_dir);
+    config_lookup_string(&cfg, "visen.results_file_dir", (const char**)&results_file_dir);
+
+#if DESCRIPTOR == DESC_SIFT
+    const char* desc = "sift";
+#else
+    const char* desc = "surf";
+#endif
+
+    program_configs.visen_clusters_file = (char*)malloc(strlen(clusters_file_dir) + 27);
+    program_configs.visen_results_file = (char*)malloc(strlen(results_file_dir) + 29);
+    sprintf(program_configs.visen_clusters_file, "%s/centroids_k%04d_%s_%04d", clusters_file_dir, program_configs.visen_nr_clusters, desc, program_configs.visen_descriptor_threshold);
+    sprintf(program_configs.visen_results_file, "%s/results_k%04d_%s_%04d.dat", results_file_dir, program_configs.visen_nr_clusters, desc, program_configs.visen_descriptor_threshold);
 
     // parse terminal arguments
     int c;

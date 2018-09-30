@@ -30,7 +30,7 @@
 using namespace std;
 
 const size_t l_size = 32; // 32 = H_BYTES
-const size_t d_size = 32 + 2 * sizeof(int); // 84 = H_BYTES (32) + C_EXPBYTES (40) + doc_id (4) + frequency (4)
+const size_t d_size = 40; // 40 bisen, 44 visen
 const size_t pair_len = l_size + d_size;
 
 static unsigned long crc32_tab[] = {
@@ -123,12 +123,6 @@ public:
     bool operator() (const void* p1, const void* p2) const {
         return !memcmp(p1, p2, l_size);
     }
-};
-
-class SseServer {
-public:
-    SseServer();
-    ~SseServer();
 };
 
 #endif

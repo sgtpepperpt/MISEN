@@ -237,12 +237,20 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
     b->total_add_time += trusted_util::time_elapsed_ms(start, end);
 }
 
+void img_search_start_benchmark_msg() {
+    // this instruction is FOR BENCHMARKING ONLY can be safely removed if wanted
+    // BENCHMARK : tell server to end search
+    const uint8_t op = '5';
+    outside_util::socket_send(r->server_socket, &op, sizeof(uint8_t));
+}
+
 typedef struct img_pair {
     size_t img_id;
     unsigned frequency;
 } img_pair;
 
 void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* descriptors) {
+    img_search_start_benchmark_msg();
     b->count_searches++;
     untrusted_time start, end;
     start = outside_util::curr_time();
