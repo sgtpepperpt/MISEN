@@ -63,10 +63,11 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
         bisen_search(conn, &client, settings->bisen_queries);
 
         // print benchmark
-        uint8_t bench_op[2];
+        uint8_t bench_op[3];
         bench_op[0] = OP_RBISEN;
-        bench_op[1] = 0x5;
-        iee_comm(conn, bench_op, 2);
+        bench_op[1] = OP_IEE_DUMP_BENCH;
+        bench_op[2] = 0;
+        iee_comm(conn, bench_op, 3);
     }
 
     ///////////////////////////////
@@ -171,10 +172,11 @@ void multimodal_tests(const configs* const settings, secure_connection* conn) {
     printf("-- MISEN searches: %lfms %lu queries --\n", untrusted_util::time_elapsed_ms(start, end), multimodal_queries.size());
 
     // print benchmark bisen
-    uint8_t bench_op[2];
+    uint8_t bench_op[3];
     bench_op[0] = OP_RBISEN;
-    bench_op[1] = 0x5;
-    iee_comm(conn, bench_op, 2);
+    bench_op[1] = OP_IEE_DUMP_BENCH;
+    bench_op[2] = 1;
+    iee_comm(conn, bench_op, 3);
 
     // dump benchmark results
     size_t in_len;
@@ -255,6 +257,11 @@ int main(int argc, char** argv) {
     program_configs.visen_results_file = (char*)malloc(strlen(results_file_dir) + 29);
     sprintf(program_configs.visen_clusters_file, "%s/centroids_k%04d_%s_%04d", clusters_file_dir, program_configs.visen_nr_clusters, desc, program_configs.visen_descriptor_threshold);
     sprintf(program_configs.visen_results_file, "%s/results_k%04d_%s_%04d.dat", results_file_dir, program_configs.visen_nr_clusters, desc, program_configs.visen_descriptor_threshold);
+
+    if(!strcmp(program_configs.visen_train_mode, "train") && (access(program_configs.visen_clusters_file, F_OK) != -1)) {
+        printf("Clusters file already exists! Is training really needed?\n");
+        exit(1);
+    }
 
     // parse terminal arguments
     int c;

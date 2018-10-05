@@ -10,13 +10,15 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 11)
 
 if(SERVER_ONLY) # used for testing, to remove TODO
-    set(SPARSEPP_INCLUDE /localssd/gborges/isen-libs/sparsepp)
-    set(CASSANDRA_INCLUDE /localssd/gborges/isen-libs/cpp-driver/include)
-    set(HIREDIS_INCLUDE /localssd/gborges/isen-libs/hiredis)
+    set(LIB_DIR /localssd/gborges/isen-libs)
 
-    set(LIBUV_LIB_DIR /localssd/gborges/isen-libs/libuv/out/cmake)
-    set(CASSANDRA_LIB_DIR /localssd/gborges/isen-libs/cpp-driver/build)
-    set(HIREDIS_LIB_DIR /localssd/gborges/isen-libs/hiredis)
+    set(SPARSEPP_INCLUDE ${LIB_DIR}/sparsepp)
+    set(CASSANDRA_INCLUDE ${LIB_DIR}/cpp-driver/include)
+    set(HIREDIS_INCLUDE ${LIB_DIR}/hiredis)
+
+    set(LIBUV_LIB_DIR ${LIB_DIR}/libuv/out/cmake)
+    set(CASSANDRA_LIB_DIR ${LIB_DIR}/cpp-driver/build)
+    set(HIREDIS_LIB_DIR ${LIB_DIR}/hiredis)
 endif()
 
 link_directories(${MBEDTLS_DIR}/build/library ${LIBUV_LIB_DIR} ${CASSANDRA_LIB_DIR} ${HIREDIS_LIB_DIR} /usr/local/lib)

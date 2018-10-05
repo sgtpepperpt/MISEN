@@ -200,7 +200,7 @@ void visen_add_files(secure_connection* conn, descriptor_t descriptor, const vec
         free(in);
     }
 
-    printf("-- VISEN TOTAL add: %lf ms %lu imgs--\n", total_client + total_iee, files.size());
+    printf("-- VISEN TOTAL add: %lf ms (%lu imgs) --\n", total_client + total_iee, files.size());
     printf("-- VISEN add client: %lf ms --\n", total_client);
     printf("-- VISEN add iee w/ net: %lf ms --\n", total_iee);
 }

@@ -89,15 +89,13 @@ void* add_img_parallel(void* args) {
     return NULL;
 }
 #endif
+const size_t max_req_len = sizeof(unsigned char) + sizeof(size_t) + ADD_MAX_BATCH_LEN * PAIR_LEN;
+uint8_t* req_buffer = NULL;
 
 static void add_image(const unsigned long id, const size_t nr_desc, float* descriptors) {
     b->count_adds++;
     untrusted_time start, end;
     start = outside_util::curr_time();
-
-    // used for aes TODO better
-    unsigned char ctr[AES_BLOCK_SIZE];
-    memset(ctr, 0x00, AES_BLOCK_SIZE);
 
     const unsigned* frequencies;
     if(!strcmp(r->train_technique, "lsh"))
@@ -147,9 +145,6 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
     free(args);
 #else
     // prepare request to uee
-    size_t max_req_len = sizeof(unsigned char) + sizeof(size_t) + ADD_MAX_BATCH_LEN * PAIR_LEN;
-    uint8_t* req_buffer = (uint8_t*)malloc(max_req_len);
-
     // TODO should send r->cluster_count?? hides how many real descs, but also more weight for ocalls
     size_t nr_labels = 0;
     for (unsigned j = 0; j < r->cluster_count; ++j) {
@@ -178,8 +173,6 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
 
         // add all batch pairs to buffer
         for (size_t i = 0; i < batch_len; ++i) {
-            memset(ctr, 0x00, AES_BLOCK_SIZE);
-
             // calculate label based on current counter for the centre
             int counter = r->counters[centre_pos];
             tcrypto::hmac_sha256(tmp, &counter, sizeof(unsigned), r->centre_keys[centre_pos], LABEL_LEN);
@@ -204,7 +197,12 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
             memcpy(value + LABEL_LEN + sizeof(unsigned long), &frequencies[centre_pos], sizeof(unsigned));
 
             // encrypt value
-            tcrypto::encrypt(tmp, value, UNENC_VALUE_LEN, r->ke, ctr);
+            unsigned char ctr[AES_BLOCK_SIZE];
+            memset(ctr, 0x00, AES_BLOCK_SIZE);
+
+            unsigned char k[AES_KEY_SIZE];
+            memset(k, 0x00, AES_KEY_SIZE);
+            tcrypto::encrypt(tmp, value, UNENC_VALUE_LEN, k, ctr);
             tmp += ENC_VALUE_LEN;
 
             to_send--;
@@ -221,7 +219,7 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
 
         // send batch to server
         outside_util::socket_send(r->server_socket, req_buffer, sizeof(unsigned char) + sizeof(size_t) + batch_len * PAIR_LEN);
-        free(req_buffer);
+        //free(req_buffer);
 
         end = outside_util::curr_time();
         b->total_add_time_server += trusted_util::time_elapsed_ms(start, end);
@@ -575,6 +573,8 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             memcpy(&id, input, sizeof(unsigned long));
             //outside_util::printf("add, id %lu\n", id);
 
+            req_buffer = (uint8_t*)malloc(max_req_len);
+
             size_t nr_desc;
             memcpy(&nr_desc, input + sizeof(unsigned long), sizeof(size_t));
 
@@ -596,14 +596,16 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
         case OP_IEE_DUMP_BENCH: {
             outside_util::printf("-- IEE BENCHMARK --\n");
 
-            outside_util::printf("-- VISEN add iee: %lfms %lu imgs--\n", b->total_add_time, b->count_adds);
+            outside_util::printf("-- VISEN add iee: %lfms (%lu imgs) --\n", b->total_add_time, b->count_adds);
             outside_util::printf("-- VISEN add uee w/ net: %lfms --\n", b->total_add_time_server);
 
-            outside_util::printf("-- VISEN search iee: %lfms %lu imgs--\n", b->total_search_time, b->count_searches);
-            outside_util::printf("-- VISEN search uee w/ net: %lfms --\n", b->total_search_time_server);
+            outside_util::printf("-- VISEN search iee: %lfms (avgd. %lu imgs) --\n", b->total_search_time/b->count_searches, b->count_searches);
+            outside_util::printf("-- VISEN search uee w/ net: %lfms --\n", b->total_search_time_server/b->count_searches);
 
-            const unsigned char op = OP_UEE_DUMP_BENCH;
-            outside_util::socket_send(r->server_socket, &op, 1);
+            uint8_t op[2];
+            op[0] = OP_UEE_DUMP_BENCH;
+            op[1] = input[0];
+            outside_util::socket_send(r->server_socket, op, 2 * sizeof(uint8_t));
 
             ok_response(out, out_len);
             outside_util::printf("-- --------- --\n");

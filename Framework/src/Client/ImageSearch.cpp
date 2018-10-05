@@ -169,10 +169,11 @@ void clear(uint8_t** in, size_t* in_len) {
 }
 
 void dump_bench(uint8_t** in, size_t* in_len) {
-    *in_len = sizeof(unsigned char);
+    *in_len = 2 * sizeof(uint8_t);
 
     *in = (uint8_t*)malloc(*in_len);
-    *in[0] = OP_IEE_DUMP_BENCH;
+    (*in)[0] = OP_IEE_DUMP_BENCH;
+    (*in)[1] = 1;
 }
 
 void search(uint8_t** in, size_t* in_len, const descriptor_t descriptor, const std::string file_name) {
@@ -360,7 +361,7 @@ void search_test(secure_connection* conn, const descriptor_t descriptor, const c
     printHolidayResults(results_file, precision_res);
 #endif
 
-    printf("-- VISEN TOTAL search: %lf ms %lu queries--\n", total_client + total_iee, query_count);
-    printf("-- VISEN search client: %lf ms --\n", total_client);
-    printf("-- VISEN search iee w/ net: %lf ms --\n", total_iee);
+    printf("-- VISEN TOTAL search: %lf ms (avgd. %lu queries) --\n", (total_client + total_iee) / query_count, query_count);
+    printf("-- VISEN search client: %lf ms --\n", total_client / query_count);
+    printf("-- VISEN search iee w/ net: %lf ms --\n", total_iee / query_count);
 }

@@ -10,7 +10,6 @@
 #define OP_SETUP 0x69
 #define OP_ADD 0x61
 #define OP_SRC 0x73
-#define OP_BENCH 0x5 // only for benchmarking, prints stats
 
 #define RES_OK 0x90
 

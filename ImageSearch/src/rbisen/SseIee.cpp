@@ -22,7 +22,7 @@ using namespace std;
 
 static void init_pipes();
 //static void destroy_pipes();
-static void benchmarking_print(); // only for benchmarking, prints stats
+static void benchmarking_print(int aggregate); // only for benchmarking, prints stats
 static void setup(bytes* out, size* out_len, uint8_t* in, const size in_len);
 static void update(bytes* out, size* out_len, uint8_t* in, const size in_len);
 static void search(bytes* out, size* out_len, uint8_t* in, const size in_len);
@@ -65,32 +65,57 @@ void f(bytes* out, size* out_len, const unsigned long long pid, uint8_t* in, con
     //search operation
     else if (in[0] == OP_SRC)
         search(out, out_len, in, in_len);
-    else if (in[0] == OP_BENCH)
-        benchmarking_print();
+    else if (in[0] == OP_IEE_DUMP_BENCH)
+        benchmarking_print(in[1]);
 
     #ifdef VERBOSE
     //ocall_strprint("\n***** Leaving IEE *****\n\n");
     #endif
 }
 
-void benchmarking_print() {
+void benchmarking_print(int aggregate) {
     // this instruction can be safely removed if wanted
 
     // add stats
     outside_util::printf("-- BISEN add iee: %lfms (%lu docs)--\n", total_iee_add, count_add);
     outside_util::printf("-- BISEN add uee w/ net: %lfms --\n", total_server_add);
 
-    outside_util::printf("-- BISEN IEE SEARCHES --\n");
-    outside_util::printf("NR\tTOTAL_iee\tTOTAL_storage_w_net\tSCORING\tBOOLEAN\tDOCS_BEFORE_TRIM\n");
+    if(aggregate) {
+        const size_t nr_searches = search_results.size();
+        outside_util::printf("-- AVG BISEN IEE %lu SEARCHES --\n", nr_searches);
+        outside_util::printf("TOTAL_iee\tTOTAL_storage_w_net\tSCORING\tBOOLEAN\tDOCS_BEFORE_TRIM\n");
 
-    unsigned count = 0;
-    for (search_res r : search_results) {
-        outside_util::printf("%u\t%lf\t%lf\t%lf\t%lf\t%lu\n", count++, r.total_iee, r.wait_uee, r.scoring, r.boolean_resolution, r.docs_retrieved);
+        search_res agg;
+        for (search_res r : search_results) {
+            agg.total_iee += r.total_iee;
+            agg.wait_uee += r.wait_uee;
+            agg.scoring += r.scoring;
+            agg.boolean_resolution += r.boolean_resolution;
+            agg.docs_retrieved += r.docs_retrieved;
+        }
+
+        agg.total_iee /= nr_searches;
+        agg.wait_uee /= nr_searches;
+        agg.scoring /= nr_searches;
+        agg.boolean_resolution /= nr_searches;
+        agg.docs_retrieved /= nr_searches;
+
+        outside_util::printf("%lf\t%lf\t%lf\t%lf\t%lu\n", agg.total_iee, agg.wait_uee, agg.scoring, agg.boolean_resolution, agg.docs_retrieved);
+    } else {
+        outside_util::printf("-- BISEN IEE SEARCHES --\n");
+        outside_util::printf("NR\tTOTAL_iee\tTOTAL_storage_w_net\tSCORING\tBOOLEAN\tDOCS_BEFORE_TRIM\n");
+
+        unsigned count = 0;
+        for (search_res r : search_results) {
+            outside_util::printf("%u\t%lf\t%lf\t%lf\t%lf\t%lu\n", count++, r.total_iee, r.wait_uee, r.scoring, r.boolean_resolution, r.docs_retrieved);
+        }
     }
 
     // BENCHMARK : tell server to print statistics
-    const uint8_t op = OP_UEE_DUMP_BENCH;
-    outside_util::socket_send(server_socket, &op, sizeof(uint8_t));
+    uint8_t op[2];
+    op[0] = OP_UEE_DUMP_BENCH;
+    op[1] = aggregate;
+    outside_util::socket_send(server_socket, op, 2 * sizeof(uint8_t));
 
     // reset
     search_results.clear();
@@ -98,7 +123,7 @@ void benchmarking_print() {
 
 void search_start_benchmark_msg() {
     // this instruction is FOR BENCHMARKING ONLY can be safely removed if wanted
-    // BENCHMARK : tell server to end search
+    // BENCHMARK : tell server to start search
     const uint8_t op = '5';
     outside_util::socket_send(server_socket, &op, sizeof(uint8_t));
 }
@@ -131,8 +156,8 @@ static void setup(bytes* out, size* out_len, uint8_t* in, const size in_len) {
     printf("kF size %d\n", kF_size);*/
 
     // tell server to init index I
-    unsigned char op = OP_UEE_INIT;
-    outside_util::socket_send(server_socket, &op, sizeof(char));
+    const uint8_t op = OP_UEE_INIT;
+    outside_util::socket_send(server_socket, &op, sizeof(uint8_t));
 
     // init aux_bool buffer
     aux_bool = NULL;
@@ -256,22 +281,30 @@ static void update(bytes *out, size *out_len, uint8_t* in, const size in_len) {
     count_add++;
 }
 
+typedef struct {
+    iee_token *tkn;
+    unsigned counter_val;
+} label_request;
+
+// used to hold all labels in random order
+label_request* labels = NULL;
+size_t labels_size = 0;
+
 void get_docs_from_server(vec_token *query, const unsigned count_words, const unsigned total_labels) {
 #ifdef VERBOSE
     ocall_print_string("Requesting docs from server!\n");
 #endif
 
-    typedef struct {
-        iee_token *tkn;
-        unsigned counter_val;
-    } label_request;
-
     untrusted_time start;
     start = outside_util::curr_time();
 
-    // used to hold all labels in random order
-    label_request* labels = (label_request*)malloc(sizeof(label_request) * total_labels);
-    memset(labels, 0, sizeof(label_request) * total_labels);
+    if (total_labels > labels_size) {
+        labels = (label_request*)realloc(labels, sizeof(label_request) * total_labels);
+        labels_size = total_labels;
+        //outside_util::printf("reallocate %lu %u %p\n", sizeof(label_request) * total_labels, total_labels, labels);
+    }
+
+    memset(labels, 0x00, sizeof(label_request) * total_labels);
 
     // iterate over all the needed words, and then over all its occurences (given by the counter), and fills the requests array
     int k = 0;
@@ -330,7 +363,7 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
         memcpy(req_buff + sizeof(uint8_t), &batch_size, sizeof(size_t));
 
         // aux pointer
-        unsigned char* tmp = req_buff + sizeof(uint8_t) + sizeof(size_t);
+        uint8_t* tmp = req_buff + sizeof(uint8_t) + sizeof(size_t);
 
         // fill the buffer with labels
         for(unsigned i = 0; i < batch_size; i++) {
@@ -367,7 +400,7 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
             tcrypto::decrypt(dec_buff, res_buff + (res_len * i), res_len, k, ctr);
 
             // aux pointer for req
-            unsigned char* tmp_req = req_buff + sizeof(uint8_t) + sizeof(size_t);
+            uint8_t* tmp_req = req_buff + sizeof(uint8_t) + sizeof(size_t);
             const uint8_t* label_verification = tmp_req + i * req_len;
 
             // verify
@@ -401,7 +434,7 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
     }
 
     start = outside_util::curr_time();
-    free(labels);
+    //free(labels);
 
     memset(req_buff, 0, req_len * MAX_BATCH_SEARCH);
     memset(res_buff, 0, res_len * MAX_BATCH_SEARCH);

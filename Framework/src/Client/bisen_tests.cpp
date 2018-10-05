@@ -15,10 +15,9 @@ extern "C" {
 
 void bisen_setup(secure_connection* conn, SseClient* client) {
     unsigned char* data_bisen;
-    unsigned long long data_size_bisen;
 
     // setup
-    data_size_bisen = client->generate_setup_msg(&data_bisen);
+    unsigned long long data_size_bisen = client->generate_setup_msg(&data_bisen);
     iee_comm(conn, data_bisen, data_size_bisen);
     free(data_bisen);
 }
@@ -99,7 +98,7 @@ void bisen_update(secure_connection* conn, SseClient* client, char* bisen_doc_ty
         }
     }
 
-    printf("-- BISEN TOTAL add: %lf ms (%lu docs)--\n", total_client + total_iee, nr_updates);
+    printf("-- BISEN TOTAL add: %lf ms (%lu docs) --\n", total_client + total_iee, nr_updates);
     printf("-- BISEN add client: %lf ms --\n", total_client);
     printf("-- BISEN add iee w/ net: %lf ms --\n", total_iee);
 }

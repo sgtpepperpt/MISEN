@@ -213,24 +213,25 @@ void TLSConnectionHandler::handle(long thread_id, thread_info_t* thread_info) {
         //outside_util::printf("received length %lu\n", in_len);
 
         void* in_buffer = malloc(in_len);
+        //outside_util::printf("%p\n", in_buffer);
 
-        int has_read = 0;
-        while (has_read < in_len) {
-            len = read_ssl(ssl, (uint8_t*)in_buffer + has_read, in_len - has_read);
-
-            //outside_util::printf("read len %d\n", len);
+        size_t to_read = in_len;
+        size_t read = 0;
+        while(to_read) {
+            len = read_ssl(ssl, (uint8_t*)in_buffer + read, (to_read > 16384? 16384 : to_read));
             if (len < 0) {
                 outside_util::printf("error\n");
                 outside_util::exit(1);
             }
 
-            has_read += len;
+            to_read -= len;
+            read += len;
         }
 
         // execute extern lib processing
-        void* out;
+        uint8_t* out;
         size_t out_len;
-        extern_lib::process_message((uint8_t**)&out, &out_len, (const uint8_t *)in_buffer, (const size_t)in_len);
+        extern_lib::process_message(&out, &out_len, (const uint8_t *)in_buffer, (const size_t)in_len);
         free(in_buffer);
 
         // send to client
@@ -243,14 +244,16 @@ void TLSConnectionHandler::handle(long thread_id, thread_info_t* thread_info) {
         //outside_util::printf("sent len %lu\n", out_len);
 
         size_t to_send = out_len;
+        size_t sent = 0;
         while(to_send) {
-            len = write_ssl(ssl, out, (to_send > 16384? 16384 : to_send));
+            len = write_ssl(ssl, out + sent, (to_send > 16384? 16384 : to_send));
             if (len < 0) {
                 outside_util::printf("error\n");
                 outside_util::exit(1);
             }
 
             to_send -= len;
+            sent += len;
         }
 
         free(out);
