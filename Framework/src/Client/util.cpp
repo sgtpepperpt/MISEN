@@ -67,10 +67,14 @@ std::vector<std::string> list_txt_files(int limit, std::string path) {
     return filenames;
 }
 
+size_t bytes_sent = 0, bytes_received = 0;
+
 void iee_send(secure_connection* conn, const uint8_t* in, const size_t in_len) {
     //printf("will send %lu\n", in_len);
     untrusted_util::socket_secure_send(conn, &in_len, sizeof(size_t));
     untrusted_util::socket_secure_send(conn, in, in_len);
+
+    bytes_sent += sizeof(size_t) + in_len;
 }
 
 void iee_recv(secure_connection* conn, uint8_t** out, size_t* out_len) {
@@ -80,6 +84,17 @@ void iee_recv(secure_connection* conn, uint8_t** out, size_t* out_len) {
 
     *out = (uint8_t*)malloc(*out_len);
     untrusted_util::socket_secure_receive(conn, *out, *out_len);
+
+    bytes_received += sizeof(size_t) + *out_len;
+}
+
+void print_bytes(const char* msg) {
+    printf("Sent bytes %s client: %lu\nReceived bytes client: %lu\n", msg, bytes_sent, bytes_received);
+}
+
+void reset_bytes() {
+    bytes_sent = 0;
+    bytes_received = 0;
 }
 
 void iee_comm(secure_connection* conn, const void* in, const size_t in_len) {

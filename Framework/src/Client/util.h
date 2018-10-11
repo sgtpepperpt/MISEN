@@ -13,5 +13,7 @@ std::vector<std::string> list_txt_files(int limit, std::string dataset_path);
 void iee_send(secure_connection* conn, const uint8_t* in, const size_t in_len);
 void iee_recv(secure_connection* conn, uint8_t** out, size_t* out_len);
 void iee_comm(secure_connection* conn, const void* in, const size_t in_len);
+void print_bytes(const char* msg);
+void reset_bytes();
 
 #endif //VISEN_UTIL_H

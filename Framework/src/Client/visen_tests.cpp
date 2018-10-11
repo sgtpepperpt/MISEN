@@ -184,7 +184,7 @@ void visen_add_files(secure_connection* conn, descriptor_t descriptor, const vec
     uint8_t* in;
 
     for (unsigned i = 0; i < files.size(); i++) {
-        if(i % 50 == 0)
+        //if(i % 50 == 0)
             printf("Add img (%u/%lu)\n", i, files.size());
 
         gettimeofday(&start, NULL);

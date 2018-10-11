@@ -10,7 +10,7 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 11)
 
 if(SERVER_ONLY) # used for testing, to remove TODO
-    set(LIB_DIR /localssd/gborges/isen-libs)
+    set(LIB_DIR /localhome/gborges/isen-libs)
 
     set(SPARSEPP_INCLUDE ${LIB_DIR}/sparsepp)
     set(CASSANDRA_INCLUDE ${LIB_DIR}/cpp-driver/include)

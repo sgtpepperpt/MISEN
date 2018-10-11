@@ -43,6 +43,8 @@ typedef struct search_res {
     size_t nr_labels = 0;
 } search_res;
 vector<search_res> search_results;
+size_t bytes_sent_upd = 0, bytes_received_upd = 0;
+size_t bytes_sent_src = 0, bytes_received_src = 0;
 
 /*****************************************************************************/
 typedef struct client_data {
@@ -97,6 +99,7 @@ void* process_client(void* args) {
                 break;
             }
             case OP_UEE_ADD: {
+                bytes_received_upd++;
 
                 #ifdef VERBOSE
                 printf("Started Add!\n");
@@ -145,6 +148,7 @@ void* process_client(void* args) {
 #endif
                 total_add_time += untrusted_util::time_elapsed_ms(start, untrusted_util::curr_time());
                 count_adds++;
+                bytes_received_upd += sizeof(size_t) + nr_labels * pair_len;
 
                 #ifdef VERBOSE
                 printf("Finished Add!\n");
@@ -152,6 +156,7 @@ void* process_client(void* args) {
                 break;
             }
             case OP_UEE_SEARCH: {
+                bytes_received_src++;
                 #ifdef VERBOSE
                 printf("Started Search!\n");
                 #endif
@@ -186,8 +191,9 @@ void* process_client(void* args) {
                     }*/
 
                     memcpy(buffer + i * d_size, res, d_size);
-
                 }
+
+                free(res);
 #elif STORAGE == STORAGE_REDIS
                 // send the labels for each word occurence
                 for (unsigned i = 0; i < nr_labels; i++) {
@@ -222,6 +228,8 @@ void* process_client(void* args) {
 
                 search_results.back().batches++;
                 search_results.back().nr_labels += nr_labels;
+                bytes_received_src += sizeof(size_t) + l_size * nr_labels;
+                bytes_sent_src += d_size * nr_labels;
                 break;
             }
             case OP_UEE_DUMP_BENCH: {
@@ -278,8 +286,15 @@ void* process_client(void* args) {
                     }
                 }
 
+                printf("Sent bytes update storage: %lu\nReceived bytes update storage: %lu\n", bytes_sent_upd, bytes_received_upd);
+                printf("Sent bytes search storage: %lu\nReceived bytes search storage: %lu\n", bytes_sent_src, bytes_received_src);
+
                 // reset
                 search_results.clear();
+                bytes_sent_upd = 0;
+                bytes_received_upd = 0;
+                bytes_sent_src = 0;
+                bytes_received_src = 0;
 
                 break;
             }

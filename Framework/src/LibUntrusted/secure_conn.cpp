@@ -32,7 +32,7 @@ static int ssl_send_all(mbedtls_ssl_context* ssl, const void* buf, size_t len) {
     long n = 0;
 
     while(total < len) {
-        n = mbedtls_ssl_write(ssl, (unsigned char*)buf + total, bytesleft);
+        n = mbedtls_ssl_write(ssl, (unsigned char*)buf + total, bytesleft > 16384? 16384 : bytesleft);
         if (n == -1) { break; }
         total += n;
         bytesleft -= n;
@@ -44,7 +44,7 @@ static int ssl_send_all(mbedtls_ssl_context* ssl, const void* buf, size_t len) {
 static ssize_t ssl_receive_all(mbedtls_ssl_context* ssl, void* buff, size_t len) {
     ssize_t r = 0;
     while ((unsigned long)r < len) {
-        ssize_t n = mbedtls_ssl_read(ssl, (unsigned char*)buff + r, len-r);
+        ssize_t n = mbedtls_ssl_read(ssl, (unsigned char*)buff + r, (len-r) > 16384? 16384 : (len-r));
         if (n < 0) {
             printf("ERROR reading from socket\n");
             exit(1);

@@ -55,12 +55,16 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
         gettimeofday(&end, NULL);
         printf("-- BISEN setup: %lfms --\n", untrusted_util::time_elapsed_ms(start, end));
 
+        reset_bytes();
+
         gettimeofday(&start, NULL);
         bisen_update(conn, &client, settings->bisen_doc_type, settings->bisen_nr_docs, txt_paths);
         gettimeofday(&end, NULL);
         printf("-- BISEN TOTAL updates: %lf ms %d docs --\n", untrusted_util::time_elapsed_ms(start, end), settings->bisen_nr_docs);
+        print_bytes("update_bisen");
 
         bisen_search(conn, &client, settings->bisen_queries);
+        print_bytes("search_bisen");
 
         // print benchmark
         uint8_t bench_op[3];
@@ -68,6 +72,8 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
         bench_op[1] = OP_IEE_DUMP_BENCH;
         bench_op[2] = 0;
         iee_comm(conn, bench_op, 3);
+
+        reset_bytes();
     }
 
     ///////////////////////////////
@@ -82,6 +88,8 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
         gettimeofday(&end, NULL);
         printf("-- VISEN setup: %lfms --\n", untrusted_util::time_elapsed_ms(start, end));
 
+        reset_bytes();
+
         // train
         gettimeofday(&start, NULL);
         if(!strcmp(settings->visen_train_technique, "client_kmeans"))
@@ -93,6 +101,8 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
 
         gettimeofday(&end, NULL);
         printf("-- VISEN train: %lfms %s %s--\n", untrusted_util::time_elapsed_ms(start, end), settings->visen_train_technique, settings->visen_train_mode);
+        print_bytes("train_visen");
+        reset_bytes();
 
         // add images to repository
         if(!strcmp(settings->visen_add_mode, "normal")) {
@@ -106,6 +116,9 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
             exit(1);
         }
 
+        print_bytes("add_imgs_visen");
+        reset_bytes();
+
         if(!strcmp(settings->visen_add_mode, "normal")) {
             // send persist storage message to iee, useful for debugging and testing
             unsigned char op = OP_IEE_WRITE_MAP;
@@ -115,6 +128,9 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
         // search
         const int dbg_limit = -1;
         search_test(conn, descriptor, settings->visen_results_file, dbg_limit);
+
+        print_bytes("search_visen");
+        reset_bytes();
 
         // dump benchmark results
         size_t in_len;
@@ -253,9 +269,15 @@ int main(int argc, char** argv) {
     const char* desc = "surf";
 #endif
 
-    program_configs.visen_clusters_file = (char*)malloc(strlen(clusters_file_dir) + 27);
+    if(config_lookup_string(&cfg, "visen.clusters_file_override", (const char**)&program_configs.visen_clusters_file)) {
+        printf("clusters file override detected\n");
+    } else {
+        printf("using default clusters file\n");
+        program_configs.visen_clusters_file = (char*)malloc(strlen(clusters_file_dir) + 27);
+        sprintf(program_configs.visen_clusters_file, "%s/centroids_k%04d_%s_%04d", clusters_file_dir, program_configs.visen_nr_clusters, desc, program_configs.visen_descriptor_threshold);
+    }
+
     program_configs.visen_results_file = (char*)malloc(strlen(results_file_dir) + 29);
-    sprintf(program_configs.visen_clusters_file, "%s/centroids_k%04d_%s_%04d", clusters_file_dir, program_configs.visen_nr_clusters, desc, program_configs.visen_descriptor_threshold);
     sprintf(program_configs.visen_results_file, "%s/results_k%04d_%s_%04d.dat", results_file_dir, program_configs.visen_nr_clusters, desc, program_configs.visen_descriptor_threshold);
 
     if(!strcmp(program_configs.visen_train_mode, "train") && (access(program_configs.visen_clusters_file, F_OK) != -1)) {
