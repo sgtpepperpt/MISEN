@@ -32,7 +32,7 @@ typedef struct configs {
     char* bisen_doc_type, *bisen_dataset_dir;
     vector<string> bisen_queries;
 
-    unsigned visen_nr_docs = 0;
+    unsigned visen_nr_docs = 0, visen_nr_queries = 0;
     int visen_desc_sift = 1;
     char* visen_train_mode, *visen_train_technique, *visen_add_mode, *visen_search_mode, *visen_clusters_file, *visen_dataset_dir, *visen_results_file;
     unsigned visen_descriptor_threshold, visen_nr_clusters;
@@ -126,8 +126,14 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
         }
 
         // search
-        const int dbg_limit = -1;
-        search_test(conn, desc, settings->visen_results_file, dbg_limit);
+        if(settings->visen_nr_queries > 0) {
+            // flickr
+            search_flickr(conn, desc, list_img_files(-1, settings->visen_dataset_dir), settings->visen_nr_queries);
+        } else {
+            // search test (inria)
+            const int dbg_limit = -1;
+            search_test(conn, desc, settings->visen_results_file, dbg_limit);
+        }
 
         print_bytes("search_visen");
         reset_bytes();
@@ -232,6 +238,7 @@ int main(int argc, char** argv) {
     config_lookup_string(&cfg, "bisen.dataset_dir", (const char**)&program_configs.bisen_dataset_dir);
 
     config_lookup_int(&cfg, "visen.nr_docs", (int*)&program_configs.visen_nr_docs);
+    config_lookup_int(&cfg, "visen.nr_queries", (int*)&program_configs.visen_nr_queries);
     config_lookup_int(&cfg, "visen.desc_sift", &program_configs.visen_desc_sift);
     config_lookup_string(&cfg, "visen.train_technique", (const char**)&program_configs.visen_train_technique);
     config_lookup_string(&cfg, "visen.train_mode", (const char**)&program_configs.visen_train_mode);
@@ -264,6 +271,13 @@ int main(int argc, char** argv) {
     else
         desc_str = "surf";
 
+    char method_char = 'x';
+    if(!strcmp(program_configs.visen_train_technique, "client_kmeans"))
+        method_char = 'c';
+    else if(!strcmp(program_configs.visen_train_technique, "iee_kmeans"))
+        method_char = 'i';
+    else if(!strcmp(program_configs.visen_train_technique, "lsh"))
+        method_char = 'l';
 
     if(config_lookup_string(&cfg, "visen.clusters_file_override", (const char**)&program_configs.visen_clusters_file)) {
         printf("clusters file override detected\n");
@@ -273,10 +287,10 @@ int main(int argc, char** argv) {
         sprintf(program_configs.visen_clusters_file, "%s/centroids_k%04d_%s_%04d", clusters_file_dir, program_configs.visen_nr_clusters, desc_str, program_configs.visen_descriptor_threshold);
     }
 
-    program_configs.visen_results_file = (char*)malloc(strlen(results_file_dir) + 29);
-    sprintf(program_configs.visen_results_file, "%s/results_k%04d_%s_%04d.dat", results_file_dir, program_configs.visen_nr_clusters, desc_str, program_configs.visen_descriptor_threshold);
+    program_configs.visen_results_file = (char*)malloc(strlen(results_file_dir) + 31);
+    sprintf(program_configs.visen_results_file, "%s/results_k%04d_%s_%04d_%c.dat", results_file_dir, program_configs.visen_nr_clusters, desc_str, program_configs.visen_descriptor_threshold, method_char);
 
-    if(!strcmp(program_configs.visen_train_mode, "train") && (access(program_configs.visen_clusters_file, F_OK) != -1)) {
+    if(!strcmp(program_configs.visen_train_mode, "train") && !strcmp(program_configs.visen_train_technique, "client_kmeans") && (access(program_configs.visen_clusters_file, F_OK) != -1)) {
         printf("Clusters file already exists! Is training really needed?\n");
         exit(1);
     }

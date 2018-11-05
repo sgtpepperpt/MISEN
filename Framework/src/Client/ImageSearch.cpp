@@ -20,11 +20,12 @@ using namespace std;
 
 feature_extractor::feature_extractor(int is_sift, unsigned parameter) {
     this->is_sift = is_sift;
+    //this->param = parameter;
 
     if(is_sift)
         sift = cv::xfeatures2d::SIFT::create(parameter);
     else
-        surf = cv::xfeatures2d::SURF::create(parameter);
+        surf = cv::xfeatures2d::SURF::create(parameter, 4, 3, true, false);
 }
 
 feature_extractor::~feature_extractor() {
@@ -48,7 +49,7 @@ const cv::Mat feature_extractor::get_features(cv::Mat image) const {
 }
 
 const int feature_extractor::get_desc_len() const {
-    return is_sift? 128 : 64;
+    return is_sift? 128 : 128;
 }
 
 #if STORE_RESULTS
@@ -82,7 +83,7 @@ void init(uint8_t** in, size_t* in_len, unsigned nr_clusters, size_t row_len, co
     (*in)[sizeof(unsigned char) + sizeof(unsigned) + sizeof(size_t) + strlen(train_technique)] = '\0';
 }
 
-void add_train_images(uint8_t** in, size_t* in_len, const feature_extractor desc, std::string file_name) {
+size_t add_train_images(uint8_t** in, size_t* in_len, const feature_extractor desc, std::string file_name) {
     unsigned long id = filename_to_id(file_name.c_str());
 
     Mat image = imread(file_name);
@@ -116,18 +117,33 @@ void add_train_images(uint8_t** in, size_t* in_len, const feature_extractor desc
 
     memcpy(tmp, &nr_desc, sizeof(size_t));
     //tmp += sizeof(size_t);
+
+    return nr_desc;
+}
+
+double feature_time_add = 0, read_time_add = 0;
+double get_feature_time_add() {
+    return feature_time_add;
+}
+
+double get_read_time_add() {
+    return read_time_add;
 }
 
 void add_images(uint8_t** in, size_t* in_len, const feature_extractor desc, std::string file_name) {
     unsigned long id = filename_to_id(file_name.c_str());
 
+    struct timeval start = untrusted_util::curr_time();
     Mat image = imread(file_name);
     if (!image.data) {
         printf("No image data for %s\n", file_name.c_str());
         exit(1);
     }
+    read_time_add += untrusted_util::time_elapsed_ms(start, untrusted_util::curr_time());
 
+    start = untrusted_util::curr_time();
     Mat descriptors = desc.get_features(image);
+    feature_time_add += untrusted_util::time_elapsed_ms(start, untrusted_util::curr_time());
 
     const size_t desc_len = (size_t)descriptors.size().width;
     const size_t nr_desc = (size_t)descriptors.size().height;
@@ -365,6 +381,68 @@ void search_test(secure_connection* conn, const feature_extractor desc, const ch
     // write results to file
     printHolidayResults(results_file, precision_res);
 #endif
+
+    printf("-- VISEN TOTAL search: %lf ms (avgd. %lu queries) --\n", (total_client + total_iee) / query_count, query_count);
+    printf("-- VISEN search client: %lf ms --\n", total_client / query_count);
+    printf("-- VISEN search iee w/ net: %lf ms --\n", total_iee / query_count);
+}
+
+void search_flickr(secure_connection* conn, const feature_extractor desc, vector<string> files, int limit) {
+    printf("flickr search\n");
+
+    struct timeval start, end;
+    double total_client = 0, total_iee = 0;
+    size_t in_len;
+    uint8_t* in;
+    cout<<files.size()<<endl;
+    const size_t query_count = std::min(files.size(), limit > 0 ? limit : files.size());
+    for (size_t i = 0; i < query_count; ++i) {
+        if(i % 20 == 0)
+            printf("Search img (%lu/%lu)\n", i, query_count);
+
+        gettimeofday(&start, NULL);
+        search(&in, &in_len, desc, files[i]);
+        gettimeofday(&end, NULL);
+        total_client += untrusted_util::time_elapsed_ms(start, end);
+
+        gettimeofday(&start, NULL);
+        iee_send(conn, in, in_len);
+        free(in);
+
+        // receive response
+        size_t res_len;
+        uint8_t* res;
+        iee_recv(conn, &res, &res_len);
+        gettimeofday(&end, NULL);
+        total_iee += untrusted_util::time_elapsed_ms(start, end);
+
+        // get number of response docs
+        gettimeofday(&start, NULL);
+        unsigned nr;
+        memcpy(&nr, res, sizeof(unsigned));
+#if PRINT_DEBUG
+        printf("nr of imgs: %u\n", nr);
+#endif
+
+        // decode id and score for each doc
+        for (unsigned j = 0; j < nr; ++j) {
+            unsigned long id;
+            memcpy(&id, res + sizeof(size_t) + j * SRC_RES_LEN, sizeof(unsigned long));
+
+            double score;
+            memcpy(&score, res + sizeof(size_t) + j * SRC_RES_LEN + sizeof(unsigned long), sizeof(double));
+
+#if PRINT_DEBUG
+            printf("%lu %f\n", id, score);
+#endif
+
+        }
+
+        free(res);
+        gettimeofday(&end, NULL);
+        total_client += untrusted_util::time_elapsed_ms(start, end);
+
+    }
 
     printf("-- VISEN TOTAL search: %lf ms (avgd. %lu queries) --\n", (total_client + total_iee) / query_count, query_count);
     printf("-- VISEN search client: %lf ms --\n", total_client / query_count);

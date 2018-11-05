@@ -66,6 +66,7 @@ float* client_train(const char* path, const unsigned nr_clusters, const unsigned
             centroids[i * desc_len + j] = *codebook.ptr<float>(i, j);
     }
 
+    codebook.release();
     return centroids;
 }
 
@@ -120,6 +121,8 @@ void visen_train_iee_kmeans(secure_connection* conn, char* visen_train_mode, fea
     size_t in_len;
     uint8_t* in;
 
+    size_t total_desc = 0;
+
     // adding
     size_t counter = 0;
     for (const string p : files) {
@@ -133,7 +136,7 @@ void visen_train_iee_kmeans(secure_connection* conn, char* visen_train_mode, fea
             continue;
 #endif
 
-        add_train_images(&in, &in_len, desc, p);
+        total_desc += add_train_images(&in, &in_len, desc, p);
         iee_comm(conn, in, in_len);
         free(in);
     }
@@ -142,6 +145,8 @@ void visen_train_iee_kmeans(secure_connection* conn, char* visen_train_mode, fea
     train(&in, &in_len);
     iee_comm(conn, in, in_len);
     free(in);
+
+    printf("total descriptors for train: %lu\n", total_desc);
 }
 
 void visen_train_client_lsh(secure_connection* conn, char* visen_train_mode, size_t desc_len, unsigned visen_nr_clusters) {
@@ -179,7 +184,7 @@ void visen_add_files(secure_connection* conn, feature_extractor desc, const vect
     uint8_t* in;
 
     for (unsigned i = 0; i < files.size(); i++) {
-        //if(i % 50 == 0)
+        if(i % 100 == 0)
             printf("Add img (%u/%lu)\n", i, files.size());
 
         gettimeofday(&start, NULL);
@@ -196,6 +201,6 @@ void visen_add_files(secure_connection* conn, feature_extractor desc, const vect
     }
 
     printf("-- VISEN TOTAL add: %lf ms (%lu imgs) --\n", total_client + total_iee, files.size());
-    printf("-- VISEN add client: %lf ms --\n", total_client);
+    printf("-- VISEN add client: %lf ms (of which %lfms extract, %lfms read) --\n", total_client, get_feature_time_add(), get_read_time_add());
     printf("-- VISEN add iee w/ net: %lf ms --\n", total_iee);
 }

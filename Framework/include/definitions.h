@@ -46,9 +46,9 @@
 #define BISEN_SCORING 0
 
 // visen params
-#define PRINT_DEBUG 1
+#define PRINT_DEBUG 0
 #define STORE_RESULTS 1
-#define TRAIN_MAIN_ONLY 1
+#define TRAIN_MAIN_ONLY 0
 
 // end visen params
 
