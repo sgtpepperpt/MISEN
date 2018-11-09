@@ -44,6 +44,8 @@ typedef struct benchmark {
     size_t count_searches = 0;
     double total_add_time = 0, total_add_time_server = 0;
     double total_search_time = 0, total_search_time_server = 0;
+    double process_time = 0, score_time = 0, buffer_prep_time = 0, buffer_decode_time = 0;
+    size_t count_batches = 0, count_freq = 0, count_freq_two = 0, count_labels = 0;
 } benchmark;
 
 

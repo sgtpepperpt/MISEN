@@ -77,8 +77,8 @@ void benchmarking_print(int aggregate) {
     // this instruction can be safely removed if wanted
 
     // add stats
-    outside_util::printf("-- BISEN add iee: %lfms (%lu docs)--\n", total_iee_add, count_add);
-    outside_util::printf("-- BISEN add uee w/ net: %lfms --\n", total_server_add);
+    outside_util::printf("-- BISEN add iee: %lf ms (%lu docs)--\n", total_iee_add, count_add);
+    outside_util::printf("-- BISEN add uee w/ net: %lf ms --\n", total_server_add);
 
     if(aggregate) {
         const size_t nr_searches = search_results.size();

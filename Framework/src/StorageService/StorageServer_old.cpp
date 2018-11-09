@@ -144,8 +144,8 @@
             case OP_UEE_DUMP_BENCH: {
                 printf("-- STORAGE BENCHMARK --\n");
                 printf("-- VISEN index size: %lu--\n", I.size());
-                printf("-- VISEN storage TOTAL add : %lfms--\n", total_add_time);
-                printf("-- VISEN storage TOTAL search : %lfms --\n", total_search_time);
+                printf("-- VISEN storage TOTAL add : %lf ms--\n", total_add_time);
+                printf("-- VISEN storage TOTAL search : %lf ms --\n", total_search_time);
                 break;
             }
             case OP_UEE_CLEAR: {

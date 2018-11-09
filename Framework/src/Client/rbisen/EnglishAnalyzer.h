@@ -36,5 +36,9 @@ public:
     void stemWord_wiki(char* word);
     bool isStopWord(string word);
 
+    double get_read_file_time();
+
+private:
+    double read_file_time = 0;
 };
 #endif /* defined(__BooleanSSE__EnglishAnalyzer__) */

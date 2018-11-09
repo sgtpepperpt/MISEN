@@ -35,11 +35,13 @@ static void* parallel_process(void* args) {
     return NULL;
 }
 #endif
+unsigned* frequencies = NULL;
 
 const unsigned* process_new_image(BagOfWordsTrainer* k, const size_t nr_desc, float* descriptors) {
     //untrusted_time start = outside_util::curr_time();
+    if(!frequencies)
+        frequencies = (unsigned*)malloc(k->nr_centres() * sizeof(unsigned));
 
-    unsigned* frequencies = (unsigned*)malloc(k->nr_centres() * sizeof(unsigned));
     memset(frequencies, 0x00, k->nr_centres() * sizeof(unsigned));
 
 #if PARALLEL_IMG_PROCESSING

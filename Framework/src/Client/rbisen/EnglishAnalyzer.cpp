@@ -7,6 +7,7 @@
 //
 
 #include "EnglishAnalyzer.h"
+#include "untrusted_util.h"
 
 using namespace std;
 
@@ -80,7 +81,14 @@ map<string, int> EnglishAnalyzer::extractUniqueKeywords(string file) {
 #if REGISTER_ARTICLES
 size_t overall_id = 0;
 #endif
+
+double EnglishAnalyzer::get_read_file_time() {
+    return read_file_time;
+}
+
 vector<map<string, int>> EnglishAnalyzer::extractUniqueKeywords_wiki(string fname) {
+    struct timeval start, end;
+
     vector<map<string, int>> word_map;
     map<string, int> newmap;
     word_map.push_back(newmap);
@@ -104,8 +112,16 @@ vector<map<string, int>> EnglishAnalyzer::extractUniqueKeywords_wiki(string fnam
 
     unsigned curr_article = 0;
     string line;
-    while (getline(file, line)) {
+
+    int is_finished = 0;
+    do {
+        gettimeofday(&start, NULL);
+        if(!getline(file, line))
+            is_finished = 1;
+
         const char* l = line.c_str();
+        gettimeofday(&end, NULL);
+        read_file_time += untrusted_util::time_elapsed_ms(start, end);
 
         if(!memcmp(l, "<doc ", 5)) {
 #if REGISTER_ARTICLES
@@ -147,7 +163,7 @@ vector<map<string, int>> EnglishAnalyzer::extractUniqueKeywords_wiki(string fnam
                 pos = 0;
             }
         }
-    }
+    } while (!is_finished);
 #if REGISTER_ARTICLES
     fclose(f);
 #endif

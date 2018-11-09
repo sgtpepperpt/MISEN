@@ -7,8 +7,11 @@
 
 using namespace std;
 
+double* idf = NULL;
 double* calc_idf(size_t total_docs, unsigned* counters, const size_t nr_centres) {
-    double* idf = (double*)malloc(nr_centres * sizeof(double));
+    if(!idf)
+        idf = (double*)malloc(nr_centres * sizeof(double));
+
     memset(idf, 0x00, nr_centres * sizeof(double));
 
     for(size_t i = 0; i < nr_centres; i++) {

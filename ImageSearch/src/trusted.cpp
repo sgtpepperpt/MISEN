@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <map>
 #include <set>
+#include <stdio.h>
 
 // includes from framework
 #include "definitions.h"
@@ -92,6 +93,20 @@ void* add_img_parallel(void* args) {
 const size_t max_req_len = sizeof(unsigned char) + sizeof(size_t) + ADD_MAX_BATCH_LEN * PAIR_LEN;
 uint8_t* req_buffer = NULL;
 
+/*
+void print(const char* fmt, ...) {
+#include <stdarg.h>
+    if(b->count_adds > 4500) {
+        char buf[BUFSIZ] = {'\0'};
+        va_list ap;
+        va_start(ap, fmt);
+        vsnprintf(buf, BUFSIZ, fmt, ap);
+        va_end(ap);
+
+        outside_util::printf("%s", buf);
+    }
+}
+*/
 static void add_image(const unsigned long id, const size_t nr_desc, float* descriptors) {
     b->count_adds++;
     untrusted_time start, end;
@@ -102,6 +117,8 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
         frequencies = calc_freq(r->lsh, descriptors, nr_desc, r->desc_len, r->cluster_count);
     else
         frequencies = process_new_image(r->k, nr_desc, descriptors);
+
+    //print("done frequencies\n");
 
     /*outside_util::printf("frequencies: ");
     for (size_t i = 0; i < r->k->nr_centres(); i++) {
@@ -155,6 +172,7 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
     size_t to_send = nr_labels;//r->cluster_count;
     size_t centre_pos = 0;
 
+    //print("done label counting\n");
     end = outside_util::curr_time();
     b->total_add_time += trusted_util::time_elapsed_ms(start, end);
 
@@ -212,6 +230,8 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
             } while(!frequencies[centre_pos]);
         }
 
+        //print("done prepare batch\n");
+
         end = outside_util::curr_time();
         b->total_add_time += trusted_util::time_elapsed_ms(start, end);
 
@@ -223,16 +243,19 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
 
         end = outside_util::curr_time();
         b->total_add_time_server += trusted_util::time_elapsed_ms(start, end);
+        //print("batch sent\n");
     }
 #endif
 
     start = outside_util::curr_time();
 
     r->total_docs++;
-    free((void*)frequencies);
+    //free((void*)frequencies);
 
     end = outside_util::curr_time();
     b->total_add_time += trusted_util::time_elapsed_ms(start, end);
+
+    //print("done update %lu\n", b->count_adds);
 }
 
 void img_search_start_benchmark_msg() {
@@ -250,24 +273,33 @@ typedef struct img_pair {
 void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* descriptors) {
     img_search_start_benchmark_msg();
     b->count_searches++;
-    untrusted_time start, end;
+    untrusted_time start;
     start = outside_util::curr_time();
 
     using namespace outside_util;
 
     const unsigned* frequencies;
+    untrusted_time start2 = outside_util::curr_time();
     if(!strcmp(r->train_technique, "lsh"))
         frequencies = calc_freq(r->lsh, descriptors, nr_desc, r->desc_len, r->cluster_count);
     else
         frequencies = process_new_image(r->k, nr_desc, descriptors);
+    b->process_time += trusted_util::time_elapsed_ms(start2, outside_util::curr_time());
 
-    /*for (size_t i = 0; i < r->k->nr_centres(); ++i) {
+    // TODO
+    for (size_t i = 0; i < r->k->nr_centres(); ++i) {
         if(frequencies[i])
-            outside_util::printf("%lu -> %u; ", i, frequencies[i]);
-    }
-    outside_util::printf("\n");*/
+            b->count_freq++;
 
+        if (frequencies[i] > 1)
+            b->count_freq_two++;
+    }
+
+    //outside_util::printf("non zero freq %d, of which > 1 %d\n", non_zero, more_one);
+
+    start2 = outside_util::curr_time();
     double* idf = calc_idf(r->total_docs, r->counters, r->k->nr_centres());
+    b->score_time += trusted_util::time_elapsed_ms(start2, outside_util::curr_time());
     /*for (size_t i = 0; i < r->k->nr_centres(); ++i) {
         outside_util::printf("%lf ", idf[i]);
     }
@@ -304,8 +336,7 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
     unsigned centroid_pos = 0;
     unsigned counter_of_centroid_pos = 0;
 
-    end = outside_util::curr_time();
-    b->total_search_time += trusted_util::time_elapsed_ms(start, end);
+    b->total_search_time += trusted_util::time_elapsed_ms(start, outside_util::curr_time());
 
     unsigned batch_counter = 0;
     while (to_send > 0) {
@@ -353,8 +384,8 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
 
         to_send -= batch_len;
 
-        end = outside_util::curr_time();
-        b->total_search_time += trusted_util::time_elapsed_ms(start, end);
+        b->buffer_prep_time += trusted_util::time_elapsed_ms(start, outside_util::curr_time());
+        b->total_search_time += trusted_util::time_elapsed_ms(start, outside_util::curr_time());
 
         start = outside_util::curr_time();
 
@@ -366,8 +397,7 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
         outside_util::socket_receive(r->server_socket, res, res_len);
         uint8_t* res_tmp = res;
 
-        end = outside_util::curr_time();
-        b->total_search_time_server += trusted_util::time_elapsed_ms(start, end);
+        b->total_search_time_server += trusted_util::time_elapsed_ms(start, outside_util::curr_time());
 
         start = outside_util::curr_time();
 
@@ -430,9 +460,12 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
 
         free(res);
 
-        end = outside_util::curr_time();
-        b->total_search_time += trusted_util::time_elapsed_ms(start, end);
+        b->total_search_time += trusted_util::time_elapsed_ms(start, outside_util::curr_time());
+        b->buffer_decode_time += trusted_util::time_elapsed_ms(start, outside_util::curr_time());
     }
+    //outside_util::printf("batch counter %u %lu\n", batch_counter, nr_labels);
+    b->count_batches += batch_counter;
+    b->count_labels += nr_labels;
 /*
     for(auto x = scores.begin(); x != scores.end(); x++ ) {
         outside_util::printf("%lu %f\n", x->first, x->second);
@@ -440,8 +473,8 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
 */
     start = outside_util::curr_time();
 
-    free(idf);
-    free((void*)frequencies);
+    //free(idf);
+    //free((void*)frequencies);
 
    /* vector<unsigned long> imgs;
     for (auto it = centroids_result.begin(); it != centroids_result.end(); it++) {
@@ -479,6 +512,7 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
 
         //outside_util::printf("%lu %f\n", a, b);
     }
+    b->score_time += trusted_util::time_elapsed_ms(start, outside_util::curr_time());
     //outside_util::printf("\n");
     ////////////////////
 
@@ -492,8 +526,7 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
 
     free(res);
 
-    end = outside_util::curr_time();
-    b->total_search_time += trusted_util::time_elapsed_ms(start, end);
+    b->total_search_time += trusted_util::time_elapsed_ms(start, outside_util::curr_time());
 }
 
 typedef struct response {
@@ -573,7 +606,8 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             memcpy(&id, input, sizeof(unsigned long));
             //outside_util::printf("add, id %lu\n", id);
 
-            req_buffer = (uint8_t*)malloc(max_req_len);
+            if(!req_buffer)
+                req_buffer = (uint8_t*)malloc(max_req_len);
 
             size_t nr_desc;
             memcpy(&nr_desc, input + sizeof(unsigned long), sizeof(size_t));
@@ -596,11 +630,21 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
         case OP_IEE_DUMP_BENCH: {
             outside_util::printf("-- IEE BENCHMARK --\n");
 
-            outside_util::printf("-- VISEN add iee: %lfms (%lu imgs) --\n", b->total_add_time, b->count_adds);
-            outside_util::printf("-- VISEN add uee w/ net: %lfms --\n", b->total_add_time_server);
+            outside_util::printf("-- VISEN add iee: %lf ms (%lu imgs) --\n", b->total_add_time, b->count_adds);
+            outside_util::printf("-- VISEN add uee w/ net: %lf ms --\n", b->total_add_time_server);
 
-            outside_util::printf("-- VISEN search iee: %lfms (avgd. %lu imgs) --\n", b->total_search_time/b->count_searches, b->count_searches);
-            outside_util::printf("-- VISEN search uee w/ net: %lfms --\n", b->total_search_time_server/b->count_searches);
+            outside_util::printf("-- VISEN search iee: %lf ms (avgd. %lu imgs) (of which %lf ms process, %lf ms score, %lf ms buffer prep, %lf ms buffer dec) --\n",
+                    b->total_search_time/b->count_searches,
+                    b->count_searches,
+                    b->process_time/b->count_searches,
+                    b->score_time/b->count_searches,
+                    b->buffer_prep_time/b->count_searches,
+                    b->buffer_decode_time/b->count_searches
+                    );
+            outside_util::printf("-- VISEN search uee w/ net: %lf ms --\n", b->total_search_time_server/b->count_searches);
+
+            outside_util::printf("avg batch %lu, avg labels per search %lu\n", b->count_batches/b->count_searches, b->count_labels/b->count_searches);
+            outside_util::printf("avg non null freq %lu, of which > 1 %lu\n", b->count_freq/b->count_searches, b->count_freq_two/b->count_searches);
 
             uint8_t op[2];
             op[0] = OP_UEE_DUMP_BENCH;
@@ -729,6 +773,9 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
         }
         case OP_MISEN_QUERY: {
             outside_util::printf("multimodal search\n");
+#if !BISEN_SCORING
+            outside_util::printf("BISEN SCORING NOT ACTIVE!!!!!!!!\n");
+#endif
             uint8_t* tmp = input;
 
             map<unsigned, double> bisen_scores, visen_scores;
@@ -758,8 +805,8 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             for (unsigned i = 0; i < n_docs_bisen; ++i) {
                 unsigned d;
                 double s;
-                memcpy(&d, output_bisen + sizeof(unsigned) + i * bisen_res_len, sizeof(int));
-                memcpy(&s, output_bisen + sizeof(unsigned) + i * bisen_res_len + sizeof(int), sizeof(double));
+                memcpy(&d, output_bisen + sizeof(size_t) + sizeof(uint8_t) + i * bisen_res_len, sizeof(int));
+                memcpy(&s, output_bisen + sizeof(size_t) + sizeof(uint8_t) + i * bisen_res_len + sizeof(int), sizeof(double));
 
                 bisen_scores[d] = s;
                 all_docs.insert(d);

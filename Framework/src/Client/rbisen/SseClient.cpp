@@ -288,3 +288,7 @@ void SseClient::list_words() {
         printf("%s %d\n", el.first.c_str(), el.second);
 
 }
+
+double SseClient::get_read_file_time() {
+    return analyzer->get_read_file_time();
+}

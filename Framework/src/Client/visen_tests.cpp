@@ -184,7 +184,7 @@ void visen_add_files(secure_connection* conn, feature_extractor desc, const vect
     uint8_t* in;
 
     for (unsigned i = 0; i < files.size(); i++) {
-        if(i % 100 == 0)
+        if(i % 1000 == 0)
             printf("Add img (%u/%lu)\n", i, files.size());
 
         gettimeofday(&start, NULL);
@@ -201,6 +201,6 @@ void visen_add_files(secure_connection* conn, feature_extractor desc, const vect
     }
 
     printf("-- VISEN TOTAL add: %lf ms (%lu imgs) --\n", total_client + total_iee, files.size());
-    printf("-- VISEN add client: %lf ms (of which %lfms extract, %lfms read) --\n", total_client, get_feature_time_add(), get_read_time_add());
+    printf("-- VISEN add client: %lf ms (of which %lf ms extract, %lf ms read) --\n", total_client, get_feature_time_add(), get_read_time_add());
     printf("-- VISEN add iee w/ net: %lf ms --\n", total_iee);
 }

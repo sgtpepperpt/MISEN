@@ -24,7 +24,7 @@ void bisen_setup(secure_connection* conn, SseClient* client) {
 
 void bisen_update(secure_connection* conn, SseClient* client, char* bisen_doc_type, unsigned nr_docs, std::vector<std::string> doc_paths) {
     struct timeval start, end;
-    double total_client = 0, total_iee = 0;
+    double total_client = 0, total_iee = 0, extract_keywords = 0;
 
     printf("Update type: %s\n", bisen_doc_type);
 
@@ -48,6 +48,7 @@ void bisen_update(secure_connection* conn, SseClient* client, char* bisen_doc_ty
 
         nr_updates += docs.size();
         gettimeofday(&end, NULL);
+        extract_keywords += untrusted_util::time_elapsed_ms(start, end);
         total_client += untrusted_util::time_elapsed_ms(start, end);
 
         vector<pair<size_t, uint8_t*>> msgs;
@@ -99,7 +100,7 @@ void bisen_update(secure_connection* conn, SseClient* client, char* bisen_doc_ty
     }
 
     printf("-- BISEN TOTAL add: %lf ms (%lu docs) --\n", total_client + total_iee, nr_updates);
-    printf("-- BISEN add client: %lf ms --\n", total_client);
+    printf("-- BISEN add client: %lf ms (of which %lf ms file read, %lf ms parsing) --\n", total_client, client->get_read_file_time(), extract_keywords - client->get_read_file_time());
     printf("-- BISEN add iee w/ net: %lf ms --\n", total_iee);
 }
 

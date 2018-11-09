@@ -49,6 +49,8 @@ public:
 
     //const unsigned long count_articles(string dataset_dir, vector<string> vector);
 
+    double get_read_file_time();
+
 private:
     int new_doc();
     unsigned long long generate_add_msg(int doc_id, map<string, int> words, unsigned char **data);
