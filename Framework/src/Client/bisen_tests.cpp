@@ -30,7 +30,7 @@ void bisen_update(secure_connection* conn, SseClient* client, char* bisen_doc_ty
 
     size_t nr_updates = 0;
     for (const string doc : doc_paths) {
-        printf("Update (%lu/%u)\n", nr_updates, nr_docs);
+        //printf("Update (%lu/%u)\n", nr_updates, nr_docs);
 
         gettimeofday(&start, NULL);
         vector<map<string, int>> docs;

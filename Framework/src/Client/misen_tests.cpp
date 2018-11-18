@@ -23,7 +23,7 @@ string query_from_file(string path) {
             if(query.length() == 0)
                 query = line;
             else
-                query.append(" && " + line);
+                query.append(" || " + line);
         }
 
         file.close();
@@ -73,7 +73,7 @@ void misen_search(secure_connection* conn, SseClient* client, feature_extractor 
 
         unsigned nr_docs;
         memcpy(&nr_docs, res, sizeof(unsigned));
-        //printf("Number of docs: %u\n", nr_docs);
+        printf("Number of docs: %u\n", nr_docs);
 
         for (unsigned i = 0; i < nr_docs; ++i) {
             unsigned d;

@@ -772,7 +772,7 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             break;
         }
         case OP_MISEN_QUERY: {
-            outside_util::printf("multimodal search\n");
+            //outside_util::printf("multimodal search\n");
 #if !BISEN_SCORING
             outside_util::printf("BISEN SCORING NOT ACTIVE!!!!!!!!\n");
 #endif
@@ -799,7 +799,7 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
 
             unsigned n_docs_bisen;
             memcpy(&n_docs_bisen, output_bisen, sizeof(int));
-            outside_util::printf("Number of docs bisen: %d\n", n_docs_bisen);
+            //outside_util::printf("Number of docs bisen: %d\n", n_docs_bisen);
 
             set<unsigned> all_docs;
             for (unsigned i = 0; i < n_docs_bisen; ++i) {
@@ -836,7 +836,7 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
 
             unsigned n_docs_visen;
             memcpy(&n_docs_visen, output_visen, sizeof(unsigned));
-            outside_util::printf("nr of imgs visen: %u\n", n_docs_visen);
+            //outside_util::printf("nr of imgs visen: %u\n", n_docs_visen);
 
             for (unsigned i = 0; i < n_docs_visen; ++i) {
                 unsigned long id;
@@ -850,7 +850,7 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
 
             free(output_visen);
 
-            outside_util::printf("processed all\n");
+            //outside_util::printf("processed all\n");
 
             ///////////////////////////////////////////////////////////////////
             // join results
@@ -873,7 +873,7 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
                 misen_scores[count].doc_id = doc;
                 misen_scores[count++].score = score;
             }
-            outside_util::printf("sorting\n");
+            //outside_util::printf("sorting\n");
             qsort(misen_scores, all_docs.size(), sizeof(response), compare_results_misen);
 
             ///////////////////////////////////////////////////////////////////
@@ -890,7 +890,7 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
 
             unsigned char* write_tmp = *out + sizeof(unsigned);
 
-            outside_util::printf("nr documents %u\n", n_docs_misen);
+            //outside_util::printf("nr documents %u\n", n_docs_misen);
             count = 0;
             for(unsigned i = 0; i < all_docs.size(); i++) {
                 memcpy(write_tmp, &misen_scores[i].doc_id, sizeof(unsigned));

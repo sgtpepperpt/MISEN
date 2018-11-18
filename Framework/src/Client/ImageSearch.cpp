@@ -394,7 +394,7 @@ void search_flickr(secure_connection* conn, const feature_extractor desc, vector
     double total_client = 0, total_iee = 0;
     size_t in_len;
     uint8_t* in;
-    cout<<files.size()<<endl;
+
     const size_t query_count = std::min(files.size(), limit > 0 ? limit : files.size());
     for (size_t i = 0; i < query_count; ++i) {
         if(i % 20 == 0)

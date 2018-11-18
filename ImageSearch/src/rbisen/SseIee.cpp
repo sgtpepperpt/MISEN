@@ -32,6 +32,10 @@ typedef struct search_res {
     double total_iee = 0;
     double wait_uee = 0;
     double boolean_resolution = 0;
+    double buffer_alloc = 0;
+    double sort_req = 0;
+    double gen_req = 0;
+    double read_req = 0;
     double scoring = 0;
     size_t docs_retrieved = 0;
 } search_res;
@@ -83,7 +87,7 @@ void benchmarking_print(int aggregate) {
     if(aggregate) {
         const size_t nr_searches = search_results.size();
         outside_util::printf("-- AVG BISEN IEE %lu SEARCHES --\n", nr_searches);
-        outside_util::printf("TOTAL_iee\tTOTAL_storage_w_net\tSCORING\tBOOLEAN\tDOCS_BEFORE_TRIM\n");
+        outside_util::printf("TOTAL_iee\tTOTAL_storage_w_net\tSCORING\tBOOLEAN\tDOCS_BEFORE_TRIM\tBUF_ALLOC\tSORT_REQ\tGEN_REQ\tREAD_REQ\n");
 
         search_res agg;
         for (search_res r : search_results) {
@@ -92,6 +96,10 @@ void benchmarking_print(int aggregate) {
             agg.scoring += r.scoring;
             agg.boolean_resolution += r.boolean_resolution;
             agg.docs_retrieved += r.docs_retrieved;
+            agg.buffer_alloc += r.buffer_alloc;
+            agg.sort_req += r.sort_req;
+            agg.gen_req += r.gen_req;
+            agg.read_req += r.read_req;
         }
 
         agg.total_iee /= nr_searches;
@@ -99,15 +107,19 @@ void benchmarking_print(int aggregate) {
         agg.scoring /= nr_searches;
         agg.boolean_resolution /= nr_searches;
         agg.docs_retrieved /= nr_searches;
+        agg.buffer_alloc /= nr_searches;
+        agg.sort_req /= nr_searches;
+        agg.gen_req /= nr_searches;
+        agg.read_req /= nr_searches;
 
-        outside_util::printf("%lf\t%lf\t%lf\t%lf\t%lu\n", agg.total_iee, agg.wait_uee, agg.scoring, agg.boolean_resolution, agg.docs_retrieved);
+        outside_util::printf("%lf\t%lf\t%lf\t%lf\t%lu\t%lf\t%lf\t%lf\t%lf\n", agg.total_iee, agg.wait_uee, agg.scoring, agg.boolean_resolution, agg.docs_retrieved, agg.buffer_alloc, agg.sort_req, agg.gen_req, agg.read_req);
     } else {
         outside_util::printf("-- BISEN IEE SEARCHES --\n");
-        outside_util::printf("NR\tTOTAL_iee\tTOTAL_storage_w_net\tSCORING\tBOOLEAN\tDOCS_BEFORE_TRIM\n");
+        outside_util::printf("NR\tTOTAL_iee\tTOTAL_storage_w_net\tSCORING\tBOOLEAN\tDOCS_BEFORE_TRIM\tBUF_ALLOC\tSORT_REQ\tGEN_REQ\tREAD_REQ\n");
 
         unsigned count = 0;
         for (search_res r : search_results) {
-            outside_util::printf("%u\t%lf\t%lf\t%lf\t%lf\t%lu\n", count++, r.total_iee, r.wait_uee, r.scoring, r.boolean_resolution, r.docs_retrieved);
+            outside_util::printf("%u\t%lf\t%lf\t%lf\t%lf\t%lu\t%lf\t%lf\t%lf\t%lf\n", count++, r.total_iee, r.wait_uee, r.scoring, r.boolean_resolution, r.docs_retrieved, r.buffer_alloc, r.sort_req, r.gen_req, r.read_req);
         }
     }
 
@@ -295,9 +307,9 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
     ocall_print_string("Requesting docs from server!\n");
 #endif
 
-    untrusted_time start;
+    untrusted_time start, start2;
     start = outside_util::curr_time();
-
+    start2 = outside_util::curr_time();
     if (total_labels > labels_size) {
         labels = (label_request*)realloc(labels, sizeof(label_request) * total_labels);
         labels_size = total_labels;
@@ -306,6 +318,9 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
 
     memset(labels, 0x00, sizeof(label_request) * total_labels);
 
+    search_results.back().buffer_alloc += trusted_util::time_elapsed_ms(start2, outside_util::curr_time());
+
+    start2 = outside_util::curr_time();
     // iterate over all the needed words, and then over all its occurences (given by the counter), and fills the requests array
     int k = 0;
     for(unsigned i = 0; i < vt_size(query); i++) {
@@ -328,10 +343,12 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
         }
     }
 
+    search_results.back().sort_req += trusted_util::time_elapsed_ms(start2, outside_util::curr_time());
+
 #ifdef VERBOSE
     ocall_print_string("Randomised positions!\n");
 #endif
-
+    start2 = outside_util::curr_time();
     /************************ ALLOCATE DATA STRUCTURES ************************/
     // buffer for server requests
     // (always max_batch_size, may not be filled if not needed)
@@ -347,6 +364,7 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
     // contains the hmac for verif, the doc id, and the encryption's exp
     const size_t res_len = SHA256_OUTPUT_SIZE + sizeof(size_t) + sizeof(int); // 44 + H_BYTES (32)
     unsigned char* res_buff = (unsigned char*)malloc(res_len * MAX_BATCH_SEARCH);
+    search_results.back().buffer_alloc += trusted_util::time_elapsed_ms(start2, outside_util::curr_time());
 
     /********************** END ALLOCATE DATA STRUCTURES **********************/
 
@@ -358,12 +376,15 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
     // request labels to server
     while (label_pos < total_labels) {
         start = outside_util::curr_time();
+        start2 = outside_util::curr_time();
 
         // put batch_size in buffer
         memcpy(req_buff + sizeof(uint8_t), &batch_size, sizeof(size_t));
+        search_results.back().buffer_alloc += trusted_util::time_elapsed_ms(start2, outside_util::curr_time());
 
         // aux pointer
         uint8_t* tmp = req_buff + sizeof(uint8_t) + sizeof(size_t);
+        start2 = outside_util::curr_time();
 
         // fill the buffer with labels
         for(unsigned i = 0; i < batch_size; i++) {
@@ -377,13 +398,13 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
         printf(" : \n");*/
 
         search_results.back().total_iee += trusted_util::time_elapsed_ms(start, outside_util::curr_time());
-
+        search_results.back().gen_req += trusted_util::time_elapsed_ms(start2, outside_util::curr_time());
         // send message to server and receive response
         start = outside_util::curr_time();
         outside_util::socket_send(server_socket, req_buff, sizeof(uint8_t) + sizeof(size_t) + req_len * batch_size);
         outside_util::socket_receive(server_socket, res_buff, res_len * batch_size);
         search_results.back().wait_uee += trusted_util::time_elapsed_ms(start, outside_util::curr_time());
-
+        start2 = outside_util::curr_time();
         // decrypt and fill the destination data structs
         start = outside_util::curr_time();
         for(unsigned i = 0; i < batch_size; i++) {
@@ -426,7 +447,7 @@ void get_docs_from_server(vec_token *query, const unsigned count_words, const un
 
             //outside_util::printf("doc %d\n", req->tkn->docs.array[req->counter_val]);
         }
-
+        search_results.back().read_req += trusted_util::time_elapsed_ms(start2, outside_util::curr_time());
         label_pos += batch_size;
         batch_size = std::min(total_labels - label_pos, (unsigned)MAX_BATCH_SEARCH);
 
@@ -598,7 +619,6 @@ void search(bytes* out, size* out_len, uint8_t* in, const size in_len) {
 
     const size_t original_res_size = vi_size(&response_docs);
     search_results.back().docs_retrieved = original_res_size;
-
     void* results_buffer = NULL;
     if(original_res_size) {
         results_buffer = malloc(original_res_size * PAIR_LEN);
@@ -623,7 +643,7 @@ void search(bytes* out, size* out_len, uint8_t* in, const size in_len) {
 #else
     const size_t threshold = original_res_size;
 #endif
-
+    untrusted_time start2 = outside_util::curr_time();
     // return query results
     *out_len = sizeof(size_t) + sizeof(uint8_t) + threshold * PAIR_LEN;
     *out = (unsigned char*)malloc(*out_len);
@@ -651,7 +671,7 @@ void search(bytes* out, size* out_len, uint8_t* in, const size in_len) {
 
     if(results_buffer)
         free(results_buffer);
-
+    search_results.back().buffer_alloc += trusted_util::time_elapsed_ms(start2, outside_util::curr_time());
     search_results.back().total_iee += trusted_util::time_elapsed_ms(start, outside_util::curr_time());
 
     //outside_util::printf("Finished Search!\n-----------------\n");

@@ -323,7 +323,7 @@ int main(int argc, char** argv) {
     }
 
     if(program_configs.use_multimodal) {
-        printf("MISEN: %d documents\n", program_configs.bisen_nr_docs);
+        printf("MISEN: %d documents\n", program_configs.misen_nr_docs);
     } else {
         if(program_configs.use_text)
             printf("BISEN: %d documents\n", program_configs.bisen_nr_docs);

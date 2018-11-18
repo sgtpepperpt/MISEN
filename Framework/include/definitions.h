@@ -43,7 +43,7 @@
 #define DEBUG_PRINT_BISEN_CLIENT 0
 
 // bisen params
-#define BISEN_SCORING 0
+#define BISEN_SCORING 1
 
 // visen params
 #define PRINT_DEBUG 0
