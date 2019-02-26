@@ -37,6 +37,17 @@ void outside_util::socket_receive(int socket, void* buff, size_t len) {
     untrusted_util::socket_receive(socket, buff, len);
 }
 
+size_t bytes_sent = 0, bytes_received = 0;
+
+void outside_util::reset_bytes() {
+    bytes_sent = 0;
+    bytes_received = 0;
+}
+
+void outside_util::print_bytes(const char* msg) {
+    outside_util::printf("Sent bytes %s iee: %lu\nReceived bytes iee: %lu\n", msg, bytes_sent, bytes_received);
+}
+
 /******************************************************** MISC ********************************************************/
 void outside_util::printf(const char *fmt, ...) {
     //ocall_string_print("Enclave printf\n");

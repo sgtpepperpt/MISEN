@@ -27,8 +27,6 @@
 
 #define STORAGE STORAGE_MAP
 
-using namespace std;
-
 const size_t l_size = 32; // 32 = H_BYTES
 const size_t d_size = 44; // 40 bisen, 44 visen
 const size_t pair_len = l_size + d_size;

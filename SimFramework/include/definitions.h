@@ -6,6 +6,7 @@
 
 #define UEE_HOSTNAME "localhost"
 #define UEE_PORT 7911
+#define UEE_BISEN_PORT 7899
 
 // op codes
 #define OP_IEE_INIT 'a'
@@ -48,5 +49,7 @@
 
 #define DESCRIPTOR DESC_SURF
 // end visen params
+
+#define BISEN_SCORING 1
 
 #endif

@@ -9,16 +9,6 @@ set(CMAKE_CXX_FLAGS "-pthread ${DEBUG_FLAGS} -fPIC -Wall -Wno-unused-result")
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 11)
 
-if(SERVER_ONLY) # used for testing, to remove TODO
-    set(SPARSEPP_INCLUDE /localssd/gborges/isen-libs/sparsepp)
-    set(CASSANDRA_INCLUDE /localssd/gborges/isen-libs/cpp-driver/include)
-    set(HIREDIS_INCLUDE /localssd/gborges/isen-libs/hiredis)
-
-    set(LIBUV_LIB_DIR /localssd/gborges/isen-libs/libuv/out/cmake)
-    set(CASSANDRA_LIB_DIR /localssd/gborges/isen-libs/cpp-driver/build)
-    set(HIREDIS_LIB_DIR /localssd/gborges/isen-libs/hiredis)
-endif()
-
 link_directories(${MBEDTLS_DIR}/build/library ${LIBUV_LIB_DIR} ${CASSANDRA_LIB_DIR} ${HIREDIS_LIB_DIR} /usr/local/lib)
 
 add_executable(StorageService ${STORAGE_DIR}/SseServer.cpp ${STORAGE_DIR}/cassie.cpp)
