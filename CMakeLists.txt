@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(visen)
+project(misen)
 
 # process arguments
 if(NOT DEFINED SIMULATED_MODE)
@@ -10,6 +10,12 @@ if(NOT DEFINED SERVER_ONLY)
     set(SERVER_ONLY 0)
 endif()
 
+if(NO_CLIENT)
+    set(MAKE_CLIENT 0)
+else()
+    set(MAKE_CLIENT 1)
+endif()
+
 if(SIMULATED_MODE)
     set(FRAMEWORK_NAME SimFramework)
 else()
@@ -17,8 +23,8 @@ else()
 endif()
 
 # base paths
-set(MBEDTLS_SGX_DIR /home/guilherme/libs/mbedtls-SGX/build/mbedtls_SGX-2.6.0)
-set(MBEDTLS_DIR /home/guilherme/libs/mbedtls)
+set(MBEDTLS_SGX_DIR ~/lib/mbedtls-SGX/build/mbedtls_SGX-2.6.0)
+set(MBEDTLS_DIR ~/lib/mbedtls)
 
 set(FRAMEWORK_DIR ${CMAKE_SOURCE_DIR}/${FRAMEWORK_NAME})
 set(EXTERN_DIR ${CMAKE_SOURCE_DIR}/ImageSearch)
