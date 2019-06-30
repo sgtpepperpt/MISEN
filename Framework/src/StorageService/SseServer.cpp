@@ -317,6 +317,9 @@ void* process_client(void* args) {
 }
 
 int main(int argc, const char * argv[]) {
+    setvbuf(stdout, NULL, _IONBF, BUFSIZ);
+    setvbuf(stderr, NULL, _IONBF, BUFSIZ);
+
     if(argc != 2) {
         printf("Usage: ./Storage port\n");
         exit(1);

@@ -8,6 +8,7 @@
 #include <string>
 
 std::vector<std::string> list_img_files(int limit, std::string dataset_path);
+std::vector<std::string> list_img_files_rec(int limit, std::string dataset_path);
 std::vector<std::string> list_txt_files(int limit, std::string dataset_path);
 
 void iee_send(secure_connection* conn, const uint8_t* in, const size_t in_len);

@@ -67,7 +67,9 @@ else()
     add_subdirectory(${STORAGE_DIR})
 
     # client module
-    add_subdirectory(${CLIENT_DIR})
+    if(MAKE_CLIENT)
+        add_subdirectory(${CLIENT_DIR})
+    endif()
 
     # iee_comm module
     add_subdirectory(${IEE_COMM_DIR})

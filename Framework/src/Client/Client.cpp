@@ -33,7 +33,7 @@ typedef struct configs {
     vector<string> bisen_queries;
 
     unsigned visen_nr_docs = 0, visen_nr_queries = 0;
-    int visen_desc_sift = 1;
+    int visen_desc_sift = 1, visen_dataset_rec = 0;
     char* visen_train_mode, *visen_train_technique, *visen_add_mode, *visen_search_mode, *visen_clusters_file, *visen_dataset_dir, *visen_results_file;
     unsigned visen_descriptor_threshold, visen_nr_clusters;
 
@@ -80,7 +80,15 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
     if(settings->use_images) {
         // image descriptor parameters
         feature_extractor desc(settings->visen_desc_sift, settings->visen_descriptor_threshold);
-        const vector<string> files = list_img_files(!settings->visen_nr_docs? -1 : settings->visen_nr_docs, settings->visen_dataset_dir);
+
+        vector<string> files_add, files_search;
+        if(settings->visen_dataset_rec) {
+            files_add = list_img_files_rec(!settings->visen_nr_docs ? -1 : settings->visen_nr_docs, settings->visen_dataset_dir);
+            files_search = list_img_files_rec(-1, settings->visen_dataset_dir);
+        } else {
+            files_add = list_img_files(!settings->visen_nr_docs ? -1 : settings->visen_nr_docs, settings->visen_dataset_dir);
+            files_search = list_img_files_rec(-1, settings->visen_dataset_dir);
+        }
 
         // init iee and server
         gettimeofday(&start, NULL);
@@ -95,7 +103,7 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
         if(!strcmp(settings->visen_train_technique, "client_kmeans"))
             visen_train_client_kmeans(conn, settings->visen_nr_clusters, settings->visen_train_mode, settings->visen_clusters_file, settings->visen_dataset_dir, desc);
         else if(!strcmp(settings->visen_train_technique, "iee_kmeans"))
-            visen_train_iee_kmeans(conn, settings->visen_train_mode, desc, files);
+            visen_train_iee_kmeans(conn, settings->visen_train_mode, desc, files_add);
         else if(!strcmp(settings->visen_train_technique, "lsh"))
             visen_train_client_lsh(conn, settings->visen_train_mode, desc.get_desc_len(), settings->visen_nr_clusters);
 
@@ -106,11 +114,13 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
 
         // add images to repository
         if(!strcmp(settings->visen_add_mode, "normal")) {
-            visen_add_files(conn, desc, files);
+            visen_add_files(conn, desc, files_add);
         } else if(!strcmp(settings->visen_add_mode, "load")) {
             // tell iee to load images from disc
             unsigned char op = OP_IEE_READ_MAP;
-            iee_comm(conn, &op, 1);
+            //iee_comm(conn, &op, 1);
+            printf("unsupported mode\n");
+            exit(1);
         } else {
             printf("Add mode error\n");
             exit(1);
@@ -119,16 +129,16 @@ void separated_tests(const configs* const settings, secure_connection* conn) {
         print_bytes("add_imgs_visen");
         reset_bytes();
 
-        if(!strcmp(settings->visen_add_mode, "normal")) {
+        /*if(!strcmp(settings->visen_add_mode, "normal")) {
             // send persist storage message to iee, useful for debugging and testing
             unsigned char op = OP_IEE_WRITE_MAP;
             iee_comm(conn, &op, 1);
-        }
+        }*/
 
         // search
         if(settings->visen_nr_queries > 0) {
             // flickr
-            search_flickr(conn, desc, list_img_files(-1, settings->visen_dataset_dir), settings->visen_nr_queries);
+            search_flickr(conn, desc, files_search, settings->visen_nr_queries);
         } else {
             // search test (inria)
             const int dbg_limit = -1;
@@ -214,12 +224,12 @@ void multimodal_tests(const configs* const settings, secure_connection* conn) {
 }
 
 int main(int argc, char** argv) {
-    configs program_configs;
+    setvbuf(stdout, NULL, _IONBF, BUFSIZ);
+    setvbuf(stderr, NULL, _IONBF, BUFSIZ);
 
-    // static params
-    const char* server_name = IEE_HOSTNAME;
     const int server_port = IEE_PORT;
 
+    configs program_configs;
     config_t cfg;
     config_init(&cfg);
 
@@ -228,6 +238,10 @@ int main(int argc, char** argv) {
         config_destroy(&cfg);
         exit(1);
     }
+
+    // addresses
+    char* server_name;
+    config_lookup_string(&cfg, "iee_hostname", (const char**)&server_name);
 
     config_lookup_int(&cfg, "use_text", &program_configs.use_text);
     config_lookup_int(&cfg, "use_images", &program_configs.use_images);
@@ -245,6 +259,7 @@ int main(int argc, char** argv) {
     config_lookup_string(&cfg, "visen.add_mode", (const char**)&program_configs.visen_add_mode);
     config_lookup_string(&cfg, "visen.search_mode", (const char**)&program_configs.visen_search_mode);
     config_lookup_string(&cfg, "visen.dataset_dir", (const char**)&program_configs.visen_dataset_dir);
+    config_lookup_int(&cfg, "visen.dataset_rec", (int*)&program_configs.visen_dataset_rec);
     config_lookup_int(&cfg, "visen.descriptor_threshold", (int*)&program_configs.visen_descriptor_threshold);
     config_lookup_int(&cfg, "visen.nr_clusters", (int*)&program_configs.visen_nr_clusters);
 
@@ -286,6 +301,9 @@ int main(int argc, char** argv) {
         program_configs.visen_clusters_file = (char*)malloc(strlen(clusters_file_dir) + 27);
         sprintf(program_configs.visen_clusters_file, "%s/centroids_k%04d_%s_%04d", clusters_file_dir, program_configs.visen_nr_clusters, desc_str, program_configs.visen_descriptor_threshold);
     }
+
+    if(!strcmp(program_configs.visen_train_mode, "load"))
+        printf("loading clusters %s\n", program_configs.visen_clusters_file);
 
     program_configs.visen_results_file = (char*)malloc(strlen(results_file_dir) + 31);
     sprintf(program_configs.visen_results_file, "%s/results_k%04d_%s_%04d_%c.dat", results_file_dir, program_configs.visen_nr_clusters, desc_str, program_configs.visen_descriptor_threshold, method_char);

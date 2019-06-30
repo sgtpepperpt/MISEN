@@ -51,6 +51,8 @@ namespace outside_util {
     // DEBUG: for outside kmeans
     void set(size_t num_elems, float* buffer);
     float* get(const int pos);
+    void print_bytes(const char* msg);
+    void reset_bytes();
 
     // generic, implementable in extern
     int process(void **out, size_t *out_len, const void *in, const size_t in_len);

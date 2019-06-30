@@ -220,8 +220,8 @@ static void update(bytes *out, size *out_len, uint8_t* in, const size in_len) {
         // calculate size and get batch from client
         size_t batch_size = std::min(to_recv, (size_t)MAX_BATCH_UPDATE);
         for (unsigned i = 0; i < batch_size; i++) {
-            void* label = batch_buffer + i * pair_size;
-            void* d = label + SHA256_OUTPUT_SIZE;
+            void* label = (uint8_t*)batch_buffer + i * pair_size;
+            void* d = (uint8_t*)label + SHA256_OUTPUT_SIZE;
 
             //get doc_id, counter, frequency, kW from array
             int doc_id;
@@ -521,8 +521,8 @@ void calc_tfidf(vec_token *query, vec_int* response_docs, void* results) {
 }
 
 int compare_results_rbisen(const void *a, const void *b) {
-    double d_a = *((const double*) (a + sizeof(int)));
-    double d_b = *((const double*) (b + sizeof(int)));
+    double d_a = *((const double*) ((uint8_t*)a + sizeof(int)));
+    double d_b = *((const double*) ((uint8_t*)b + sizeof(int)));
 
     if (d_a == d_b)
         return 0;

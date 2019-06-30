@@ -39,11 +39,20 @@ void* ecall_handle_ssl_connection(void* data) {
 }
 
 int SGX_CDECL main(int argc, const char **argv) {
+    setvbuf(stdout, NULL, _IONBF, BUFSIZ);
+    setvbuf(stderr, NULL, _IONBF, BUFSIZ);
+
+    if(argc != 2) {
+        printf("usage: ./IeeComm nr-threads\n");
+        exit(1);
+    }
+
     // port to start the server on
     const int server_port = IEE_PORT;
 
     // nr of threads in thread pool
-    const unsigned nr_threads = 3;
+    const unsigned nr_threads = atoi(argv[1]) - 1;
+    printf("nr threads w/o main: %u\n", nr_threads);
 
     // register signal handler
     signal(SIGINT, close_all);

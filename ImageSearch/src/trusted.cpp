@@ -5,6 +5,7 @@
 #include <map>
 #include <set>
 #include <stdio.h>
+#include <string>
 
 // includes from framework
 #include "definitions.h"
@@ -107,7 +108,25 @@ void print(const char* fmt, ...) {
     }
 }
 */
+#define FINGERPRINT_TEST 0
+#if FINGERPRINT_TEST
+std::string gen_fingerprint(const unsigned* frequencies) {
+    std::string fp = "";
+    for(int i = 0; i < r->cluster_count; ++i) {
+        if(frequencies[i])
+            fp += "1";
+        else
+            fp += "0";
+    }
+
+    return fp;
+}
+
+std::map<std::string, int> fingerprints;
+#endif
+
 static void add_image(const unsigned long id, const size_t nr_desc, float* descriptors) {
+    using namespace std;
     b->count_adds++;
     untrusted_time start, end;
     start = outside_util::curr_time();
@@ -117,6 +136,15 @@ static void add_image(const unsigned long id, const size_t nr_desc, float* descr
         frequencies = calc_freq(r->lsh, descriptors, nr_desc, r->desc_len, r->cluster_count);
     else
         frequencies = process_new_image(r->k, nr_desc, descriptors);
+
+#if FINGERPRINT_TEST
+    std::string fingerprint = gen_fingerprint(frequencies);
+    //outside_util::printf("%s\n", fingerprint.c_str());
+    fingerprints[fingerprint]++;
+    if(fingerprints[fingerprint] > 1) {
+        outside_util::printf("found one!\n");
+    }
+#endif
 
     //print("done frequencies\n");
 
@@ -271,6 +299,7 @@ typedef struct img_pair {
 } img_pair;
 
 void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* descriptors) {
+    outside_util::printf("-- start search %lu --\n", b->count_searches);
     img_search_start_benchmark_msg();
     b->count_searches++;
     untrusted_time start;
@@ -285,6 +314,7 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
     else
         frequencies = process_new_image(r->k, nr_desc, descriptors);
     b->process_time += trusted_util::time_elapsed_ms(start2, outside_util::curr_time());
+    outside_util::printf("done frequencies\n");
 
     // TODO
     for (size_t i = 0; i < r->k->nr_centres(); ++i) {
@@ -321,7 +351,7 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
             centroids_to_get.push_back(i);
         }
     }
-
+    outside_util::printf("calc centroids to get\n");
     map<size_t, vector<img_pair>> centroids_result;
 
     // will hold result
@@ -381,6 +411,7 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
                 centroid_pos++;
             }
         }
+        outside_util::printf("will get %lu\n", batch_len);
 
         to_send -= batch_len;
 
@@ -457,7 +488,7 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
                 centroid_pos++;
             }
         }
-
+        outside_util::printf("got the %lu\n", batch_len);
         free(res);
 
         b->total_search_time += trusted_util::time_elapsed_ms(start, outside_util::curr_time());
@@ -484,7 +515,7 @@ void search_image(uint8_t** out, size_t* out_len, const size_t nr_desc, float* d
     }*/
 
     // TODO randomise, do not ignore zero counters, fix batch search for 2000
-
+    outside_util::printf("will score\n");
     // calculate score and respond to client
     const unsigned response_imgs = min(scores.size(), RESPONSE_DOCS);
     const size_t single_res_len = sizeof(unsigned long) + sizeof(double);
@@ -543,7 +574,7 @@ int compare_results_misen(const void *a, const void *b) {
     else
         return d_a->score < d_b->score ? 1 : -1;
 }
-
+int first_search = 1;
 void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* in, const size_t in_len) {
     // pass pointer without op char to processing functions
     uint8_t* input = ((uint8_t*)in) + sizeof(unsigned char);
@@ -619,15 +650,25 @@ void extern_lib::process_message(uint8_t** out, size_t* out_len, const uint8_t* 
             break;
         }
         case OP_IEE_SEARCH: {
+            outside_util::printf("will search out\n");
+            if(first_search) {
+                first_search = 0;
+                outside_util::print_bytes("add");
+                outside_util::reset_bytes();
+            }
+
             size_t nr_desc;
             memcpy(&nr_desc, input, sizeof(size_t));
 
             float* descriptors = (float*)(input + sizeof(size_t));
 
             search_image(out, out_len, nr_desc, descriptors);
+            outside_util::printf("done search out\n");
             break;
         }
         case OP_IEE_DUMP_BENCH: {
+            outside_util::print_bytes("search");
+
             outside_util::printf("-- IEE BENCHMARK --\n");
 
             outside_util::printf("-- VISEN add iee: %lf ms (%lu imgs) --\n", b->total_add_time, b->count_adds);

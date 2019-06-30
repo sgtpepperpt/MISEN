@@ -72,12 +72,21 @@ int outside_util::open_socket(const char* addr, int port) {
     return retval;
 }
 
+size_t bytes_sent = 0, bytes_received = 0;
+
+void outside_util::reset_bytes() {
+    bytes_sent = 0;
+    bytes_received = 0;
+}
+
 void outside_util::socket_send(int socket, const void* buff, size_t len) {
     sgx_status_t sgx_ret = ocall_socket_send(socket, buff, len);
     if(sgx_ret != SGX_SUCCESS) {
         outside_util::printf("OCALL ERROR ON RETURN: %ld\n", sgx_ret);
         ocall_exit(-1);
     }
+
+    bytes_sent += sizeof(size_t) + len;
 }
 
 void outside_util::socket_receive(int socket, void* buff, size_t len) {
@@ -86,6 +95,12 @@ void outside_util::socket_receive(int socket, void* buff, size_t len) {
         outside_util::printf("OCALL ERROR ON RETURN: %ld\n", sgx_ret);
         ocall_exit(-1);
     }
+
+    bytes_received += sizeof(size_t) + len;
+}
+
+void outside_util::print_bytes(const char* msg) {
+    outside_util::printf("Sent bytes %s iee: %lu\nReceived bytes iee: %lu\n", msg, bytes_sent, bytes_received);
 }
 
 int outside_util::open_uee_connection() {
@@ -100,11 +115,11 @@ int outside_util::open_uee_connection() {
 }
 
 void outside_util::uee_process(const int socket, void **out, size_t *out_len, const void *in, const size_t in_len) {
-    sgx_status_t sgx_ret = ocall_uee_process(socket, out, out_len, in, in_len);
+    /*sgx_status_t sgx_ret = ocall_uee_process(socket, out, out_len, in, in_len);
     if(sgx_ret != SGX_SUCCESS) {
         outside_util::printf("OCALL ERROR ON RETURN: %ld\n", sgx_ret);
         ocall_exit(-1);
-    }
+    }*/
 }
 
 void outside_util::close_uee_connection(const int socket) {

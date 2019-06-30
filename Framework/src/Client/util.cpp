@@ -5,7 +5,17 @@
 #include <string.h>
 #include <iostream>
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 using namespace std;
+
+int is_dir(const char *path) {
+    struct stat path_stat;
+    stat(path, &path_stat);
+    return S_ISDIR(path_stat.st_mode);
+}
 
 std::vector<std::string> list_img_files(int limit, string dataset_path) {
     vector<string> filenames;
@@ -19,6 +29,35 @@ std::vector<std::string> list_img_files(int limit, string dataset_path) {
                 continue;
 
             filenames.push_back(fname);
+        }
+        closedir(dir);
+    } else {
+        printf("SseClient::listTxtFiles couldn't open dataset dir.\n");
+        exit(1);
+    }
+
+    // sort alphabetically
+    sort(filenames.begin(), filenames.end());
+
+    // remove elements in excess
+    if(limit > 0 && filenames.size() > (unsigned)limit)
+        filenames.erase(filenames.begin() + limit, filenames.end());
+
+    return filenames;
+}
+
+std::vector<std::string> list_img_files_rec(int limit, string dataset_path) {
+    vector<string> filenames;
+
+    DIR* dir;
+    struct dirent* ent;
+    if ((dir = opendir(dataset_path.c_str()))) {
+        while ((ent = readdir(dir)) != NULL) {
+            std::string fname = dataset_path + ent->d_name;
+            if (is_dir(fname.c_str()) && strcmp(fname.c_str(), ".") && strcmp(fname.c_str(), "..")) {
+                vector<string> nf = list_img_files(-1, fname + '/');
+                filenames.insert(filenames.end(), nf.begin(), nf.end());
+            }
         }
         closedir(dir);
     } else {
